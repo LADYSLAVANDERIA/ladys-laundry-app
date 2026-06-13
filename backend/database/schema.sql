@@ -333,3 +333,9 @@ CREATE INDEX idx_clientes_local ON clientes(local_id);
 INSERT INTO locales (nombre, slogan, tipo_servicio) VALUES ('Ladys Lavanderia', 'Lavanderia a domicilio', 'local_y_delivery');
 INSERT INTO formas_pago (local_id, nombre) VALUES (1,'Efectivo'),(1,'Transferencia'),(1,'POS Redcompra');
 INSERT INTO categorias (local_id, nombre, orden) VALUES (1,'VESTIR',1),(1,'DORMITORIO',2),(1,'ALFOMBRAS',3),(1,'MASCOTAS',4),(1,'ESPECIALES',5),(1,'OTROS',6);
+
+-- USUARIO ADMINISTRADOR INICIAL
+-- Password: ladys2024 (bcrypt hash)
+INSERT INTO usuarios (local_id, nombre, apellido, email, password_hash, perfil)
+VALUES (1, 'Administrador', 'Ladys', 'admin@ladys.cl', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lh7y', 'ADMINISTRADOR')
+ON CONFLICT (email) DO NOTHING;

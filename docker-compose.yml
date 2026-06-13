@@ -1,9 +1,6 @@
 version: '3.8'
 
 services:
-  # ==========================================
-  # BASE DE DATOS PostgreSQL
-  # ==========================================
   postgres:
     image: postgres:15-alpine
     container_name: ladys_postgres
@@ -25,9 +22,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # ==========================================
-  # BACKEND Node.js + Express
-  # ==========================================
   backend:
     build:
       context: ./backend
@@ -52,13 +46,7 @@ services:
         condition: service_healthy
     networks:
       - ladys_network
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
 
-  # ==========================================
-  # FRONTEND React + Vite
-  # ==========================================
   frontend:
     build:
       context: ./frontend
@@ -74,9 +62,6 @@ services:
     networks:
       - ladys_network
 
-# ==========================================
-# VOLUMES y NETWORKS
-# ==========================================
 volumes:
   postgres_data:
     driver: local

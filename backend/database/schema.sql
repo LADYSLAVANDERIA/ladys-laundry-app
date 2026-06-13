@@ -337,5 +337,5 @@ INSERT INTO categorias (local_id, nombre, orden) VALUES (1,'VESTIR',1),(1,'DORMI
 -- USUARIO ADMINISTRADOR INICIAL
 -- Password: ladys2024 (bcrypt hash)
 INSERT INTO usuarios (local_id, nombre, apellido, email, password_hash, perfil)
-VALUES (1, 'Administrador', 'Ladys', 'admin@ladys.cl', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lh7y', 'ADMINISTRADOR')
+VALUES (1, 'Administrador', 'Ladys', 'admin@ladys.cl', '$2b$10$0UEUqQmuKfQOblM3ApCADuFMw/PCQvWuZeKdv8MUGevx27.4r3.Pq', 'ADMINISTRADOR')
 ON CONFLICT (email) DO NOTHING;

@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # BASE DE DATOS PostgreSQL
+  # ==========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: ladys_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ladys_laundry
+      POSTGRES_USER: ladys_user
+      POSTGRES_PASSWORD: ladys_password_2024
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    networks:
+      - ladys_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ladys_user -d ladys_laundry"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # BACKEND Node.js + Express
+  # ==========================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ladys_backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ladys_laundry
+      DB_USER: ladys_user
+      DB_PASSWORD: ladys_password_2024
+      JWT_SECRET: ladys_jwt_secret_super_seguro_2024
+      JWT_EXPIRES_IN: 8h
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ladys_network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  # ==========================================
+  # FRONTEND React + Vite
+  # ==========================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ladys_frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:3001/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - ladys_network
+
+# ==========================================
+# VOLUMES y NETWORKS
+# ==========================================
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  ladys_network:
+    driver: bridge

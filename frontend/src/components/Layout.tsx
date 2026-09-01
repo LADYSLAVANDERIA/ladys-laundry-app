@@ -18,6 +18,7 @@ const menu = [
   { path: '/compras',         label: 'Compras/Gastos',   icon: ShoppingCart },
   { path: '/rutas',           label: 'Rutas Delivery',   icon: Truck },
   { path: '/reporte-control', label: 'Reporte Control',  icon: BarChart2 },
+  { path: '/membresias',      label: 'Membresías',       icon: CreditCard },
   { path: '/prepagos',        label: 'Prepagos',         icon: CreditCard },
   { path: '/usuarios',        label: 'Usuarios',         icon: UserCog, adminOnly: true },
   { path: '/config-local',    label: 'Configuración',    icon: Settings, adminOnly: true },

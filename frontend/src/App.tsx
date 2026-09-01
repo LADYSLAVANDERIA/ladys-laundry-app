@@ -18,6 +18,7 @@ import Agenda from './pages/Agenda'
 import ReporteControl from './pages/ReporteControl'
 import ConfigLocal from './pages/ConfigLocal'
 import Prepagos from './pages/Prepagos'
+import Membresias from './pages/Membresias'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -46,7 +47,8 @@ export default function App() {
         <Route path="/agenda"          element={<PrivateRoute><Agenda /></PrivateRoute>} />
         <Route path="/reporte-control" element={<PrivateRoute><ReporteControl /></PrivateRoute>} />
         <Route path="/config-local"    element={<PrivateRoute><ConfigLocal /></PrivateRoute>} />
-        <Route path="/prepagos"        element={<PrivateRoute><Prepagos /></PrivateRoute>} />
+        <Route path="/prepagos"       element={<PrivateRoute><Prepagos /></PrivateRoute>} />
+        <Route path="/membresias"    element={<PrivateRoute><Membresias /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>

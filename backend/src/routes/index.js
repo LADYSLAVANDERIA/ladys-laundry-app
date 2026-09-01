@@ -268,3 +268,100 @@ router.get('/formas-pago', auth, async (req, res) => {
 });
 
 module.exports = router;
+
+// ============================================================
+// MEMBRESÍAS (rutas adicionales)
+// ============================================================
+
+// Crear plan de membresía
+router.post('/prepagos/planes', auth, adminOnly, async (req, res) => {
+  try {
+    const { nombre, duracion, precio, kilos_incluidos, servicios_incluidos } = req.body;
+    const { rows } = await db.query(
+      'INSERT INTO planes_prepago (local_id,nombre,duracion,precio,kilos_incluidos,servicios_incluidos) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [req.user.local_id, nombre, duracion||30, precio, kilos_incluidos||0, servicios_incluidos||'']);
+    res.status(201).json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Activar membresía a cliente
+router.post('/prepagos/activar', auth, async (req, res) => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const { cliente_id, plan_id, fecha_inicio, monto_pagado, forma_pago_id } = req.body;
+    const plan = await client.query('SELECT * FROM planes_prepago WHERE id=$1', [plan_id]);
+    if (!plan.rows[0]) return res.status(404).json({ error: 'Plan no encontrado' });
+    const p = plan.rows[0];
+    const fi = fecha_inicio || new Date().toISOString().split('T')[0];
+    const fv = new Date(fi);
+    fv.setDate(fv.getDate() + (p.duracion || 30));
+    const { rows } = await client.query(
+      `INSERT INTO prepagos_cliente (cliente_id,plan_id,saldo_inicial,saldo_actual,fecha_inicio,fecha_venc)
+       VALUES ($1,$2,$3,$3,$4,$5) RETURNING *`,
+      [cliente_id, plan_id, monto_pagado || p.precio, fi, fv.toISOString().split('T')[0]]);
+    const prep = rows[0];
+    // Registrar movimiento de carga inicial
+    await client.query(
+      "INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,monto) VALUES ($1,$2,'CARGA',$3)",
+      [prep.id, cliente_id, prep.saldo_inicial]);
+    await client.query('COMMIT');
+    res.status(201).json(prep);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally { client.release(); }
+});
+
+// Movimientos de una membresía
+router.get('/prepagos/:id/movimientos', auth, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT m.*, o.id as ot_numero FROM prepago_movimientos m
+       LEFT JOIN ordenes o ON m.orden_id=o.id
+       WHERE m.prepago_id=$1 ORDER BY m.creado_en DESC`,
+      [req.params.id]);
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Consumir saldo al crear orden con membresía
+router.post('/prepagos/:id/consumir', auth, async (req, res) => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const { monto, orden_id } = req.body;
+    const { rows: prep } = await client.query('SELECT * FROM prepagos_cliente WHERE id=$1 AND activo=TRUE', [req.params.id]);
+    if (!prep[0]) return res.status(404).json({ error: 'Membresía no encontrada' });
+    if (prep[0].saldo_actual < monto) return res.status(400).json({ error: 'Saldo insuficiente' });
+    await client.query('UPDATE prepagos_cliente SET saldo_actual=saldo_actual-$2 WHERE id=$1', [req.params.id, monto]);
+    await client.query(
+      "INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,monto,orden_id) VALUES ($1,$2,'CONSUMO',$3,$4)",
+      [req.params.id, prep[0].cliente_id, monto, orden_id]);
+    const { rows } = await client.query('SELECT * FROM prepagos_cliente WHERE id=$1', [req.params.id]);
+    await client.query('COMMIT');
+    res.json(rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally { client.release(); }
+});
+
+// Recargar saldo
+router.post('/prepagos/:id/recargar', auth, async (req, res) => {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const { monto, forma_pago_id } = req.body;
+    await client.query('UPDATE prepagos_cliente SET saldo_actual=saldo_actual+$2 WHERE id=$1', [req.params.id, monto]);
+    const { rows: prep } = await client.query('SELECT * FROM prepagos_cliente WHERE id=$1', [req.params.id]);
+    await client.query(
+      "INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,monto) VALUES ($1,$2,'RECARGA',$3)",
+      [req.params.id, prep[0].cliente_id, monto]);
+    await client.query('COMMIT');
+    res.json(prep[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally { client.release(); }
+});

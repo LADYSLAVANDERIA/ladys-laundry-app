@@ -339,3 +339,29 @@ INSERT INTO categorias (local_id, nombre, orden) VALUES (1,'VESTIR',1),(1,'DORMI
 INSERT INTO usuarios (local_id, nombre, apellido, email, password_hash, perfil)
 VALUES (1, 'Administrador', 'Ladys', 'admin@ladys.cl', '$2b$10$0UEUqQmuKfQOblM3ApCADuFMw/PCQvWuZeKdv8MUGevx27.4r3.Pq', 'ADMINISTRADOR')
 ON CONFLICT (email) DO NOTHING;
+
+-- ============================================================
+-- MEMBRESÍAS — datos iniciales
+-- ============================================================
+
+-- Agregar columnas extra al plan si no existen
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='planes_prepago' AND column_name='kilos_incluidos') THEN
+    ALTER TABLE planes_prepago ADD COLUMN kilos_incluidos NUMERIC(10,2) DEFAULT 0;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='planes_prepago' AND column_name='servicios_incluidos') THEN
+    ALTER TABLE planes_prepago ADD COLUMN servicios_incluidos TEXT DEFAULT '';
+  END IF;
+END $$;
+
+-- Plan de membresía mensual
+INSERT INTO planes_prepago (local_id, nombre, duracion, precio, kilos_incluidos, servicios_incluidos)
+VALUES (1, 'Membresía Mensual', 30, 50000, 0, 'Lavado, Planchado, Delivery')
+ON CONFLICT DO NOTHING;
+
+-- Clientas de membresía
+INSERT INTO clientes (local_id, tipo, nombre, apellido, telefono, tipo_doc)
+VALUES 
+  (1, 'PARTICULAR', 'Alejandra', 'Mora', NULL, 'BOLETA'),
+  (1, 'PARTICULAR', 'Joana', 'Sela', NULL, 'BOLETA')
+ON CONFLICT DO NOTHING;

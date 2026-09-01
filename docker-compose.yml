@@ -14,6 +14,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./backend/database/seed_precios.sql:/docker-entrypoint-initdb.d/02-precios.sql
     networks:
       - ladys_network
     healthcheck:

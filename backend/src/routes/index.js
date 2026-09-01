@@ -253,7 +253,7 @@ router.get('/prepagos/planes', auth, async (req, res) => {
 router.get('/prepagos/saldos', auth, async (req, res) => {
   try {
     const { rows } = await db.query(
-      "SELECT pc.*, c.nombre||' '||COALESCE(c.apellido,'') as cliente, c.telefono, pp.nombre as plan FROM prepagos_cliente pc JOIN clientes c ON pc.cliente_id=c.id JOIN planes_prepago pp ON pc.plan_id=pp.id WHERE c.local_id=$1 AND pc.activo=TRUE ORDER BY c.nombre",
+      "SELECT pc.*, c.nombre||' '||COALESCE(c.apellido,'') as cliente, c.telefono, pp.nombre as plan, pp.precio as precio_plan FROM prepagos_cliente pc JOIN clientes c ON pc.cliente_id=c.id JOIN planes_prepago pp ON pc.plan_id=pp.id WHERE c.local_id=$1 AND pc.activo=TRUE ORDER BY c.nombre",
       [req.user.local_id]);
     res.json(rows);
   } catch (err) { res.status(500).json({ error: err.message }); }

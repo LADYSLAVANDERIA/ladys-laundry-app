@@ -30,8 +30,8 @@ async function aplicarPago(c, ordenId, formaPagoId, monto, referencia, uid) {
   await c.query('INSERT INTO pagos (orden_id,cliente_id,forma_pago_id,monto,referencia,usuario_id) VALUES ($1,$2,$3,$4,$5,$6)',
     [ordenId, o.cliente_id, formaPagoId || null, monto, referencia || null, uid || null]);
   const abonado = Number(o.monto_abonado) + monto, saldo = Number(o.monto_total) - abonado, ep = estadoPago(o.monto_total, abonado);
-  await c.query("UPDATE ordenes SET monto_abonado=$2, saldo_pendiente=$3, estado_pago=$4, pagada_el=CASE WHEN $4='PAGADA' THEN COALESCE(pagada_el,NOW()) ELSE pagada_el END WHERE id=$1",
-    [ordenId, abonado, saldo, ep]);
+  await c.query('UPDATE ordenes SET monto_abonado=$2, saldo_pendiente=$3, estado_pago=$4, pagada_el=CASE WHEN $5 THEN COALESCE(pagada_el,NOW()) ELSE pagada_el END WHERE id=$1',
+    [ordenId, abonado, saldo, ep, ep === 'PAGADA']);
   return { abonado, saldo, estado_pago: ep };
 }
 
@@ -135,11 +135,11 @@ const crear = async (req, res) => {
     const { rows: [o] } = await c.query(`INSERT INTO ordenes (local_id,cliente_id,usuario_id,tipo_doc,estado,estado_pago,origen,tipo_servicio,kilos,
         retiro_domicilio,entrega_domicilio,dir_recogida_id,dir_entrega_id,fecha_recogida,ruta_recogida_id,fecha_entrega,ruta_entrega_id,bultos,observaciones,
         descuento_pct,monto_delivery,monto_total,monto_abonado,saldo_pendiente,es_membresia,es_pre_orden,recibida_el)
-      VALUES ($1,$2,$3,$4,$5,'PENDIENTE',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,0,0,0,$21,$5='PRE_ORDEN',
-              CASE WHEN $5='EN_PROCESO' THEN NOW() ELSE NULL END) RETURNING id`,
+      VALUES ($1,$2,$3,$4,$5,'PENDIENTE',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,0,0,0,$21,$22,$23) RETURNING id`,
       [lid, b.cliente_id, req.user.id, b.tipo_doc || 'BOLETA', estado, origen, b.tipo_servicio || 'NORMAL', Number(b.kilos || 0),
        !!b.retiro_domicilio, !!b.entrega_domicilio, b.dir_recogida_id || null, b.dir_entrega_id || null, b.fecha_recogida || null, b.ruta_recogida_id || null,
-       b.fecha_entrega || null, b.ruta_entrega_id || null, Number(b.bultos || 1), b.observaciones || null, pct, delivery, !!b.es_membresia]);
+       b.fecha_entrega || null, b.ruta_entrega_id || null, Number(b.bultos || 1), b.observaciones || null, pct, delivery, !!b.es_membresia,
+       estado === 'PRE_ORDEN', estado === 'EN_PROCESO' ? new Date() : null]);
     await insertarItems(c, o.id, items);
     await recalcular(c, o.id);
     await historial(c, o.id, estado, `Orden creada (${origen.toLowerCase()})${pct ? ` · descuento continuidad ${pct}%` : ''}`, req.user.id);

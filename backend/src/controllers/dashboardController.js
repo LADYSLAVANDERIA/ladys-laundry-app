@@ -25,7 +25,7 @@ const getDashboard = async (req, res) => {
         FROM orden_items i JOIN ordenes o ON i.orden_id=o.id JOIN clientes c ON o.cliente_id=c.id
         WHERE o.local_id=$1 AND c.es_ladys2=FALSE AND o.estado<>'ANULADA' AND date_trunc('month',o.creado_en)=date_trunc('month',$2::date)
         GROUP BY i.nombre ORDER BY total DESC LIMIT 8`, [lid, hoy]),
-      db.query(`SELECT o.estado, COUNT(*) AS cantidad ${BASE} GROUP BY o.estado`, [lid, hoy]),
+      db.query(`SELECT o.estado, COUNT(*) AS cantidad ${BASE} GROUP BY o.estado`, [lid]),
       db.query(`SELECT COALESCE(SUM(o.monto_total),0) AS total ${BASE} AND date_trunc('month',o.creado_en)=date_trunc('month',$2::date - INTERVAL '1 month')`, [lid, hoy]),
     ]);
     res.json({ fecha: hoy, kpis: kpis.rows[0], ventasDiarias: ventasDiarias.rows, topServicios: topServicios.rows, estadoOrdenes: estadoOrdenes.rows, ventasMesAnterior: mesAnt.rows[0].total });

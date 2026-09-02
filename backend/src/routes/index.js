@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { auth, adminOnly } = require('../middleware/auth');
+const { auth, adminOnly, webhookAuth } = require('../middleware/auth');
 const authCtrl     = require('../controllers/authController');
 const clientesCtrl = require('../controllers/clientesController');
 const ordenesCtrl  = require('../controllers/ordenesController');
@@ -20,13 +20,25 @@ router.post  ('/clientes',                         auth, clientesCtrl.create);
 router.put   ('/clientes/:id',                     auth, clientesCtrl.update);
 router.delete('/clientes/:id',                     auth, adminOnly, clientesCtrl.remove);
 router.post  ('/clientes/:cliente_id/direcciones', auth, clientesCtrl.addDireccion);
+router.delete('/clientes/:cliente_id/direcciones/:id', auth, clientesCtrl.removeDireccion);
 
-// ORDENES
-router.get ('/ordenes',            auth, ordenesCtrl.getOrdenesByEstado);
-router.get ('/ordenes/:id',        auth, ordenesCtrl.getOrdenById);
-router.post('/ordenes',            auth, ordenesCtrl.createOrden);
+// ORDENES (v2)
+router.get ('/ordenes',            auth, ordenesCtrl.listar);
+router.get ('/ordenes/resumen',    auth, ordenesCtrl.resumen);
+router.get ('/ordenes/:id',        auth, ordenesCtrl.obtener);
+router.post('/ordenes',            auth, ordenesCtrl.crear);
+router.put ('/ordenes/:id',        auth, ordenesCtrl.actualizar);
 router.put ('/ordenes/:id/estado', auth, ordenesCtrl.cambiarEstado);
 router.post('/ordenes/:id/pago',   auth, ordenesCtrl.registrarPago);
+// PROGRAMACIÓN / RETIROS / CONFIG
+router.get ('/programacion',           auth, ordenesCtrl.programacion);
+router.get ('/retiros/disponibilidad', auth, ordenesCtrl.disponibilidad);
+router.post('/retiros',                auth, ordenesCtrl.solicitarRetiro);
+router.get ('/config',                 auth, ordenesCtrl.getConfigAll);
+router.put ('/config',                 auth, adminOnly, ordenesCtrl.setConfig);
+// WEBHOOK para SofIA / n8n (header x-api-key = WEBHOOK_KEY)
+router.post('/webhook/retiro',         webhookAuth, ordenesCtrl.solicitarRetiro);
+router.get ('/webhook/disponibilidad', webhookAuth, ordenesCtrl.disponibilidad);
 
 // SERVICIOS
 router.get('/servicios', auth, async (req, res) => {
@@ -338,6 +350,13 @@ router.post('/prepagos/:id/consumir', auth, async (req, res) => {
     await client.query(
       "INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,monto,orden_id) VALUES ($1,$2,'CONSUMO',$3,$4)",
       [req.params.id, prep[0].cliente_id, monto, orden_id]);
+    if (orden_id) {
+      const fp = await client.query("SELECT id FROM formas_pago WHERE local_id=$1 AND nombre='Membresía' LIMIT 1", [req.user.local_id]);
+      await client.query("INSERT INTO pagos (orden_id,cliente_id,forma_pago_id,monto,referencia,usuario_id) VALUES ($1,$2,$3,$4,'Membresía',$5)",
+        [orden_id, prep[0].cliente_id, fp.rows[0] ? fp.rows[0].id : null, monto, req.user.id]);
+      await client.query("UPDATE ordenes SET monto_abonado=monto_total, saldo_pendiente=0, estado_pago='PAGADA', pagada_el=NOW(), es_membresia=TRUE WHERE id=$1", [orden_id]);
+      await client.query("INSERT INTO ordenes_historial (orden_id,estado,nota,usuario_id) VALUES ($1,NULL,$2,$3)", [orden_id, 'Pagada con membresía $' + Math.round(Number(monto)).toLocaleString('es-CL'), req.user.id]);
+    }
     const { rows } = await client.query('SELECT * FROM prepagos_cliente WHERE id=$1', [req.params.id]);
     await client.query('COMMIT');
     res.json(rows[0]);

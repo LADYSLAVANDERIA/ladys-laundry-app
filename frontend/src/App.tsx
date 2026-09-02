@@ -19,6 +19,8 @@ import ReporteControl from './pages/ReporteControl'
 import ConfigLocal from './pages/ConfigLocal'
 import Prepagos from './pages/Prepagos'
 import Membresias from './pages/Membresias'
+import Programacion from './pages/Programacion'
+import ClienteDetalle from './pages/ClienteDetalle'
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -36,7 +38,9 @@ export default function App() {
         <Route path="/dashboard"       element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/clientes"        element={<PrivateRoute><Clientes /></PrivateRoute>} />
         <Route path="/clientes/nuevo"  element={<PrivateRoute><NuevoCliente /></PrivateRoute>} />
+        <Route path="/clientes/:id"    element={<PrivateRoute><ClienteDetalle /></PrivateRoute>} />
         <Route path="/ordenes"         element={<PrivateRoute><Ordenes /></PrivateRoute>} />
+        <Route path="/programacion"    element={<PrivateRoute><Programacion /></PrivateRoute>} />
         <Route path="/ordenes/nueva"   element={<PrivateRoute><NuevaOrden /></PrivateRoute>} />
         <Route path="/ordenes/:id"     element={<PrivateRoute><OrdenDetalle /></PrivateRoute>} />
         <Route path="/servicios"       element={<PrivateRoute><Servicios /></PrivateRoute>} />

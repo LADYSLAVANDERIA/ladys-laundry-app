@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { dashboardApi } from '../services/api'
+import { useNavigate } from 'react-router-dom'
+import { dashboardApi, ordenesApi } from '../services/api'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { Users, Package, Clock, CheckCircle, TrendingUp, AlertCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
@@ -8,10 +9,13 @@ import { es } from 'date-fns/locale'
 const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const [data, setData] = useState<any>(null)
+  const [res, setRes] = useState<any>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    ordenesApi.resumen().then(r => setRes(r.data)).catch(() => {})
     dashboardApi.get().then(r => setData(r.data)).finally(() => setLoading(false))
   }, [])
 
@@ -33,6 +37,22 @@ export default function Dashboard() {
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
         <p className="text-gray-500 text-sm">{format(new Date(), "EEEE d 'de' MMMM, yyyy", { locale: es })}</p>
+      </div>
+
+
+      {/* Operación del día */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { l: 'Retiros hoy',   v: res.retiros_hoy  || 0, c: 'text-orange-600', bg: 'bg-orange-50', to: '/programacion' },
+          { l: 'Entregas hoy',  v: res.entregas_hoy || 0, c: 'text-blue-600',   bg: 'bg-blue-50',   to: '/programacion' },
+          { l: 'Listas por entregar', v: res.lista  || 0, c: 'text-green-600',  bg: 'bg-green-50',  to: '/ordenes' },
+          { l: 'Por cobrar',    v: fmt(res.por_cobrar), c: 'text-red-600',      bg: 'bg-red-50',    to: '/ordenes' },
+        ].map(k => (
+          <button key={k.l} onClick={() => navigate(k.to)} className={`${k.bg} rounded-xl p-4 text-left hover:shadow-sm transition-shadow`}>
+            <p className="text-xs text-gray-500">{k.l}</p>
+            <p className={`text-2xl font-bold ${k.c}`}>{k.v}</p>
+          </button>
+        ))}
       </div>
 
       {/* KPIs */}

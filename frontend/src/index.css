@@ -10,3 +10,13 @@ body {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { @apply bg-gray-100; }
 ::-webkit-scrollbar-thumb { @apply bg-gray-300 rounded-full; }
+
+/* ── Impresión: ticket 80mm ── */
+.print-only { display: none; }
+@media print {
+  body { background: #fff !important; }
+  .no-print, aside, nav, header, button { display: none !important; }
+  .print-only { display: block !important; }
+  main, .print-only { margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+  @page { margin: 4mm; size: 80mm auto; }
+}

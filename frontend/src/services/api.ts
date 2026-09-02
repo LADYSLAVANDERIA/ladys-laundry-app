@@ -1,44 +1,43 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api',
-})
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api' })
 
-api.interceptors.request.use(cfg => {
+api.interceptors.request.use(config => {
   const token = useAuthStore.getState().token
-  if (token) cfg.headers.Authorization = `Bearer ${token}`
-  return cfg
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+api.interceptors.response.use(r => r, err => {
+  if (err.response?.status === 401) { useAuthStore.getState().logout(); window.location.href = '/login' }
+  return Promise.reject(err)
 })
 
-api.interceptors.response.use(
-  r => r,
-  err => {
-    if (err.response?.status === 401) {
-      useAuthStore.getState().logout()
-      window.location.href = '/login'
-    }
-    return Promise.reject(err)
-  }
-)
-
-export const authApi    = { login: (d: object) => api.post('/auth/login', d) }
+export const authApi = { login: (d: object) => api.post('/auth/login', d) }
 export const clientesApi = {
-  getAll:       (q?: string) => api.get('/clientes', { params: { q } }),
-  getById:      (id: number) => api.get(`/clientes/${id}`),
-  create:       (d: object)  => api.post('/clientes', d),
-  update:       (id: number, d: object) => api.put(`/clientes/${id}`, d),
-  remove:       (id: number) => api.delete(`/clientes/${id}`),
-  addDireccion: (clienteId: number, d: object) => api.post(`/clientes/${clienteId}/direcciones`, d),
+  getAll: (q?: string, params: object = {}) => api.get('/clientes', { params: { q, ...params } }),
+  getById: (id: number | string) => api.get(`/clientes/${id}`),
+  create: (d: object) => api.post('/clientes', d),
+  update: (id: number | string, d: object) => api.put(`/clientes/${id}`, d),
+  remove: (id: number | string) => api.delete(`/clientes/${id}`),
+  addDireccion: (id: number | string, d: object) => api.post(`/clientes/${id}/direcciones`, d),
+  removeDireccion: (id: number | string, dirId: number | string) => api.delete(`/clientes/${id}/direcciones/${dirId}`),
 }
 export const ordenesApi = {
-  getAll:       (p?: object) => api.get('/ordenes', { params: p }),
-  getById:      (id: number) => api.get(`/ordenes/${id}`),
-  create:       (d: object)  => api.post('/ordenes', d),
-  cambiarEstado:(id: number, d: object) => api.put(`/ordenes/${id}/estado`, d),
-  pagar:        (id: number, d: object) => api.post(`/ordenes/${id}/pago`, d),
+  getAll: (params?: object) => api.get('/ordenes', { params }),
+  resumen: (fecha?: string) => api.get('/ordenes/resumen', { params: { fecha } }),
+  getById: (id: number | string) => api.get(`/ordenes/${id}`),
+  create: (d: object) => api.post('/ordenes', d),
+  update: (id: number | string, d: object) => api.put(`/ordenes/${id}`, d),
+  cambiarEstado: (id: number | string, d: object) => api.put(`/ordenes/${id}/estado`, d),
+  pagar: (id: number | string, d: object) => api.post(`/ordenes/${id}/pago`, d),
 }
-export const dashboardApi  = { get: () => api.get('/dashboard') }
+export const programacionApi = { get: (fecha: string) => api.get('/programacion', { params: { fecha } }) }
+export const retirosApi = {
+  disponibilidad: (fecha: string) => api.get('/retiros/disponibilidad', { params: { fecha } }),
+  create: (d: object) => api.post('/retiros', d),
+}
+export const configApi = { get: () => api.get('/config'), set: (d: object) => api.put('/config', d) }
 export const serviciosApi  = {
   getAll:  () => api.get('/servicios'),
   create:  (d: object) => api.post('/servicios', d),
@@ -76,5 +75,6 @@ export const reportesApi  = { control: (p: object) => api.get('/reportes/control
 export const localApi     = { get: () => api.get('/local'), update: (d: object) => api.put('/local', d) }
 export const prepagosApi  = { planes: () => api.get('/prepagos/planes'), saldos: () => api.get('/prepagos/saldos') }
 export const formasPagoApi = { getAll: () => api.get('/formas-pago') }
+export const dashboardApi  = { get: () => api.get('/dashboard') }
 
 export default api

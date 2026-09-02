@@ -52,7 +52,6 @@ Thumbs.db
 build/
 coverage/
 desktop.ini
-dist/
 ehthumbs.db
 logs/
 node_modules/

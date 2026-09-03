@@ -45,7 +45,13 @@ async function usuarioDe(req: Request) {
   try { const { payload } = await jose.jwtVerify(tok, SECRET); return payload as Record<string, unknown>; } catch { return null; }
 }
 
-const DIRSQL = (a: string) => SQL.unsafe(`${a}.calle||' '||COALESCE(${a}.numero::text,'')||COALESCE(', '||NULLIF(${a}.otro,''),'')||COALESCE(' — '||NULLIF(${a}.sector,''),'')||COALESCE(', '||NULLIF(${a}.ciudad,''),'')`);
+const dirTexto = (o: any, pre: string) => {
+  const c = o[pre + "_calle"]; if (!c) return null;
+  return [c, o[pre + "_numero"]].filter(Boolean).join(" ")
+    + (o[pre + "_otro"] ? ", " + o[pre + "_otro"] : "")
+    + (o[pre + "_sector"] ? " — " + o[pre + "_sector"] : "")
+    + (o[pre + "_ciudad"] ? ", " + o[pre + "_ciudad"] : "");
+};
 
 async function cfg(k: string, d: number) {
   const r = await SQL`SELECT valor FROM configuracion WHERE clave=${k}`;
@@ -80,6 +86,41 @@ async function insertarItems(t: postgres.TransactionSql, id: number, items: any[
     await t`INSERT INTO orden_items (orden_id,servicio_id,nombre,cantidad,precio_unit,subtotal,etiqueta)
             VALUES (${id},${i.servicio_id || null},${i.nombre},${c},${p},${Math.round(c * p)},${i.etiqueta || null})`;
   }
+}
+
+const SUPA_URL = Deno.env.get("SUPABASE_URL")!;
+const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const APP_URL = "https://ladyslavanderia.cl/app";
+const otTxt = (id: number) => "#" + String(id).padStart(5, "0");
+
+async function subirFoto(ordenId: number, dataUrl: string) {
+  const mm = /^data:(image\/(jpeg|png|webp));base64,(.+)$/.exec(dataUrl);
+  if (!mm) throw new Error("Formato de imagen no válido");
+  const mime = mm[1], b64 = mm[3];
+  const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  if (bin.length > 8_000_000) throw new Error("La imagen supera los 8 MB");
+  const ext = mime.split("/")[1].replace("jpeg", "jpg");
+  const ruta = `orden-${ordenId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const r = await fetch(`${SUPA_URL}/storage/v1/object/ordenes/${ruta}`, {
+    method: "POST", headers: { Authorization: `Bearer ${SRK}`, "Content-Type": mime, "x-upsert": "true" }, body: bin,
+  });
+  if (!r.ok) throw new Error("No se pudo guardar la foto: " + (await r.text()).slice(0, 120));
+  return { ruta, url: `${SUPA_URL}/storage/v1/object/public/ordenes/${ruta}` };
+}
+
+function textoAviso(tipo: string, o: any, link: string) {
+  const n = String(o.cliente_nombre || "").split(" ")[0];
+  const saldo = N(o.saldo_pendiente) > 0 ? ` Saldo pendiente: ${clp(N(o.saldo_pendiente))}.` : " Ya está pagada.";
+  if (tipo === "INGRESO")
+    return `Hola ${n}, recibimos tu pedido en Ladys Lavandería. Tu orden es la ${otTxt(o.id)} por ${clp(N(o.monto_total))}.${saldo}\n\nPuedes seguirla acá: ${link}`;
+  if (tipo === "EN_RUTA")
+    return `Hola ${n}, vamos en camino con tu pedido ${otTxt(o.id)} de Ladys Lavandería.${saldo}\n\n${link}`;
+  if (tipo === "ENTREGADA")
+    return `Hola ${n}, tu pedido ${otTxt(o.id)} fue entregado. ¡Gracias por preferirnos! 💗\n\n${link}`;
+  const donde = o.entrega_domicilio
+    ? `Te lo llevamos el ${o.fecha_entrega}${o.ruta_entrega ? ` en la ruta ${o.ruta_entrega}` : ""}.`
+    : "Puedes pasar a retirarlo al local, Av. Concón Reñaca 102, locales 5 y 6.";
+  return `Hola ${n}, tu pedido ${otTxt(o.id)} ya está listo. ${donde}${saldo}\n\nDetalle: ${link}`;
 }
 
 async function solicitarRetiro(b: any, u: any) {
@@ -151,6 +192,23 @@ Deno.serve(async (req: Request) => {
       await SQL`UPDATE usuarios SET ultimo_acceso=NOW() WHERE id=${u.id}`;
       const token = await firmar({ id: u.id, local_id: u.local_id, perfil: u.perfil, nombre: u.nombre });
       return json({ token, usuario: { id: u.id, nombre: u.nombre, apellido: u.apellido, email: u.email, perfil: u.perfil, local_id: u.local_id } });
+    }
+
+    // ── VISTA PÚBLICA DE LA OT (sin clave, con token en el enlace) ──
+    if (seg[0] === "publico" && seg[1] && seg[2]) {
+      const [o] = await SQL`SELECT o.id,o.estado,o.estado_pago,o.monto_total,o.monto_abonado,o.saldo_pendiente,o.subtotal,o.descuento_monto,
+          o.monto_delivery,o.fecha_entrega,o.fecha_recogida,o.entrega_domicilio,o.retiro_domicilio,o.tipo_servicio,o.bultos,o.kilos,o.observaciones,o.creado_en,
+          c.nombre||' '||COALESCE(c.apellido,'') AS cliente_nombre,
+          re.nombre AS ruta_entrega, re.hora_inicio AS ruta_entrega_hora, re.hora_fin AS ruta_entrega_fin
+        FROM ordenes o JOIN clientes c ON o.cliente_id=c.id LEFT JOIN rutas re ON o.ruta_entrega_id=re.id
+        WHERE o.id=${Number(seg[1])} AND o.token_publico=${seg[2]}`;
+      if (!o) return err("Orden no encontrada", 404);
+      const [items, fotos, loc] = await Promise.all([
+        SQL`SELECT nombre, cantidad, precio_unit, subtotal FROM orden_items WHERE orden_id=${o.id} ORDER BY id`,
+        SQL`SELECT url, momento, nota, creado_en FROM orden_fotos WHERE orden_id=${o.id} ORDER BY id`,
+        SQL`SELECT nombre, telefono, whatsapp, dir_salida, horario FROM locales WHERE id=1`,
+      ]);
+      return json({ ...o, items, fotos, local: loc[0] || {} });
     }
 
     const u = await usuarioDe(req);
@@ -284,18 +342,21 @@ Deno.serve(async (req: Request) => {
       const [o] = await SQL`SELECT o.*, c.nombre||' '||COALESCE(c.apellido,'') AS cliente_nombre, c.telefono AS cliente_telefono, c.email AS cliente_email,
           c.plazo_pago, c.continuidad AS cliente_continuidad, us.nombre AS usuario_nombre,
           rr.nombre AS ruta_retiro, rr.hora_inicio AS ruta_retiro_hora, re.nombre AS ruta_entrega, re.hora_inicio AS ruta_entrega_hora,
-          ${DIRSQL("dr")} AS direccion_retiro, ${DIRSQL("de")} AS direccion_entrega
+          dr.calle AS dr_calle, dr.numero AS dr_numero, dr.otro AS dr_otro, dr.sector AS dr_sector, dr.ciudad AS dr_ciudad,
+          de.calle AS de_calle, de.numero AS de_numero, de.otro AS de_otro, de.sector AS de_sector, de.ciudad AS de_ciudad
         FROM ordenes o JOIN clientes c ON o.cliente_id=c.id LEFT JOIN usuarios us ON o.usuario_id=us.id
         LEFT JOIN rutas rr ON o.ruta_recogida_id=rr.id LEFT JOIN rutas re ON o.ruta_entrega_id=re.id
         LEFT JOIN direcciones_clientes dr ON dr.id=o.dir_recogida_id LEFT JOIN direcciones_clientes de ON de.id=o.dir_entrega_id
         WHERE o.id=${id} AND o.local_id=${lid}`;
       if (!o) return err("Orden no encontrada", 404);
-      const [items, pagos, h] = await Promise.all([
+      const [items, pagos, h, fotos, avisos] = await Promise.all([
         SQL`SELECT * FROM orden_items WHERE orden_id=${id} ORDER BY id`,
         SQL`SELECT p.*, f.nombre AS forma_nombre FROM pagos p LEFT JOIN formas_pago f ON p.forma_pago_id=f.id WHERE p.orden_id=${id} ORDER BY p.id`,
         SQL`SELECT hh.*, us.nombre AS usuario_nombre FROM ordenes_historial hh LEFT JOIN usuarios us ON hh.usuario_id=us.id WHERE hh.orden_id=${id} ORDER BY hh.id`,
+        SQL`SELECT * FROM orden_fotos WHERE orden_id=${id} ORDER BY id`,
+        SQL`SELECT * FROM orden_avisos WHERE orden_id=${id} ORDER BY id DESC`,
       ]);
-      return json({ ...o, items, pagos, historial: h });
+      return json({ ...o, direccion_retiro: dirTexto(o, "dr"), direccion_entrega: dirTexto(o, "de"), items, pagos, historial: h, fotos, avisos });
     }
     if (p === "/ordenes" && m === "POST") {
       const items = Array.isArray(body.items) ? body.items : [];
@@ -376,18 +437,65 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── PROGRAMACIÓN Y RETIROS ──
+    // ── FOTOS ──
+    if (seg[0] === "ordenes" && seg[2] === "fotos" && m === "GET")
+      return json(await SQL`SELECT * FROM orden_fotos WHERE orden_id=${Number(seg[1])} ORDER BY id`);
+    if (seg[0] === "ordenes" && seg[2] === "fotos" && m === "POST") {
+      const id = Number(seg[1]);
+      const imgs: string[] = Array.isArray(body.imagenes) ? body.imagenes : body.data ? [body.data] : [];
+      if (!imgs.length) return err("No se recibió ninguna imagen", 400);
+      const out = [];
+      for (const d of imgs) {
+        const { ruta, url } = await subirFoto(id, d);
+        const [f] = await SQL`INSERT INTO orden_fotos (orden_id,url,ruta,momento,nota,usuario_id)
+          VALUES (${id},${url},${ruta},${body.momento || "RECEPCION"},${body.nota || null},${uid}) RETURNING *`;
+        out.push(f);
+      }
+      await SQL`INSERT INTO ordenes_historial (orden_id,estado,nota,usuario_id)
+        VALUES (${id},NULL,${`${out.length} foto${out.length > 1 ? "s" : ""} agregada${out.length > 1 ? "s" : ""} (${body.momento || "RECEPCION"})`},${uid})`;
+      return json(out, 201);
+    }
+    if (seg[0] === "fotos" && seg[1] && m === "DELETE") {
+      const [f] = await SQL`DELETE FROM orden_fotos WHERE id=${Number(seg[1])} RETURNING *`;
+      if (f?.ruta) await fetch(`${SUPA_URL}/storage/v1/object/ordenes/${f.ruta}`, { method: "DELETE", headers: { Authorization: `Bearer ${SRK}` } }).catch(() => {});
+      return json({ ok: true });
+    }
+
+    // ── AVISOS AL CLIENTE ──
+    if (seg[0] === "ordenes" && seg[2] === "aviso" && m === "POST") {
+      const id = Number(seg[1]), tipo = body.tipo || "LISTA";
+      const [o] = await SQL`SELECT o.*, c.nombre||' '||COALESCE(c.apellido,'') AS cliente_nombre, c.telefono, re.nombre AS ruta_entrega
+        FROM ordenes o JOIN clientes c ON o.cliente_id=c.id LEFT JOIN rutas re ON o.ruta_entrega_id=re.id
+        WHERE o.id=${id} AND o.local_id=${lid}`;
+      if (!o) return err("Orden no encontrada", 404);
+      const link = `${APP_URL}/#/ot/${o.id}/${o.token_publico}`;
+      const mensaje = body.mensaje || textoAviso(tipo, o, link);
+      if (body.registrar !== false) {
+        await SQL`INSERT INTO orden_avisos (orden_id,tipo,canal,destino,mensaje,usuario_id)
+          VALUES (${id},${tipo},'WHATSAPP',${o.telefono},${mensaje},${uid})`;
+        await SQL`INSERT INTO ordenes_historial (orden_id,estado,nota,usuario_id) VALUES (${id},NULL,${"Aviso al cliente: " + tipo.toLowerCase()},${uid})`;
+      }
+      const tel = normTel(o.telefono || "");
+      return json({ mensaje, link, telefono: tel, wa: tel ? `https://wa.me/${tel}?text=${encodeURIComponent(mensaje)}` : null });
+    }
+    if (seg[0] === "ordenes" && seg[2] === "avisos" && m === "GET")
+      return json(await SQL`SELECT * FROM orden_avisos WHERE orden_id=${Number(seg[1])} ORDER BY id DESC`);
+
     if (p === "/programacion") {
       const fecha = q.get("fecha") || hoyChile(), dia = diaSemana(fecha);
       const [rutas, ords, fer] = await Promise.all([
         SQL`SELECT * FROM rutas WHERE local_id=${lid} AND activo=TRUE AND dia_semana=${dia} ORDER BY hora_inicio`,
         SQL`SELECT o.id,o.estado,o.estado_pago,o.saldo_pendiente,o.monto_total,o.kilos,o.bultos,o.fecha_recogida,o.fecha_entrega,o.ruta_recogida_id,o.ruta_entrega_id,
               o.observaciones,o.origen,o.tipo_servicio,o.retiro_domicilio,o.entrega_domicilio,
-              c.nombre||' '||COALESCE(c.apellido,'') AS cliente, c.telefono, ${DIRSQL("dr")} AS dir_retiro, ${DIRSQL("de")} AS dir_entrega
+              c.nombre||' '||COALESCE(c.apellido,'') AS cliente, c.telefono,
+              dr.calle AS dr_calle, dr.numero AS dr_numero, dr.otro AS dr_otro, dr.sector AS dr_sector, dr.ciudad AS dr_ciudad,
+              de.calle AS de_calle, de.numero AS de_numero, de.otro AS de_otro, de.sector AS de_sector, de.ciudad AS de_ciudad
             FROM ordenes o JOIN clientes c ON o.cliente_id=c.id
             LEFT JOIN direcciones_clientes dr ON dr.id=o.dir_recogida_id LEFT JOIN direcciones_clientes de ON de.id=o.dir_entrega_id
             WHERE o.local_id=${lid} AND o.estado<>'ANULADA' AND c.es_ladys2=FALSE AND (o.fecha_recogida=${fecha} OR o.fecha_entrega=${fecha}) ORDER BY o.id`,
         SQL`SELECT motivo FROM dias_inhabiles WHERE local_id=${lid} AND fecha=${fecha}`,
       ]);
+      ords.forEach((o: any) => { o.dir_retiro = dirTexto(o, "dr"); o.dir_entrega = dirTexto(o, "de"); });
       const out = rutas.map((r: any) => {
         const retiros = ords.filter((o: any) => o.fecha_recogida === fecha && o.ruta_recogida_id === r.id);
         const entregas = ords.filter((o: any) => o.fecha_entrega === fecha && o.ruta_entrega_id === r.id && o.entrega_domicilio);

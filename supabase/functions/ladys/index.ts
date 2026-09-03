@@ -89,7 +89,7 @@ async function insertarItems(t: postgres.TransactionSql, id: number, items: any[
 }
 
 const SUPA_URL = Deno.env.get("SUPABASE_URL")!;
-const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SB_SECRET_KEY") || "";
 const APP_URL = "https://ladyslavanderia.cl/app";
 const otTxt = (id: number) => "#" + String(id).padStart(5, "0");
 
@@ -102,7 +102,7 @@ async function subirFoto(ordenId: number, dataUrl: string) {
   const ext = mime.split("/")[1].replace("jpeg", "jpg");
   const ruta = `orden-${ordenId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
   const r = await fetch(`${SUPA_URL}/storage/v1/object/ordenes/${ruta}`, {
-    method: "POST", headers: { Authorization: `Bearer ${SRK}`, "Content-Type": mime, "x-upsert": "true" }, body: bin,
+    method: "POST", headers: { Authorization: `Bearer ${SRK}`, apikey: SRK, "Content-Type": mime, "x-upsert": "true" }, body: bin,
   });
   if (!r.ok) throw new Error("No se pudo guardar la foto: " + (await r.text()).slice(0, 120));
   return { ruta, url: `${SUPA_URL}/storage/v1/object/public/ordenes/${ruta}` };
@@ -457,7 +457,7 @@ Deno.serve(async (req: Request) => {
     }
     if (seg[0] === "fotos" && seg[1] && m === "DELETE") {
       const [f] = await SQL`DELETE FROM orden_fotos WHERE id=${Number(seg[1])} RETURNING *`;
-      if (f?.ruta) await fetch(`${SUPA_URL}/storage/v1/object/ordenes/${f.ruta}`, { method: "DELETE", headers: { Authorization: `Bearer ${SRK}` } }).catch(() => {});
+      if (f?.ruta) await fetch(`${SUPA_URL}/storage/v1/object/ordenes/${f.ruta}`, { method: "DELETE", headers: { Authorization: `Bearer ${SRK}`, apikey: SRK } }).catch(() => {});
       return json({ ok: true });
     }
 

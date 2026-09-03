@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true)
     try {
       const { data } = await authApi.login({ email, password })
-      setAuth(data.user, data.token)
+      setAuth(data.usuario || data.user, data.token)
       navigate('/dashboard')
     } catch {
       toast.error('Credenciales incorrectas')

@@ -21,6 +21,7 @@ const menu = [
   { path: '/rutas',           label: 'Rutas Delivery',   icon: Truck },
   { path: '/reporte-control', label: 'Reporte Control',  icon: BarChart2 },
   { path: '/usuarios',        label: 'Usuarios',         icon: UserCog, adminOnly: true },
+  { path: '/mercado-pago',    label: 'Mercado Pago',     icon: CreditCard, adminOnly: true },
   { path: '/config-local',    label: 'Configuración',    icon: Settings, adminOnly: true },
 ]
 

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { programacionApi, ordenesApi, formasPagoApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X } from 'lucide-react'
-import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink } from '../utils'
+import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send } from 'lucide-react'
+import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, pesoSector } from '../utils'
 
 export default function Programacion() {
   const navigate = useNavigate()
@@ -12,6 +12,8 @@ export default function Programacion() {
   const [loading, setLoading] = useState(true)
   const [formas, setFormas] = useState<any[]>([])
   const [cobro, setCobro] = useState<any>(null)
+  const [lote, setLote] = useState<any>(null)
+  const [enviados, setEnviados] = useState<number[]>([])
 
   const load = async (f = fecha) => {
     setLoading(true)
@@ -39,11 +41,15 @@ export default function Programacion() {
   }
 
   const marcar = async (id: number, estado: string) => {
-    try { await ordenesApi.cambiarEstado(id, { estado }); toast.success(`${ot(id)} actualizada`); load() }
+    try {
+      await ordenesApi.cambiarEstado(id, { estado })
+      toast.success(`${ot(id)} ${estado === 'EN_PROCESO' ? 'marcada como retirada' : 'entregada'} · avisa al cliente con el botón de WhatsApp`, { duration: 4000 })
+      load()
+    }
     catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
   }
 
-  const Parada = ({ o, tipo }: { o: any; tipo: 'retiro' | 'entrega' }) => {
+  const Parada = ({ o, tipo, n }: { o: any; tipo: 'retiro' | 'entrega'; n?: number }) => {
     const dir = tipo === 'retiro' ? o.dir_retiro : o.dir_entrega
     const listoRetiro = tipo === 'retiro' && o.estado === 'PRE_ORDEN'
     const listoEntrega = tipo === 'entrega' && ['EN_PROCESO', 'LISTA'].includes(o.estado)
@@ -52,6 +58,7 @@ export default function Programacion() {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/ordenes/${o.id}`)}>
             <div className="flex items-center gap-2 flex-wrap">
+              {n !== undefined && <span className="w-5 h-5 rounded-full bg-gray-800 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">{n}</span>}
               <span className="font-bold text-sm">{ot(o.id)}</span>
               <span className="text-sm text-gray-700">{o.cliente}</span>
               {o.tipo_servicio === 'EXPRESS' && <Zap size={11} className="text-amber-500" />}
@@ -78,7 +85,7 @@ export default function Programacion() {
             className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${o.telefono ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-300 pointer-events-none'}`}>
             <Phone size={16} /> Llamar
           </a>
-          <button onClick={() => avisar(o, tipo === 'retiro' ? 'EN_RUTA' : 'EN_RUTA')} disabled={!o.telefono}
+          <button onClick={() => avisar(o, o.estado === 'ENTREGADA' ? 'ENTREGADA' : (tipo === 'retiro' && o.estado !== 'PRE_ORDEN') ? 'RETIRADO' : 'EN_RUTA')} disabled={!o.telefono}
             className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${o.telefono ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-300'}`}>
             <MessageCircle size={16} /> WhatsApp
           </button>
@@ -128,17 +135,29 @@ export default function Programacion() {
                   <p className="text-xs text-gray-400">{r.cupos} cupos libres</p>
                 </div>
               </div>
+              {(r.retiros.length + r.entregas.length) > 0 && (
+                <div className="px-4 py-2 border-b bg-gray-50 flex gap-2">
+                  <a href={rutaCompletaMaps([...ordenarParadas(r.retiros, 'dir_retiro').map((o: any) => o.dir_retiro), ...ordenarParadas(r.entregas, 'dir_entrega').map((o: any) => o.dir_entrega)])}
+                    target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-100 text-purple-700 text-xs font-medium">
+                    <Route size={13} /> Ruta completa en Maps
+                  </a>
+                  <button onClick={() => setLote({ ruta: r.nombre, paradas: [...ordenarParadas(r.retiros, 'dir_retiro').map((o: any) => ({ ...o, _tipo: 'retiro' })), ...ordenarParadas(r.entregas, 'dir_entrega').map((o: any) => ({ ...o, _tipo: 'entrega' }))].filter((o: any) => o.telefono) })}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-green-100 text-green-700 text-xs font-medium">
+                    <Send size={13} /> Avisar a todos
+                  </button>
+                </div>
+              )}
               <div className="p-4 space-y-3">
                 {r.retiros.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-orange-600 mb-2 flex items-center gap-1"><Truck size={12} /> RETIROS ({r.retiros.length})</p>
-                    <div className="space-y-2">{r.retiros.map((o: any) => <Parada key={o.id} o={o} tipo="retiro" />)}</div>
+                    <div className="space-y-2">{ordenarParadas(r.retiros, 'dir_retiro').map((o: any, i: number) => <Parada key={o.id} o={o} tipo="retiro" n={i + 1} />)}</div>
                   </div>
                 )}
                 {r.entregas.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-blue-600 mb-2 flex items-center gap-1"><Package size={12} /> ENTREGAS ({r.entregas.length})</p>
-                    <div className="space-y-2">{r.entregas.map((o: any) => <Parada key={o.id} o={o} tipo="entrega" />)}</div>
+                    <div className="space-y-2">{ordenarParadas(r.entregas, 'dir_entrega').map((o: any, i: number) => <Parada key={o.id} o={o} tipo="entrega" n={r.retiros.length + i + 1} />)}</div>
                   </div>
                 )}
                 {!r.retiros.length && !r.entregas.length && <p className="text-sm text-gray-400 text-center py-3">Sin paradas asignadas</p>}
@@ -168,6 +187,36 @@ export default function Programacion() {
               ))}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {lote && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="p-5 border-b sticky top-0 bg-white flex items-center justify-between">
+              <div><h2 className="font-bold">Avisar a los clientes</h2><p className="text-xs text-gray-500">{lote.ruta} · {lote.paradas.length} con teléfono</p></div>
+              <button onClick={() => { setLote(null); setEnviados([]) }}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="p-4 space-y-2">
+              <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                WhatsApp no permite enviar varios de una vez. Toca cada uno; el que ya enviaste queda marcado.
+              </p>
+              {lote.paradas.map((o: any) => {
+                const ya = enviados.includes(o.id)
+                return (
+                  <button key={o.id} onClick={() => { avisar(o, o._tipo === 'retiro' ? 'EN_RUTA' : 'EN_RUTA'); setEnviados(e => [...e, o.id]) }}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-left ${ya ? 'bg-green-50 border-green-200' : 'hover:bg-gray-50'}`}>
+                    <div>
+                      <p className="text-sm font-medium">{ot(o.id)} · {o.cliente}</p>
+                      <p className="text-xs text-gray-400">{o._tipo === 'retiro' ? 'retiro' : 'entrega'}{Number(o.saldo_pendiente) > 0 ? ` · cobrar ${fmt(o.saldo_pendiente)}` : ''}</p>
+                    </div>
+                    {ya ? <CheckCircle2 size={17} className="text-green-500" /> : <MessageCircle size={17} className="text-green-600" />}
+                  </button>
+                )
+              })}
+              {!lote.paradas.length && <p className="text-sm text-gray-400 text-center py-6">Ninguna parada tiene teléfono registrado</p>}
+            </div>
+          </div>
         </div>
       )}
 

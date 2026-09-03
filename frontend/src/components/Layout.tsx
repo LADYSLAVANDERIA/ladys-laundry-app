@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import {
   LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
   DollarSign, ShoppingCart, UserCog, Truck, BarChart2, Settings,
-  LogOut, Menu, X, ChevronRight, CreditCard, Shirt
+  LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet
 } from 'lucide-react'
 
 const menu = [
@@ -12,6 +12,7 @@ const menu = [
   { path: '/ordenes',         label: 'Pedidos',          icon: ClipboardList },
   { path: '/ordenes/nueva',   label: 'Nueva Orden',      icon: Plus },
   { path: '/programacion',    label: 'Programación',     icon: Calendar },
+  { path: '/por-cobrar',      label: 'Por cobrar',       icon: Wallet },
   { path: '/clientes',        label: 'Clientes',         icon: Users },
   { path: '/membresias',      label: 'Membresías',       icon: CreditCard },
   { path: '/servicios',       label: 'Servicios',        icon: Scissors },

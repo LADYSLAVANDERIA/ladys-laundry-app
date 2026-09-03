@@ -55,3 +55,24 @@ export const mensajeAviso = (tipo: string, o: any, link: string) => {
 
 export const mapsLink = (dir?: string | null) =>
   dir ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dir + ', Chile')}` : ''
+
+// Orden geográfico de la ruta: el furgón sale de Concón hacia el sur
+export const ORDEN_COMUNA: Record<string, number> = {
+  'concón': 1, 'concon': 1, 'reñaca': 2, 'renaca': 2,
+  'viña del mar': 3, 'vina del mar': 3, 'viña': 3,
+  'valparaíso': 4, 'valparaiso': 4, 'quintero': 5,
+}
+export const pesoSector = (dir?: string | null) => {
+  const d = (dir || '').toLowerCase()
+  for (const [k, v] of Object.entries(ORDEN_COMUNA)) if (d.includes(k)) return v
+  return 9
+}
+export const ordenarParadas = (lista: any[], campo: 'dir_retiro' | 'dir_entrega') =>
+  [...lista].sort((a, b) => pesoSector(a[campo]) - pesoSector(b[campo]) || a.id - b.id)
+
+export const rutaCompletaMaps = (dirs: string[]) => {
+  const v = dirs.filter(Boolean).map(d => encodeURIComponent(d + ', Chile'))
+  if (!v.length) return ''
+  const destino = v[v.length - 1], medio = v.slice(0, -1)
+  return `https://www.google.com/maps/dir/?api=1&destination=${destino}` + (medio.length ? `&waypoints=${medio.join('%7C')}` : '') + '&travelmode=driving'
+}

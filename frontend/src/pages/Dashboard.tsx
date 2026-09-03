@@ -46,7 +46,7 @@ export default function Dashboard() {
           { l: 'Retiros hoy',   v: res.retiros_hoy  || 0, c: 'text-orange-600', bg: 'bg-orange-50', to: '/programacion' },
           { l: 'Entregas hoy',  v: res.entregas_hoy || 0, c: 'text-blue-600',   bg: 'bg-blue-50',   to: '/programacion' },
           { l: 'Listas por entregar', v: res.lista  || 0, c: 'text-green-600',  bg: 'bg-green-50',  to: '/ordenes' },
-          { l: 'Por cobrar',    v: fmt(res.por_cobrar), c: 'text-red-600',      bg: 'bg-red-50',    to: '/ordenes' },
+          { l: 'Por cobrar',    v: fmt(res.por_cobrar), c: 'text-red-600',      bg: 'bg-red-50',    to: '/por-cobrar' },
         ].map(k => (
           <button key={k.l} onClick={() => navigate(k.to)} className={`${k.bg} rounded-xl p-4 text-left hover:shadow-sm transition-shadow`}>
             <p className="text-xs text-gray-500">{k.l}</p>

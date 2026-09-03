@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { programacionApi, ordenesApi, formasPagoApi } from '../services/api'
+import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check } from 'lucide-react'
 import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, pesoSector } from '../utils'
 
 export default function Programacion() {
@@ -13,11 +13,17 @@ export default function Programacion() {
   const [formas, setFormas] = useState<any[]>([])
   const [cobro, setCobro] = useState<any>(null)
   const [lote, setLote] = useState<any>(null)
+  const [ordenManual, setOrdenManual] = useState<Record<string, number>>({})
+  const [editandoRuta, setEditandoRuta] = useState<number | null>(null)
+  const [secuencia, setSecuencia] = useState<any[]>([])
   const [enviados, setEnviados] = useState<number[]>([])
 
   const load = async (f = fecha) => {
     setLoading(true)
-    try { const { data } = await programacionApi.get(f); setData(data) }
+    try {
+      const [{ data }, om] = await Promise.all([programacionApi.get(f), ordenRutaApi.get(f).catch(() => ({ data: {} }))])
+      setData(data); setOrdenManual(om.data || {})
+    }
     catch { toast.error('No se pudo cargar la programación') } finally { setLoading(false) }
   }
   useEffect(() => { load(fecha) }, [fecha])
@@ -47,6 +53,30 @@ export default function Programacion() {
       load()
     }
     catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
+  }
+
+  const ordenar = (lista: any[], campo: 'dir_retiro' | 'dir_entrega') => {
+    const conManual = lista.filter(o => ordenManual[String(o.id)])
+    const sinManual = ordenarParadas(lista.filter(o => !ordenManual[String(o.id)]), campo)
+    conManual.sort((a, b) => ordenManual[String(a.id)] - ordenManual[String(b.id)])
+    return [...conManual, ...sinManual]
+  }
+
+  const abrirOrden = (r: any) => {
+    const paradas = [...ordenar(r.retiros, 'dir_retiro').map((o: any) => ({ ...o, _t: 'Retiro', _dir: o.dir_retiro })),
+                     ...ordenar(r.entregas, 'dir_entrega').map((o: any) => ({ ...o, _t: 'Entrega', _dir: o.dir_entrega }))]
+    setSecuencia(paradas); setEditandoRuta(r.id)
+  }
+  const mover = (i: number, d: number) => {
+    const j = i + d; if (j < 0 || j >= secuencia.length) return
+    const s2 = [...secuencia]; const tmp = s2[i]; s2[i] = s2[j]; s2[j] = tmp; setSecuencia(s2)
+  }
+  const guardarOrden = async () => {
+    try {
+      await ordenRutaApi.set(secuencia.map(o => o.id))
+      toast.success('Orden de la ruta guardado')
+      setEditandoRuta(null); load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar') }
   }
 
   const Parada = ({ o, tipo, n }: { o: any; tipo: 'retiro' | 'entrega'; n?: number }) => {
@@ -137,13 +167,16 @@ export default function Programacion() {
               </div>
               {(r.retiros.length + r.entregas.length) > 0 && (
                 <div className="px-4 py-2 border-b bg-gray-50 flex gap-2">
-                  <a href={rutaCompletaMaps([...ordenarParadas(r.retiros, 'dir_retiro').map((o: any) => o.dir_retiro), ...ordenarParadas(r.entregas, 'dir_entrega').map((o: any) => o.dir_entrega)])}
+                  <a href={rutaCompletaMaps([...ordenar(r.retiros, 'dir_retiro').map((o: any) => o.dir_retiro), ...ordenar(r.entregas, 'dir_entrega').map((o: any) => o.dir_entrega)])}
                     target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-100 text-purple-700 text-xs font-medium">
                     <Route size={13} /> Ruta completa en Maps
                   </a>
-                  <button onClick={() => setLote({ ruta: r.nombre, paradas: [...ordenarParadas(r.retiros, 'dir_retiro').map((o: any) => ({ ...o, _tipo: 'retiro' })), ...ordenarParadas(r.entregas, 'dir_entrega').map((o: any) => ({ ...o, _tipo: 'entrega' }))].filter((o: any) => o.telefono) })}
+                  <button onClick={() => setLote({ ruta: r.nombre, paradas: [...ordenar(r.retiros, 'dir_retiro').map((o: any) => ({ ...o, _tipo: 'retiro' })), ...ordenar(r.entregas, 'dir_entrega').map((o: any) => ({ ...o, _tipo: 'entrega' }))].filter((o: any) => o.telefono) })}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-green-100 text-green-700 text-xs font-medium">
                     <Send size={13} /> Avisar a todos
+                  </button>
+                  <button onClick={() => abrirOrden(r)} className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-gray-200 text-gray-700 text-xs font-medium">
+                    <ListOrdered size={13} /> Orden
                   </button>
                 </div>
               )}
@@ -151,13 +184,13 @@ export default function Programacion() {
                 {r.retiros.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-orange-600 mb-2 flex items-center gap-1"><Truck size={12} /> RETIROS ({r.retiros.length})</p>
-                    <div className="space-y-2">{ordenarParadas(r.retiros, 'dir_retiro').map((o: any, i: number) => <Parada key={o.id} o={o} tipo="retiro" n={i + 1} />)}</div>
+                    <div className="space-y-2">{ordenar(r.retiros, 'dir_retiro').map((o: any, i: number) => <Parada key={o.id} o={o} tipo="retiro" n={i + 1} />)}</div>
                   </div>
                 )}
                 {r.entregas.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-blue-600 mb-2 flex items-center gap-1"><Package size={12} /> ENTREGAS ({r.entregas.length})</p>
-                    <div className="space-y-2">{ordenarParadas(r.entregas, 'dir_entrega').map((o: any, i: number) => <Parada key={o.id} o={o} tipo="entrega" n={r.retiros.length + i + 1} />)}</div>
+                    <div className="space-y-2">{ordenar(r.entregas, 'dir_entrega').map((o: any, i: number) => <Parada key={o.id} o={o} tipo="entrega" n={r.retiros.length + i + 1} />)}</div>
                   </div>
                 )}
                 {!r.retiros.length && !r.entregas.length && <p className="text-sm text-gray-400 text-center py-3">Sin paradas asignadas</p>}
@@ -187,6 +220,39 @@ export default function Programacion() {
               ))}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {editandoRuta !== null && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl w-full max-w-md max-h-[85vh] overflow-y-auto">
+            <div className="p-5 border-b sticky top-0 bg-white flex items-center justify-between">
+              <div><h2 className="font-bold">Orden de las paradas</h2><p className="text-xs text-gray-500">Mueve con las flechas y guarda</p></div>
+              <button onClick={() => setEditandoRuta(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="p-4 space-y-2">
+              {secuencia.map((o, i) => (
+                <div key={o.id} className="flex items-center gap-2 border rounded-xl px-3 py-2">
+                  <span className="w-6 h-6 rounded-full bg-gray-800 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{ot(o.id)} · {o.cliente}</p>
+                    <p className="text-xs text-gray-400 truncate">{o._t} · {o._dir || 'sin dirección'}</p>
+                  </div>
+                  <div className="flex flex-col gap-0.5 flex-shrink-0">
+                    <button onClick={() => mover(i, -1)} disabled={i === 0} className="p-1 rounded bg-gray-100 disabled:opacity-30"><ArrowUp size={13} /></button>
+                    <button onClick={() => mover(i, 1)} disabled={i === secuencia.length - 1} className="p-1 rounded bg-gray-100 disabled:opacity-30"><ArrowDown size={13} /></button>
+                  </div>
+                </div>
+              ))}
+              {!secuencia.length && <p className="text-sm text-gray-400 text-center py-6">Esta ruta no tiene paradas</p>}
+            </div>
+            <div className="p-4 border-t sticky bottom-0 bg-white flex gap-2">
+              <button onClick={guardarOrden} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold text-sm" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                <Check size={15} /> Guardar orden
+              </button>
+              <button onClick={() => setEditandoRuta(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
+            </div>
+          </div>
         </div>
       )}
 

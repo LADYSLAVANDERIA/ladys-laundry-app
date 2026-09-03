@@ -49,6 +49,17 @@ export const retirosApi = {
   disponibilidad: (fecha: string) => api.get('/retiros/disponibilidad', { params: { fecha } }),
   create: (d: object) => api.post('/retiros', d),
 }
+const RUTA_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-ruta') || 'http://localhost:3001/ruta'
+const rutaOrdenApi = axios.create({ baseURL: RUTA_URL })
+rutaOrdenApi.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const ordenRutaApi = {
+  get: (fecha: string) => rutaOrdenApi.get('', { params: { fecha } }),
+  set: (ids: number[]) => rutaOrdenApi.post('', { ids }),
+}
 export const configApi = { get: () => api.get('/config'), set: (d: object) => api.put('/config', d) }
 export const serviciosApi  = {
   getAll:  () => api.get('/servicios'),

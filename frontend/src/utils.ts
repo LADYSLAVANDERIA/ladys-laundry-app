@@ -34,3 +34,24 @@ export const fechaCorta = (f?: string | null) => (f ? format(new Date(String(f).
 export const fechaLarga = (f?: string | null) => (f ? format(new Date(String(f).slice(0, 10) + 'T12:00:00'), "EEEE d 'de' MMMM", { locale: es }) : '—')
 export const fechaHora = (f?: string | null) => (f ? format(new Date(f), 'd MMM HH:mm', { locale: es }) : '—')
 export const hora = (t?: string | null) => (t ? String(t).slice(0, 5) : '')
+
+// Mensaje de aviso al cliente, con fecha en español
+export const linkOT = (id: number | string, token?: string | null) =>
+  `${location.origin}${location.pathname.replace(/\/$/, '')}/#/ot/${id}/${token || ''}`
+
+export const mensajeAviso = (tipo: string, o: any, link: string) => {
+  const n = String(o.cliente_nombre || o.cliente || '').split(' ')[0]
+  const saldo = Number(o.saldo_pendiente || 0) > 0 ? ` Saldo a pagar: ${fmt(o.saldo_pendiente)}.` : ' Ya está pagada.'
+  const num = ot(o.id)
+  if (tipo === 'INGRESO') return `Hola ${n}, recibimos tu pedido en Ladys Lavandería. Tu orden es la ${num} por ${fmt(o.monto_total)}.${saldo}\n\nSíguela acá: ${link}`
+  if (tipo === 'EN_RUTA') return `Hola ${n}, vamos en camino con tu pedido ${num} de Ladys Lavandería.${saldo}\n\n${link}`
+  if (tipo === 'RETIRADO') return `Hola ${n}, ya retiramos tu ropa. Quedó registrada como la orden ${num} y te avisamos apenas esté lista.\n\n${link}`
+  if (tipo === 'ENTREGADA') return `Hola ${n}, tu pedido ${num} fue entregado. ¡Gracias por preferirnos!\n\n${link}`
+  const donde = o.entrega_domicilio
+    ? `Te lo llevamos el ${fechaLarga(o.fecha_entrega)}${o.ruta_entrega ? `, entre las ${hora(o.ruta_entrega_hora) || '14:00'} y las ${hora(o.ruta_entrega_fin) || '15:00'}` : ''}.`
+    : 'Puedes pasar a retirarlo al local, Av. Concón Reñaca 102, locales 5 y 6.'
+  return `Hola ${n}, tu pedido ${num} ya está listo. ${donde}${saldo}\n\nDetalle: ${link}`
+}
+
+export const mapsLink = (dir?: string | null) =>
+  dir ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dir + ', Chile')}` : ''

@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { programacionApi, ordenesApi } from '../services/api'
+import { programacionApi, ordenesApi, formasPagoApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2 } from 'lucide-react'
-import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, waLink } from '../utils'
+import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X } from 'lucide-react'
+import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink } from '../utils'
 
 export default function Programacion() {
   const navigate = useNavigate()
   const [fecha, setFecha] = useState(hoy())
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [formas, setFormas] = useState<any[]>([])
+  const [cobro, setCobro] = useState<any>(null)
 
   const load = async (f = fecha) => {
     setLoading(true)
@@ -17,6 +19,24 @@ export default function Programacion() {
     catch { toast.error('No se pudo cargar la programación') } finally { setLoading(false) }
   }
   useEffect(() => { load(fecha) }, [fecha])
+  useEffect(() => { formasPagoApi.getAll().then(r => setFormas(r.data)).catch(() => {}) }, [])
+
+  const cobrar = async () => {
+    if (!cobro.forma_pago_id || !Number(cobro.monto)) return toast.error('Elige forma de pago y monto')
+    try {
+      await ordenesApi.pagar(cobro.id, { forma_pago_id: Number(cobro.forma_pago_id), monto: Number(cobro.monto) })
+      toast.success(`Cobrado ${fmt(cobro.monto)} en ${ot(cobro.id)}`)
+      setCobro(null); load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'Error al registrar el pago') }
+  }
+  const avisar = async (o: any, tipo: string) => {
+    const link = linkOT(o.id, o.token_publico)
+    const msg = mensajeAviso(tipo, o, link)
+    const tel = telWa(o.telefono)
+    if (!tel) return toast.error('El cliente no tiene teléfono')
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank')
+    ordenesApi.aviso(o.id, { tipo, mensaje: msg }).catch(() => {})
+  }
 
   const marcar = async (id: number, estado: string) => {
     try { await ordenesApi.cambiarEstado(id, { estado }); toast.success(`${ot(id)} actualizada`); load() }
@@ -46,11 +66,31 @@ export default function Programacion() {
             </div>
           </div>
           <div className="flex flex-col gap-1.5 items-end flex-shrink-0">
-            {o.telefono && <a href={waLink(o.telefono, `Hola ${String(o.cliente).split(' ')[0]}, vamos en camino con tu pedido ${ot(o.id)} de Ladys Lavandería.`)} target="_blank" rel="noreferrer" className="p-1.5 border rounded-lg text-green-600"><Phone size={13} /></a>}
             {listoRetiro && <button onClick={() => marcar(o.id, 'EN_PROCESO')} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-orange-100 text-orange-700 font-medium whitespace-nowrap">Retirado</button>}
             {listoEntrega && <button onClick={() => marcar(o.id, 'ENTREGADA')} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-100 text-blue-700 font-medium whitespace-nowrap">Entregada</button>}
             {o.estado === 'ENTREGADA' && <CheckCircle2 size={16} className="text-green-500" />}
           </div>
+        </div>
+
+        {/* Botonera del conductor */}
+        <div className="grid grid-cols-4 gap-1.5 mt-3">
+          <a href={o.telefono ? `tel:+${telWa(o.telefono)}` : undefined}
+            className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${o.telefono ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-300 pointer-events-none'}`}>
+            <Phone size={16} /> Llamar
+          </a>
+          <button onClick={() => avisar(o, tipo === 'retiro' ? 'EN_RUTA' : 'EN_RUTA')} disabled={!o.telefono}
+            className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${o.telefono ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-300'}`}>
+            <MessageCircle size={16} /> WhatsApp
+          </button>
+          <a href={mapsLink(dir)} target="_blank" rel="noreferrer"
+            className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${dir ? 'bg-purple-50 text-purple-600' : 'bg-gray-50 text-gray-300 pointer-events-none'}`}>
+            <Navigation size={16} /> Navegar
+          </a>
+          <button onClick={() => setCobro({ id: o.id, cliente: o.cliente, monto: String(Math.round(Number(o.saldo_pendiente))), forma_pago_id: String(formas.find((f: any) => /efectivo/i.test(f.nombre))?.id || '') })}
+            disabled={!(Number(o.saldo_pendiente) > 0)}
+            className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${Number(o.saldo_pendiente) > 0 ? 'bg-pink-50 text-pink-600' : 'bg-gray-50 text-gray-300'}`}>
+            <DollarSign size={16} /> {Number(o.saldo_pendiente) > 0 ? 'Cobrar' : 'Pagada'}
+          </button>
         </div>
       </div>
     )
@@ -128,6 +168,30 @@ export default function Programacion() {
               ))}</div>
             </div>
           )}
+        </div>
+      )}
+
+      {cobro && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div><h2 className="font-bold">Cobrar {ot(cobro.id)}</h2><p className="text-xs text-gray-500">{cobro.cliente}</p></div>
+              <button onClick={() => setCobro(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <input type="number" inputMode="numeric" value={cobro.monto} onChange={e => setCobro({ ...cobro, monto: e.target.value })}
+              className="w-full border rounded-xl px-3 py-3 text-2xl font-bold text-center outline-none focus:ring-2 focus:ring-pink-300" />
+            <div className="grid grid-cols-2 gap-2">
+              {formas.filter((f: any) => !/membres/i.test(f.nombre)).map((f: any) => (
+                <button key={f.id} onClick={() => setCobro({ ...cobro, forma_pago_id: String(f.id) })}
+                  className={`py-2.5 rounded-xl text-sm font-medium border ${String(cobro.forma_pago_id) === String(f.id) ? 'bg-pink-500 text-white border-pink-500' : 'text-gray-600'}`}>
+                  {f.nombre}
+                </button>
+              ))}
+            </div>
+            <button onClick={cobrar} className="w-full py-3.5 rounded-xl text-white font-semibold" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+              Registrar pago
+            </button>
+          </div>
         </div>
       )}
     </div>

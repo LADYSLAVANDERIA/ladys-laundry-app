@@ -5,7 +5,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2 } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana } from '../utils'
+import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT } from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -95,9 +95,10 @@ export default function OrdenDetalle() {
   const borrarFoto = async (fid: number) => {
     try { await ordenesApi.borrarFoto(fid); toast.success('Foto eliminada'); load() } catch { toast.error('Error') }
   }
-  const prepararAviso = async (tipo: string) => {
-    try { const { data } = await ordenesApi.aviso(o.id, { tipo, registrar: false }); setAviso({ ...data, tipo }); setModal('aviso') }
-    catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
+  const prepararAviso = (tipo: string) => {
+    const link = linkOT(o.id, o.token_publico)
+    setAviso({ tipo, link, telefono: o.cliente_telefono, mensaje: mensajeAviso(tipo, o, link) })
+    setModal('aviso')
   }
   const enviarAviso = async () => {
     try {

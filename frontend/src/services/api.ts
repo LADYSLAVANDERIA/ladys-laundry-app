@@ -60,6 +60,21 @@ export const ordenRutaApi = {
   get: (fecha: string) => rutaOrdenApi.get('', { params: { fecha } }),
   set: (ids: number[]) => rutaOrdenApi.post('', { ids }),
 }
+const CLUB_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-club') || 'http://localhost:3001/club'
+const clubHttp = axios.create({ baseURL: CLUB_URL })
+clubHttp.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const clubApi = {
+  estado: () => clubHttp.get('/estado'),
+  activar: (d: object) => clubHttp.post('/activar', d),
+  consumir: (id: number, d: object) => clubHttp.post(`/${id}/consumir`, d),
+  renovar: (id: number, d: object) => clubHttp.post(`/${id}/renovar`, d),
+  cancelar: (id: number) => clubHttp.post(`/${id}/cancelar`, {}),
+  movimientos: (id: number) => clubHttp.get(`/${id}/movimientos`),
+}
 export const configApi = { get: () => api.get('/config'), set: (d: object) => api.put('/config', d) }
 export const serviciosApi  = {
   getAll:  () => api.get('/servicios'),

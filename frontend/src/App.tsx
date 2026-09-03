@@ -19,6 +19,7 @@ import ReporteControl from './pages/ReporteControl'
 import ConfigLocal from './pages/ConfigLocal'
 import Prepagos from './pages/Prepagos'
 import Membresias from './pages/Membresias'
+import OrdenPublica from './pages/OrdenPublica'
 import Programacion from './pages/Programacion'
 import ClienteDetalle from './pages/ClienteDetalle'
 
@@ -33,6 +34,7 @@ export default function App() {
     <HashRouter>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       <Routes>
+        <Route path="/ot/:id/:token" element={<OrdenPublica />} />
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard"       element={<PrivateRoute><Dashboard /></PrivateRoute>} />

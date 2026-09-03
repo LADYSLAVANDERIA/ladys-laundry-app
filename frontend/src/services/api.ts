@@ -31,6 +31,10 @@ export const ordenesApi = {
   update: (id: number | string, d: object) => api.put(`/ordenes/${id}`, d),
   cambiarEstado: (id: number | string, d: object) => api.put(`/ordenes/${id}/estado`, d),
   pagar: (id: number | string, d: object) => api.post(`/ordenes/${id}/pago`, d),
+  fotos: (id: number | string) => api.get(`/ordenes/${id}/fotos`),
+  subirFotos: (id: number | string, d: object) => api.post(`/ordenes/${id}/fotos`, d),
+  borrarFoto: (fotoId: number) => api.delete(`/fotos/${fotoId}`),
+  aviso: (id: number | string, d: object) => api.post(`/ordenes/${id}/aviso`, d),
 }
 export const programacionApi = { get: (fecha: string) => api.get('/programacion', { params: { fecha } }) }
 export const retirosApi = {

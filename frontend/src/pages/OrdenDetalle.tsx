@@ -4,7 +4,7 @@ import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi } from '../
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package } from 'lucide-react'
+import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2 } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana } from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
@@ -18,6 +18,7 @@ export default function OrdenDetalle() {
   const [modal, setModal] = useState<string | null>(null)
   const [edit, setEdit] = useState<any>(null)
   const [kilos, setKilos] = useState(''); const [express, setExpress] = useState(false); const [prendas, setPrendas] = useState<Item[]>([])
+  const [subiendo, setSubiendo] = useState(false); const [aviso, setAviso] = useState<any>(null); const [momento, setMomento] = useState('RECEPCION')
 
   const load = async () => {
     try {
@@ -64,6 +65,48 @@ export default function OrdenDetalle() {
     } catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
   }
 
+  const comprimir = (file: File): Promise<string> => new Promise((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const max = 1400, esc = Math.min(1, max / Math.max(img.width, img.height))
+        const c = document.createElement('canvas')
+        c.width = Math.round(img.width * esc); c.height = Math.round(img.height * esc)
+        c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
+        res(c.toDataURL('image/jpeg', 0.78))
+      }
+      img.onerror = rej; img.src = r.result as string
+    }
+    r.onerror = rej; r.readAsDataURL(file)
+  })
+
+  const tomarFotos = async (files: FileList | null) => {
+    if (!files?.length) return
+    setSubiendo(true)
+    try {
+      const imagenes = []
+      for (const f of Array.from(files).slice(0, 6)) imagenes.push(await comprimir(f))
+      await ordenesApi.subirFotos(o.id, { imagenes, momento })
+      toast.success(`${imagenes.length} foto${imagenes.length > 1 ? 's' : ''} guardada${imagenes.length > 1 ? 's' : ''}`)
+      load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo subir la foto') } finally { setSubiendo(false) }
+  }
+  const borrarFoto = async (fid: number) => {
+    try { await ordenesApi.borrarFoto(fid); toast.success('Foto eliminada'); load() } catch { toast.error('Error') }
+  }
+  const prepararAviso = async (tipo: string) => {
+    try { const { data } = await ordenesApi.aviso(o.id, { tipo, registrar: false }); setAviso({ ...data, tipo }); setModal('aviso') }
+    catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
+  }
+  const enviarAviso = async () => {
+    try {
+      const { data } = await ordenesApi.aviso(o.id, { tipo: aviso.tipo, mensaje: aviso.mensaje })
+      if (data.wa) window.open(data.wa, '_blank')
+      toast.success('Aviso registrado'); setModal(null); setAviso(null); load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
+  }
+
   const idx = FLUJO.indexOf(o.estado)
   const sig = idx >= 0 && idx < 3 ? FLUJO[idx + 1] : null
   const msgWa = `Hola ${o.cliente_nombre?.split(' ')[0]}, tu pedido ${ot(o.id)} de Ladys Lavandería ya está listo. ${o.entrega_domicilio ? `Te lo llevamos el ${fechaCorta(o.fecha_entrega)}${o.ruta_entrega ? ` entre las ${hora(o.ruta_entrega_hora)}` : ''}.` : 'Puedes pasar a retirarlo al local.'}${Number(o.saldo_pendiente) > 0 ? ` Saldo pendiente: ${fmt(o.saldo_pendiente)}.` : ''}`
@@ -94,6 +137,8 @@ export default function OrdenDetalle() {
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => setModal('pago')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold"><DollarSign size={14} /> Registrar pago {fmt(o.saldo_pendiente)}</button>}
             {o.estado !== 'ENTREGADA' && <button onClick={abrirEdicionItems} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Package size={14} /> Editar ítems</button>}
             <button onClick={() => { setEdit({ fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos }); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
+            <button onClick={() => prepararAviso(o.estado === 'LISTA' ? 'LISTA' : o.estado === 'PRE_ORDEN' ? 'INGRESO' : o.estado === 'ENTREGADA' ? 'ENTREGADA' : 'INGRESO')}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium"><Send size={14} /> Avisar al cliente</button>
             <button onClick={() => setModal('anular')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm"><Ban size={14} /> Anular</button>
           </div>
         )}
@@ -118,6 +163,30 @@ export default function OrdenDetalle() {
                 {Number(o.monto_abonado) > 0 && <div className="flex justify-between text-green-600"><span>Abonado</span><span>{fmt(o.monto_abonado)}</span></div>}
                 {Number(o.saldo_pendiente) > 0 && <div className="flex justify-between text-red-600 font-semibold"><span>Saldo</span><span>{fmt(o.saldo_pendiente)}</span></div>}
               </div>
+            </div>
+
+            {/* Fotos */}
+            <div className="bg-white rounded-2xl shadow-sm border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-500 flex items-center gap-1.5"><Camera size={13} /> FOTOS DEL PEDIDO</p>
+                <select value={momento} onChange={e => setMomento(e.target.value)} className="text-xs border rounded-lg px-2 py-1 outline-none">
+                  <option value="RECEPCION">Al recibir</option><option value="PROCESO">En proceso</option><option value="ENTREGA">Al entregar</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {(o.fotos || []).map((f: any) => (
+                  <div key={f.id} className="relative group">
+                    <a href={f.url} target="_blank" rel="noreferrer"><img src={f.url} alt="" className="w-full h-20 object-cover rounded-xl border" /></a>
+                    <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1.5 py-0.5 rounded">{f.momento === 'RECEPCION' ? 'recibo' : f.momento === 'ENTREGA' ? 'entrega' : 'proceso'}</span>
+                    <button onClick={() => borrarFoto(f.id)} className="absolute top-1 right-1 bg-white/90 rounded-full p-1 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={11} /></button>
+                  </div>
+                ))}
+                <label className="h-20 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer text-gray-400 hover:border-pink-300 hover:text-pink-500">
+                  {subiendo ? <Loader2 size={18} className="animate-spin" /> : <><Camera size={18} /><span className="text-[10px] mt-0.5">Agregar</span></>}
+                  <input type="file" accept="image/*" capture="environment" multiple className="hidden" disabled={subiendo} onChange={e => tomarFotos(e.target.files)} />
+                </label>
+              </div>
+              <p className="text-[11px] text-gray-400 mt-2">El cliente ve estas fotos en el enlace de su orden.</p>
             </div>
 
             {/* Pagos */}
@@ -243,6 +312,30 @@ export default function OrdenDetalle() {
               <div className="col-span-2"><label className="text-xs text-gray-500">Observaciones</label><input value={edit.observaciones} onChange={e => setEdit({ ...edit, observaciones: e.target.value })} className={inp} /></div>
             </div>
             <div className="flex gap-2"><button onClick={guardarLogistica} className="flex-1 py-3 rounded-xl text-white font-semibold text-sm" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Guardar</button><button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button></div>
+          </div>
+        </div>
+      )}
+
+      {modal === 'aviso' && aviso && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 space-y-3">
+            <div className="flex items-center justify-between"><h2 className="font-bold">Avisar al cliente</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
+            <div className="flex gap-1.5 flex-wrap">
+              {[['INGRESO','Recibimos tu pedido'],['LISTA','Ya está lista'],['EN_RUTA','Vamos en camino'],['ENTREGADA','Entregada']].map(([k,l]) => (
+                <button key={k} onClick={() => prepararAviso(k)} className={`px-2.5 py-1 rounded-lg text-xs ${aviso.tipo === k ? 'bg-pink-500 text-white' : 'bg-gray-100 text-gray-600'}`}>{l}</button>
+              ))}
+            </div>
+            <textarea value={aviso.mensaje} onChange={e => setAviso({ ...aviso, mensaje: e.target.value })} rows={7} className={inp + ' text-xs'} />
+            <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg p-2">
+              <Link2 size={12} className="flex-shrink-0" />
+              <span className="truncate">{aviso.link}</span>
+              <button onClick={() => { navigator.clipboard.writeText(aviso.link); toast.success('Enlace copiado') }} className="text-pink-600 font-medium flex-shrink-0">Copiar</button>
+            </div>
+            {!aviso.telefono && <p className="text-xs text-amber-600">El cliente no tiene teléfono registrado; solo puedes copiar el enlace.</p>}
+            <div className="flex gap-2">
+              <button onClick={enviarAviso} disabled={!aviso.telefono} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-green-500 text-white font-semibold text-sm disabled:opacity-40"><MessageCircle size={15} /> Abrir WhatsApp</button>
+              <button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cerrar</button>
+            </div>
           </div>
         </div>
       )}

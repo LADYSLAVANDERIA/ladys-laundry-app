@@ -13,6 +13,14 @@ api.interceptors.response.use(r => r, err => {
   return Promise.reject(err)
 })
 
+const FOTOS_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-fotos') || 'http://localhost:3001/fotos'
+const fotosApi = axios.create({ baseURL: FOTOS_URL })
+fotosApi.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
 export const authApi = { login: (d: object) => api.post('/auth/login', d) }
 export const clientesApi = {
   getAll: (q?: string, params: object = {}) => api.get('/clientes', { params: { q, ...params } }),
@@ -32,8 +40,8 @@ export const ordenesApi = {
   cambiarEstado: (id: number | string, d: object) => api.put(`/ordenes/${id}/estado`, d),
   pagar: (id: number | string, d: object) => api.post(`/ordenes/${id}/pago`, d),
   fotos: (id: number | string) => api.get(`/ordenes/${id}/fotos`),
-  subirFotos: (id: number | string, d: object) => api.post(`/ordenes/${id}/fotos`, d),
-  borrarFoto: (fotoId: number) => api.delete(`/fotos/${fotoId}`),
+  subirFotos: (id: number | string, d: object) => fotosApi.post(`/${id}`, d),
+  borrarFoto: (fotoId: number) => fotosApi.delete(`/${fotoId}`),
   aviso: (id: number | string, d: object) => api.post(`/ordenes/${id}/aviso`, d),
 }
 export const programacionApi = { get: (fecha: string) => api.get('/programacion', { params: { fecha } }) }

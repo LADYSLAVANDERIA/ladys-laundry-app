@@ -34,8 +34,8 @@ export default function ConfigLocal() {
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" /></div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      <h1 className="text-2xl font-bold text-gray-800">Configuracion del Local</h1>
+    <div className="space-y-5">
+      
       <form onSubmit={handleSave} className="space-y-5">
         <div className="bg-white rounded-xl p-5 shadow-sm border">
           <h3 className="font-semibold mb-4">Datos del Negocio</h3>

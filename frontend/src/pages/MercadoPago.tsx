@@ -35,9 +35,9 @@ export default function MercadoPago() {
   const listo = !!salud?.token_cargado
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4">
+    <div className="max-w-2xl space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Mercado Pago</h1>
+        <h2 className="font-semibold text-gray-800">Mercado Pago</h2>
         <p className="text-gray-500 text-sm">Activación automática de las suscripciones de El Club</p>
       </div>
 

@@ -16,16 +16,15 @@ import Rutas from './pages/Rutas'
 import Usuarios from './pages/Usuarios'
 import Agenda from './pages/Agenda'
 import ReporteControl from './pages/ReporteControl'
-import ConfigLocal from './pages/ConfigLocal'
 import Prepagos from './pages/Prepagos'
 import Membresias from './pages/Membresias'
 import OrdenPublica from './pages/OrdenPublica'
 import PortalCliente from './pages/PortalCliente'
 import Programacion from './pages/Programacion'
 import PorCobrar from './pages/PorCobrar'
-import MercadoPago from './pages/MercadoPago'
 import ClienteDetalle from './pages/ClienteDetalle'
 import Reparto from './pages/Reparto'
+import Configuracion from './pages/Configuracion'
 import Conductor from './pages/Conductor'
 
 function SoloToken({ children }: { children: React.ReactNode }) {
@@ -57,7 +56,7 @@ export default function App() {
         <Route path="/ordenes"         element={<PrivateRoute><Ordenes /></PrivateRoute>} />
         <Route path="/programacion"    element={<PrivateRoute><Programacion /></PrivateRoute>} />
         <Route path="/por-cobrar"      element={<PrivateRoute><PorCobrar /></PrivateRoute>} />
-        <Route path="/mercado-pago"    element={<PrivateRoute><MercadoPago /></PrivateRoute>} />
+        <Route path="/mercado-pago"    element={<Navigate to="/config-local" replace />} />
         <Route path="/ordenes/nueva"   element={<PrivateRoute><NuevaOrden /></PrivateRoute>} />
         <Route path="/ordenes/:id"     element={<PrivateRoute><OrdenDetalle /></PrivateRoute>} />
         <Route path="/servicios"       element={<PrivateRoute><Servicios /></PrivateRoute>} />
@@ -68,7 +67,7 @@ export default function App() {
         <Route path="/usuarios"        element={<PrivateRoute><Usuarios /></PrivateRoute>} />
         <Route path="/agenda"          element={<PrivateRoute><Agenda /></PrivateRoute>} />
         <Route path="/reporte-control" element={<PrivateRoute><ReporteControl /></PrivateRoute>} />
-        <Route path="/config-local"    element={<PrivateRoute><ConfigLocal /></PrivateRoute>} />
+        <Route path="/config-local"    element={<PrivateRoute><Configuracion /></PrivateRoute>} />
         <Route path="/prepagos"       element={<PrivateRoute><Prepagos /></PrivateRoute>} />
         <Route path="/membresias"    element={<PrivateRoute><Membresias /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

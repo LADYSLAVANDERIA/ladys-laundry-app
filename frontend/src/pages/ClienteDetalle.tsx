@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { clientesApi, fichaApi, serviciosApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2 } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2, TrendingUp, Clock, Repeat, AlertTriangle, Truck, Zap } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, waLink, ESTADO_COLOR, ESTADO_LABEL } from '../utils'
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 
@@ -12,11 +13,12 @@ export default function ClienteDetalle() {
   const [c, setC] = useState<any>(null); const [modal, setModal] = useState<string | null>(null)
   const [dir, setDir] = useState<any>({ ciudad: 'Concón' }); const [edit, setEdit] = useState<any>(null)
   const [precios, setPrecios] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([])
+  const [ana, setAna] = useState<any>(null)
   const [nuevoPrecio, setNuevoPrecio] = useState<any>({}); const [guardando, setGuardando] = useState(false)
 
   const load = async () => { try { const { data } = await clientesApi.getById(id!); setC(data); } catch { toast.error('Cliente no encontrado'); navigate('/clientes') } }
   const cargarPrecios = async () => { try { const { data } = await fichaApi.precios(id!); setPrecios(data) } catch { /* sin convenio */ } }
-  useEffect(() => { load(); cargarPrecios(); serviciosApi.getAll().then(r => setServicios(r.data)).catch(() => {}) }, [id])
+  useEffect(() => { load(); cargarPrecios(); fichaApi.analitica(id!).then(r => setAna(r.data)).catch(() => {}); serviciosApi.getAll().then(r => setServicios(r.data)).catch(() => {}) }, [id])
   if (!c) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
 
   const guardarDir = async () => {
@@ -79,6 +81,91 @@ export default function ClienteDetalle() {
           <div key={i} className="bg-white rounded-2xl shadow-sm border p-4"><p className="text-xs text-gray-400">{l}</p><p className={`text-lg font-bold ${i === 2 && Number(c.stats?.saldo_total) > 0 ? 'text-red-500' : 'text-gray-800'}`}>{v}</p></div>
         ))}
       </div>
+
+      {ana && ana.ordenes > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+          <div className="px-4 py-3 border-b flex items-center justify-between" style={{ background: 'linear-gradient(135deg,#E8177A0d,#A87BC80d)' }}>
+            <p className="font-semibold text-gray-700 flex items-center gap-2"><TrendingUp size={16} className="text-pink-500" /> Comportamiento de consumo</p>
+            <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+              ana.estado === 'Al día' ? 'bg-green-100 text-green-700'
+              : ana.estado === 'Se está atrasando' ? 'bg-amber-100 text-amber-700'
+              : ana.estado === 'En riesgo de pérdida' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}>
+              {ana.estado}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 border-b">
+            {[
+              { l: 'Pide cada', v: ana.dias_entre_ordenes ? `${ana.dias_entre_ordenes} días` : '—', s: ana.habito, i: Repeat },
+              { l: 'Ticket promedio', v: fmt(ana.ticket), s: ana.ticket_max ? `máximo ${fmt(ana.ticket_max)}` : '', i: Package },
+              { l: 'Gasta al mes', v: ana.gasto_mensual ? fmt(ana.gasto_mensual) : '—', s: ana.ordenes_por_mes ? `${ana.ordenes_por_mes} órdenes/mes` : '', i: TrendingUp },
+              { l: 'Última visita', v: ana.dias_desde_ultima === 0 ? 'Hoy' : `hace ${ana.dias_desde_ultima} días`, s: fechaCorta(ana.ultima), i: Clock },
+            ].map((k, i) => (
+              <div key={i} className="p-4">
+                <p className="text-[11px] text-gray-400 flex items-center gap-1"><k.i size={11} /> {k.l}</p>
+                <p className="text-lg font-bold text-gray-800 leading-tight">{k.v}</p>
+                {k.s && <p className="text-[11px] text-gray-400">{k.s}</p>}
+              </div>
+            ))}
+          </div>
+
+          {ana.estado === 'En riesgo de pérdida' && (
+            <div className="px-4 py-2.5 bg-red-50 border-b flex items-center gap-2 text-sm text-red-700">
+              <AlertTriangle size={15} />
+              Suele pedir cada {ana.dias_entre_ordenes} días y lleva {ana.dias_desde_ultima}. Buen momento para escribirle.
+            </div>
+          )}
+          {ana.estado === 'Se está atrasando' && (
+            <div className="px-4 py-2.5 bg-amber-50 border-b flex items-center gap-2 text-sm text-amber-700">
+              <Clock size={15} /> Va {ana.dias_desde_ultima - ana.dias_entre_ordenes} días sobre su ritmo habitual.
+            </div>
+          )}
+
+          {ana.meses?.length > 1 && (
+            <div className="p-4 border-b">
+              <p className="text-[11px] text-gray-400 mb-2">GASTO POR MES (últimos 12)</p>
+              <ResponsiveContainer width="100%" height={110}>
+                <BarChart data={ana.meses.map((m: any) => ({ ...m, gasto: Number(m.gasto), etiqueta: m.mes.slice(5) + '/' + m.mes.slice(2, 4) }))}>
+                  <XAxis dataKey="etiqueta" tick={{ fontSize: 10, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v: any) => fmt(Number(v))} labelFormatter={(l) => `Mes ${l}`} contentStyle={{ fontSize: 12, borderRadius: 10 }} />
+                  <Bar dataKey="gasto" radius={[5, 5, 0, 0]}>
+                    {ana.meses.map((_: any, i: number) => <Cell key={i} fill={i === ana.meses.length - 1 ? '#E8177A' : '#E8177A66'} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x">
+            <div className="p-4">
+              <p className="text-[11px] text-gray-400 mb-2">QUÉ CONSUME</p>
+              {ana.servicios?.length ? (
+                <div className="space-y-1.5">
+                  {ana.servicios.slice(0, 6).map((s: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600 truncate pr-2">{s.nombre} <span className="text-gray-400 text-xs">×{Number(s.cantidad)}</span></span>
+                      <span className="font-medium text-gray-700 flex-shrink-0">{fmt(s.total)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">El detalle por servicio aparece desde las órdenes hechas en este sistema. Las importadas de EasyLaundry solo traen el total.</p>
+              )}
+            </div>
+            <div className="p-4">
+              <p className="text-[11px] text-gray-400 mb-2">CÓMO PIDE</p>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between"><span className="text-gray-500 flex items-center gap-1.5"><Truck size={12} /> A domicilio</span><span className="font-medium">{ana.pct_domicilio}% ({ana.a_domicilio})</span></div>
+                {ana.express > 0 && <div className="flex justify-between"><span className="text-gray-500 flex items-center gap-1.5"><Zap size={12} /> Express</span><span className="font-medium">{ana.express}</span></div>}
+                {Number(ana.kilos) > 0 && <div className="flex justify-between"><span className="text-gray-500">Kilos acumulados</span><span className="font-medium">{Number(ana.kilos)} kg</span></div>}
+                {ana.con_membresia > 0 && <div className="flex justify-between"><span className="text-gray-500">Con membresía</span><span className="font-medium">{ana.con_membresia}</span></div>}
+                {ana.dias_favoritos?.length > 0 && <div className="flex justify-between"><span className="text-gray-500">Día habitual</span><span className="font-medium capitalize">{ana.dias_favoritos[0].dia.toLowerCase()}</span></div>}
+                <div className="flex justify-between"><span className="text-gray-500">Cliente desde</span><span className="font-medium">{fechaCorta(ana.primera)}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* Continuidad */}

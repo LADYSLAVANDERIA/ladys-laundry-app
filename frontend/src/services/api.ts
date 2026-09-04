@@ -85,6 +85,7 @@ preciosHttp.interceptors.request.use(config => {
 export const fichaApi = {
   guardar:      (id: number | string, d: object) => preciosHttp.put(`/${id}/ficha`, d),
   precios:      (id: number | string) => preciosHttp.get(`/${id}/precios`),
+  analitica:    (id: number | string) => preciosHttp.get(`/${id}/analitica`),
   ponerPrecio:  (id: number | string, d: object) => preciosHttp.post(`/${id}/precios`, d),
   precioLote:   (id: number | string, d: object) => preciosHttp.post(`/${id}/precios-lote`, d),
   borrarPrecio: (id: number | string, pid: number) => preciosHttp.delete(`/${id}/precios/${pid}`),

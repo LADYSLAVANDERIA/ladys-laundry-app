@@ -1,7 +1,10 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001/api' })
+// respaldo de produccion: si falta el .env, el build igual apunta al servidor real
+const API_PROD = 'https://vhjsizkbmabznupkfzji.supabase.co/functions/v1/ladys/api'
+
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || API_PROD })
 
 api.interceptors.request.use(config => {
   const token = useAuthStore.getState().token
@@ -13,7 +16,7 @@ api.interceptors.response.use(r => r, err => {
   return Promise.reject(err)
 })
 
-const FOTOS_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-fotos') || 'http://localhost:3001/fotos'
+const FOTOS_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-fotos') || 'http://localhost:3001/fotos'
 const fotosApi = axios.create({ baseURL: FOTOS_URL })
 fotosApi.interceptors.request.use(config => {
   const token = useAuthStore.getState().token
@@ -49,7 +52,7 @@ export const retirosApi = {
   disponibilidad: (fecha: string) => api.get('/retiros/disponibilidad', { params: { fecha } }),
   create: (d: object) => api.post('/retiros', d),
 }
-const RUTA_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-ruta') || 'http://localhost:3001/ruta'
+const RUTA_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-ruta') || 'http://localhost:3001/ruta'
 const rutaOrdenApi = axios.create({ baseURL: RUTA_URL })
 rutaOrdenApi.interceptors.request.use(config => {
   const token = useAuthStore.getState().token
@@ -60,7 +63,7 @@ export const ordenRutaApi = {
   get: (fecha: string) => rutaOrdenApi.get('', { params: { fecha } }),
   set: (ids: number[]) => rutaOrdenApi.post('', { ids }),
 }
-const CLUB_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-club') || 'http://localhost:3001/club'
+const CLUB_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-club') || 'http://localhost:3001/club'
 const clubHttp = axios.create({ baseURL: CLUB_URL })
 clubHttp.interceptors.request.use(config => {
   const token = useAuthStore.getState().token
@@ -75,7 +78,7 @@ export const clubApi = {
   cancelar: (id: number) => clubHttp.post(`/${id}/cancelar`, {}),
   movimientos: (id: number) => clubHttp.get(`/${id}/movimientos`),
 }
-const PRECIOS_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-precios') || 'http://localhost:3001/precios'
+const PRECIOS_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-precios') || 'http://localhost:3001/precios'
 const preciosHttp = axios.create({ baseURL: PRECIOS_URL })
 preciosHttp.interceptors.request.use(config => {
   const token = useAuthStore.getState().token
@@ -91,7 +94,7 @@ export const fichaApi = {
   borrarPrecio: (id: number | string, pid: number) => preciosHttp.delete(`/${id}/precios/${pid}`),
   borrarTodos:  (id: number | string) => preciosHttp.delete(`/${id}/precios`),
 }
-const DIR_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-direcciones') || 'http://localhost:3001/dir'
+const DIR_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-direcciones') || 'http://localhost:3001/dir'
 const dirHttp = axios.create({ baseURL: DIR_URL })
 dirHttp.interceptors.request.use(config => {
   const token = useAuthStore.getState().token
@@ -153,7 +156,7 @@ export const dashboardApi  = { get: () => api.get('/dashboard') }
 
 export default api
 
-const REPARTO_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-reparto') || 'http://localhost:3001/reparto'
+const REPARTO_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-reparto') || 'http://localhost:3001/reparto'
 const repartoAx = axios.create({ baseURL: REPARTO_URL })
 repartoAx.interceptors.request.use(config => {
   const token = useAuthStore.getState().token

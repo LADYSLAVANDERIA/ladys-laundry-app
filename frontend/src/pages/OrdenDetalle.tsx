@@ -35,11 +35,16 @@ export default function OrdenDetalle() {
   }, [id])
   // El QR del ticket: lo lee la pistola y tambien la camara del celular en Produccion
   const [qr, setQr] = useState('')
+  const [tipoTicket, setTipoTicket] = useState<'cliente' | 'interno'>('cliente')
   useEffect(() => {
     if (!o) return
     QRCode.toDataURL(String(o.id), { margin: 0, width: 150 })
       .then(setQr).catch(() => setQr(''))
   }, [o])
+  const imprimir = (tipo: 'cliente' | 'interno') => {
+    setTipoTicket(tipo)
+    setTimeout(() => window.print(), 200)   // deja que el ticket correcto se dibuje
+  }
   useEffect(() => { if (o && params.get('print') === '1' && qr) setTimeout(() => window.print(), 600) }, [o, qr])
 
   if (!o) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
@@ -147,7 +152,11 @@ export default function OrdenDetalle() {
             </div>
             <p className="text-sm text-gray-500">{o.cliente_nombre} · {o.cliente_telefono || 'sin teléfono'} · ingreso {fechaHora(o.creado_en)}</p>
           </div>
-          <button onClick={() => window.print()} className="p-2.5 border rounded-xl text-gray-500 hover:bg-gray-50"><Printer size={16} /></button>
+          <button onClick={() => imprimir('cliente')} title="Ticket del cliente"
+                  className="p-2.5 border rounded-xl text-gray-500 hover:bg-gray-50"><Printer size={16} /></button>
+          <button onClick={() => imprimir('interno')} title="Ticket interno de producción"
+                  className="px-3 py-2.5 border rounded-xl text-xs font-medium"
+                  style={{ borderColor: '#E8177A', color: '#E8177A' }}>Ticket interno</button>
           {o.cliente_telefono && <a href={waLink(o.cliente_telefono, msgWa)} target="_blank" rel="noreferrer" className="p-2.5 border rounded-xl text-green-600 hover:bg-green-50"><MessageCircle size={16} /></a>}
         </div>
 
@@ -256,7 +265,32 @@ export default function OrdenDetalle() {
       </div>
 
       {/* ── TICKET 80mm ── */}
-      <div className="print-only text-black" style={{ width: '54mm', fontSize: '10px', fontFamily: 'monospace' }}>
+
+      {/* Ticket interno: lo que producción necesita ver de un vistazo, nada más */}
+      <div className={`print-only text-black ${tipoTicket === 'cliente' ? 'no-imprimir-ahora' : ''}`}
+           style={{ width: '54mm', fontSize: '11px', fontFamily: 'monospace', textAlign: 'center' }}>
+        <p style={{ fontWeight: 'bold', fontSize: 11, letterSpacing: 1 }}>LADYS · INTERNO</p>
+        <p style={{ border: '2px solid #000', padding: '4px 0', fontWeight: 'bold',
+                    fontSize: 20, margin: '4px 0' }}>{ot(o.id)}</p>
+        {qr && <img src={qr} alt="" style={{ width: 120, height: 120, margin: '2px auto' }} />}
+        <p style={{ fontSize: 13, fontWeight: 'bold', marginTop: 4 }}>
+          {String(o.cliente_nombre || '').slice(0, 24)}
+        </p>
+        <p style={{ fontSize: 11, marginTop: 2 }}>
+          Entrega: {o.fecha_entrega ? fechaCorta(o.fecha_entrega) : 'por definir'}
+        </p>
+        <p style={{ border: '1px solid #000', padding: '3px 0', fontWeight: 'bold',
+                    fontSize: 13, marginTop: 5 }}>
+          {o.entrega_domicilio ? 'DESPACHO A DOMICILIO' : 'ENTREGA EN LOCAL'}
+        </p>
+        {o.tipo_servicio === 'EXPRESS' && (
+          <p style={{ fontWeight: 'bold', fontSize: 13, marginTop: 4 }}>** EXPRESS **</p>
+        )}
+        {Number(o.kilos) > 0 && <p style={{ fontSize: 10, marginTop: 3 }}>{Number(o.kilos)} kg</p>}
+      </div>
+
+      <div className={`print-only text-black ${tipoTicket === 'interno' ? 'no-imprimir-ahora' : ''}`}
+           style={{ width: '54mm', fontSize: '10px', fontFamily: 'monospace' }}>
         <div style={{ textAlign: 'center', marginBottom: 6 }}>
           <p style={{ fontWeight: 'bold', fontSize: 12 }}>{local.nombre || 'LADYS LAVANDERÍA'}</p>
           <p>{local.dir_salida || 'Av. Concón Reñaca 102, L. 5 y 6'}</p>

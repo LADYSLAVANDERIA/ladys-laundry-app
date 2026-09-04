@@ -17,6 +17,8 @@ body {
   body { background: #fff !important; }
   .no-print, aside, nav, header, button { display: none !important; }
   .print-only { display: block !important; }
+  /* Va despues de .print-only para poder ocultar el ticket que no se esta imprimiendo */
+  .no-imprimir-ahora { display: none !important; }
   main, .print-only { margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
-  @page { margin: 4mm; size: 80mm auto; }
+  @page { margin: 3mm; size: 58mm auto; }
 }

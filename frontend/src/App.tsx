@@ -25,6 +25,14 @@ import Programacion from './pages/Programacion'
 import PorCobrar from './pages/PorCobrar'
 import MercadoPago from './pages/MercadoPago'
 import ClienteDetalle from './pages/ClienteDetalle'
+import Reparto from './pages/Reparto'
+import Conductor from './pages/Conductor'
+
+function SoloToken({ children }: { children: React.ReactNode }) {
+  const { token } = useAuthStore()
+  if (!token) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -40,6 +48,7 @@ export default function App() {
         <Route path="/ot/:id/:token" element={<OrdenPublica />} />
         <Route path="/mi/:id/:token" element={<PortalCliente />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/conductor" element={<SoloToken><Conductor /></SoloToken>} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard"       element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/clientes"        element={<PrivateRoute><Clientes /></PrivateRoute>} />
@@ -55,6 +64,7 @@ export default function App() {
         <Route path="/caja"            element={<PrivateRoute><Caja /></PrivateRoute>} />
         <Route path="/compras"         element={<PrivateRoute><Compras /></PrivateRoute>} />
         <Route path="/rutas"           element={<PrivateRoute><Rutas /></PrivateRoute>} />
+        <Route path="/reparto"         element={<PrivateRoute><Reparto /></PrivateRoute>} />
         <Route path="/usuarios"        element={<PrivateRoute><Usuarios /></PrivateRoute>} />
         <Route path="/agenda"          element={<PrivateRoute><Agenda /></PrivateRoute>} />
         <Route path="/reporte-control" element={<PrivateRoute><ReporteControl /></PrivateRoute>} />

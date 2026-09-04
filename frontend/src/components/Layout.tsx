@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import {
   LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
-  DollarSign, ShoppingCart, UserCog, Truck, BarChart2, Settings,
+  DollarSign, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation,
   LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet
 } from 'lucide-react'
 
@@ -18,6 +18,7 @@ const menu = [
   { path: '/servicios',       label: 'Servicios',        icon: Scissors },
   { path: '/caja',            label: 'Caja',             icon: DollarSign },
   { path: '/compras',         label: 'Compras/Gastos',   icon: ShoppingCart },
+  { path: '/reparto',         label: 'Reparto del día',  icon: Navigation },
   { path: '/rutas',           label: 'Rutas Delivery',   icon: Truck },
   { path: '/reporte-control', label: 'Reporte Control',  icon: BarChart2 },
   { path: '/usuarios',        label: 'Usuarios',         icon: UserCog, adminOnly: true },

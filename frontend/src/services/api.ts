@@ -152,3 +152,17 @@ export const formasPagoApi = { getAll: () => api.get('/formas-pago') }
 export const dashboardApi  = { get: () => api.get('/dashboard') }
 
 export default api
+
+const REPARTO_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-reparto') || 'http://localhost:3001/reparto'
+const repartoAx = axios.create({ baseURL: REPARTO_URL })
+repartoAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const repartoApi = {
+  dia: (fecha: string) => repartoAx.get('/dia', { params: { fecha } }),
+  optimizar: (fecha: string, inicio?: string) => repartoAx.post('/optimizar', { fecha, inicio }),
+  parada: (id: number, estado: string, nota?: string) => repartoAx.post('/parada', { id, estado, nota }),
+  reordenar: (ids: number[]) => repartoAx.post('/reordenar', { ids }),
+}

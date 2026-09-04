@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi } from '../services/api'
+import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi, fichaApi } from '../services/api'
 import ItemsPicker, { buildItems } from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
@@ -20,6 +20,7 @@ export default function NuevaOrden() {
   const [f, setF] = useState<any>({ retiro_domicilio: false, entrega_domicilio: false, ropa_en_local: true, fecha_recogida: hoy(), ruta_recogida_id: '', fecha_entrega: addDiasHabiles(hoy(), 2), ruta_entrega_id: '', dir_id: '', tipo_doc: 'BOLETA', bultos: 1, monto_delivery: 0, aplicar_descuento: false, observaciones: '' })
   const [pago, setPago] = useState<any>({ ahora: true, forma_pago_id: '', monto: '' })
   const [usarMemb, setUsarMemb] = useState(false); const [loading, setLoading] = useState(false)
+  const [convenio, setConvenio] = useState<any[]>([])
   const [cupos, setCupos] = useState<Record<string, Record<number, number>>>({})
 
   useEffect(() => {
@@ -42,6 +43,11 @@ export default function NuevaOrden() {
       const dp = data.direcciones?.find((d: any) => d.es_principal) || data.direcciones?.[0]
       setF((p: any) => ({ ...p, dir_id: dp ? String(dp.id) : '', aplicar_descuento: !!data.continuidad_info?.elegible, tipo_doc: data.tipo_doc || 'BOLETA' }))
       setUsarMemb(!!data.membresia)
+      try {
+        const { data: pr } = await fichaApi.precios(id)
+        setConvenio(pr)
+        if (pr.length) toast.success(`${pr.length} precios de convenio aplicados`, { icon: '🏷️' })
+      } catch { setConvenio([]) }
       if (data.plazo_pago > 0) setPago((p: any) => ({ ...p, ahora: false }))
     } catch { toast.error('Cliente no encontrado') }
   }
@@ -56,7 +62,19 @@ export default function NuevaOrden() {
     const { data: c } = await clientesApi.getById(cliente.id); setCliente(c); setF((p: any) => ({ ...p, dir_id: String(data.id) })); setNuevaDir(null)
   }
 
-  const items = useMemo(() => buildItems(servicios, kilos, express, prendas), [servicios, kilos, express, prendas])
+  const serviciosConPrecio = useMemo(() => {
+    if (!convenio.length) return servicios
+    const mapa = new Map(convenio.map((p: any) => [p.servicio_id, Number(p.precio)]))
+    return servicios.map((s: any) => {
+      const esp = mapa.get(s.id)
+      if (esp === undefined) return s
+      const campo = s.precio_lav_planch > 0 ? 'precio_lav_planch' : s.precio_lav_secado > 0 ? 'precio_lav_secado'
+        : s.precio_solo_planch > 0 ? 'precio_solo_planch' : 'precio_productos'
+      return { ...s, [campo]: esp, _convenio: true }
+    })
+  }, [servicios, convenio])
+
+  const items = useMemo(() => buildItems(serviciosConPrecio, kilos, express, prendas), [serviciosConPrecio, kilos, express, prendas])
   const subtotal = items.reduce((s, i) => s + i.subtotal, 0)
   const pct = Number(config.descuento_continuidad || 10)
   const descuento = f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0
@@ -145,6 +163,8 @@ export default function NuevaOrden() {
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {memb && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Membresía · saldo {fmt(memb.saldo_actual)}</span>}
                     {cont?.activa && <span className={`text-xs px-2 py-0.5 rounded-full ${cont.elegible ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>Continuidad {cont.elegible ? `activa · ${pct}% dcto` : `perdida (${cont.semanas_perdidas} sem.)`}</span>}
+                    {convenio.length > 0 && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Convenio · {convenio.length} precios especiales</span>}
+                    {cliente.plazo_pago > 0 && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Factura a {cliente.plazo_pago} días</span>}
                     {cliente.stats?.total_ordenes > 0 && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{cliente.stats.total_ordenes} órdenes · {fmt(cliente.stats.total_gastado)}</span>}
                     {Number(cliente.stats?.saldo_total) > 0 && <span className="text-xs bg-red-50 text-red-600 px-2 py-0.5 rounded-full">Debe {fmt(cliente.stats.saldo_total)}</span>}
                   </div>
@@ -156,7 +176,7 @@ export default function NuevaOrden() {
 
           {/* ITEMS */}
           <div><p className="font-semibold text-gray-700 mb-2 px-1">2 · ¿Qué lava?</p>
-            <ItemsPicker servicios={servicios} kilos={kilos} setKilos={setKilos} express={express} setExpress={setExpress} prendas={prendas} setPrendas={setPrendas} />
+            <ItemsPicker servicios={serviciosConPrecio} kilos={kilos} setKilos={setKilos} express={express} setExpress={setExpress} prendas={prendas} setPrendas={setPrendas} />
           </div>
 
           {/* LOGÍSTICA */}

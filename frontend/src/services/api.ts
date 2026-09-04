@@ -75,6 +75,21 @@ export const clubApi = {
   cancelar: (id: number) => clubHttp.post(`/${id}/cancelar`, {}),
   movimientos: (id: number) => clubHttp.get(`/${id}/movimientos`),
 }
+const PRECIOS_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-precios') || 'http://localhost:3001/precios'
+const preciosHttp = axios.create({ baseURL: PRECIOS_URL })
+preciosHttp.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const fichaApi = {
+  guardar:      (id: number | string, d: object) => preciosHttp.put(`/${id}/ficha`, d),
+  precios:      (id: number | string) => preciosHttp.get(`/${id}/precios`),
+  ponerPrecio:  (id: number | string, d: object) => preciosHttp.post(`/${id}/precios`, d),
+  precioLote:   (id: number | string, d: object) => preciosHttp.post(`/${id}/precios-lote`, d),
+  borrarPrecio: (id: number | string, pid: number) => preciosHttp.delete(`/${id}/precios/${pid}`),
+  borrarTodos:  (id: number | string) => preciosHttp.delete(`/${id}/precios`),
+}
 export const configApi = { get: () => api.get('/config'), set: (d: object) => api.put('/config', d) }
 export const serviciosApi  = {
   getAll:  () => api.get('/servicios'),

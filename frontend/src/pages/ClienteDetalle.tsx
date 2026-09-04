@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { clientesApi } from '../services/api'
+import { clientesApi, fichaApi, serviciosApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2 } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, waLink, ESTADO_COLOR, ESTADO_LABEL } from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
@@ -11,9 +11,12 @@ export default function ClienteDetalle() {
   const { id } = useParams(); const navigate = useNavigate()
   const [c, setC] = useState<any>(null); const [modal, setModal] = useState<string | null>(null)
   const [dir, setDir] = useState<any>({ ciudad: 'Concón' }); const [edit, setEdit] = useState<any>(null)
+  const [precios, setPrecios] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([])
+  const [nuevoPrecio, setNuevoPrecio] = useState<any>({}); const [guardando, setGuardando] = useState(false)
 
   const load = async () => { try { const { data } = await clientesApi.getById(id!); setC(data); } catch { toast.error('Cliente no encontrado'); navigate('/clientes') } }
-  useEffect(() => { load() }, [id])
+  const cargarPrecios = async () => { try { const { data } = await fichaApi.precios(id!); setPrecios(data) } catch { /* sin convenio */ } }
+  useEffect(() => { load(); cargarPrecios(); serviciosApi.getAll().then(r => setServicios(r.data)).catch(() => {}) }, [id])
   if (!c) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
 
   const guardarDir = async () => {
@@ -26,8 +29,34 @@ export default function ClienteDetalle() {
     catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo eliminar') }
   }
   const guardar = async () => {
-    try { await clientesApi.update(c.id, edit); toast.success('Cliente actualizado'); setModal(null); setEdit(null); load() }
+    if (!edit.nombre?.trim()) return toast.error('El nombre es obligatorio')
+    setGuardando(true)
+    try { await fichaApi.guardar(c.id, edit); toast.success('Ficha actualizada'); setModal(null); setEdit(null); load() }
+    catch (e: any) { toast.error(e.response?.data?.error || 'Error') } finally { setGuardando(false) }
+  }
+  const abrirFicha = () => {
+    setEdit({ nombre: c.nombre || '', apellido: c.apellido || '', telefono: c.telefono || '', email: c.email || '',
+      tipo: c.tipo || 'PARTICULAR', razon_social: c.razon_social || '', id_fiscal: c.id_fiscal || '', giro: c.giro || '',
+      contacto: c.contacto || '', direccion_comercial: c.direccion_comercial || '', comuna_comercial: c.comuna_comercial || '',
+      email_facturacion: c.email_facturacion || '', tipo_doc: c.tipo_doc || 'BOLETA', plazo_pago: c.plazo_pago || 0,
+      descuento_pct: c.descuento_pct || 0, notas_internas: c.notas_internas || '', es_ladys2: !!c.es_ladys2 })
+    setModal('ficha')
+  }
+  const agregarPrecio = async () => {
+    if (!nuevoPrecio.servicio_id || !(Number(nuevoPrecio.precio) >= 0)) return toast.error('Elige servicio y precio')
+    try { await fichaApi.ponerPrecio(c.id, { servicio_id: Number(nuevoPrecio.servicio_id), precio: Number(nuevoPrecio.precio), nota: nuevoPrecio.nota })
+      toast.success('Precio guardado'); setNuevoPrecio({}); cargarPrecios() }
     catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
+  }
+  const aplicarDescuento = async () => {
+    const pct = Number(prompt('¿Cuántos puntos porcentuales bajo la lista? (ej: 15)') || 0)
+    if (!(pct > 0 && pct < 100)) return
+    if (!confirm(`Se creará un convenio con TODOS los servicios a ${pct}% bajo la lista. ¿Continuar?`)) return
+    try { const { data } = await fichaApi.precioLote(c.id, { descuento_pct: pct }); toast.success(`${data.guardados} precios cargados`); cargarPrecios() }
+    catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
+  }
+  const borrarPrecio = async (pid: number) => {
+    try { await fichaApi.borrarPrecio(c.id, pid); cargarPrecios() } catch { toast.error('Error') }
   }
   const cont = c.continuidad_info
 
@@ -38,7 +67,9 @@ export default function ClienteDetalle() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-gray-800">{c.nombre} {c.apellido}</h1>
           <p className="text-sm text-gray-500">{c.telefono || 'sin teléfono'} · {c.tipo}{c.plazo_pago > 0 && ` · crédito ${c.plazo_pago} días`}</p>
+          {c.tipo === 'EMPRESA' && <p className="text-xs text-gray-400">{[c.razon_social, c.id_fiscal, c.giro].filter(Boolean).join(' · ') || 'sin datos fiscales'}</p>}
         </div>
+        <button onClick={abrirFicha} className="p-2.5 border rounded-xl text-gray-500 hover:bg-gray-50" title="Editar ficha"><Pencil size={16} /></button>
         {c.telefono && <a href={waLink(c.telefono, `Hola ${c.nombre}, te escribimos de Ladys Lavandería.`)} target="_blank" rel="noreferrer" className="p-2.5 border rounded-xl text-green-600 hover:bg-green-50"><MessageCircle size={16} /></a>}
         <button onClick={() => navigate(`/ordenes/nueva?cliente=${c.id}`)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}><Plus size={15} /> Nueva OT</button>
       </div>
@@ -89,6 +120,60 @@ export default function ClienteDetalle() {
         </div>
       </div>
 
+      {c.tipo === 'EMPRESA' && (
+        <div className="bg-white rounded-2xl shadow-sm border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-semibold text-gray-700 flex items-center gap-1.5"><Building2 size={15} className="text-blue-500" /> Datos comerciales</p>
+            <button onClick={abrirFicha} className="text-xs text-pink-600 font-medium">Editar</button>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            {[['Razón social', c.razon_social], ['RUT', c.id_fiscal], ['Giro', c.giro], ['Contacto', c.contacto],
+              ['Dirección comercial', [c.direccion_comercial, c.comuna_comercial].filter(Boolean).join(', ')],
+              ['Correo facturación', c.email_facturacion],
+              ['Documento', c.tipo_doc], ['Plazo de pago', c.plazo_pago > 0 ? `${c.plazo_pago} días` : 'contado']].map(([l, v], i) => (
+              <div key={i} className="flex justify-between border-b border-dashed py-1">
+                <span className="text-gray-400 text-xs">{l}</span>
+                <span className={`text-right ${v ? 'text-gray-700' : 'text-gray-300'}`}>{v || '—'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Convenio de precios */}
+      <div className="bg-white rounded-2xl shadow-sm border p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="font-semibold text-gray-700 flex items-center gap-1.5"><Tag size={15} className="text-amber-500" /> Precios de convenio</p>
+          <div className="flex gap-2">
+            <button onClick={aplicarDescuento} className="text-xs text-amber-600 font-medium">% sobre la lista</button>
+            {precios.length > 0 && <button onClick={async () => { if (confirm('¿Borrar todo el convenio?')) { await fichaApi.borrarTodos(c.id); cargarPrecios() } }} className="text-xs text-red-500">Borrar todo</button>}
+          </div>
+        </div>
+        {precios.length > 0 ? (
+          <div className="border rounded-xl divide-y mb-3 max-h-72 overflow-y-auto">
+            {precios.map(p => (
+              <div key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate">{p.servicio}</p>
+                  <p className="text-[11px] text-gray-400">{p.categoria} · lista {fmt(p.precio_lista)}{p.ahorro_pct > 0 ? ` · ${p.ahorro_pct}% menos` : ''}</p>
+                </div>
+                <span className="font-bold text-amber-600 mr-2">{fmt(p.precio)}</span>
+                <button onClick={() => borrarPrecio(p.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
+              </div>
+            ))}
+          </div>
+        ) : <p className="text-sm text-gray-400 mb-3">Sin convenio: paga precio de lista.</p>}
+        <div className="grid grid-cols-12 gap-2">
+          <select value={nuevoPrecio.servicio_id || ''} onChange={e => setNuevoPrecio({ ...nuevoPrecio, servicio_id: e.target.value })} className={inp + ' col-span-7'}>
+            <option value="">Servicio…</option>
+            {servicios.map((s: any) => <option key={s.id} value={s.id}>{s.categoria} · {s.nombre}</option>)}
+          </select>
+          <input type="number" value={nuevoPrecio.precio || ''} onChange={e => setNuevoPrecio({ ...nuevoPrecio, precio: e.target.value })} placeholder="Precio" className={inp + ' col-span-3'} />
+          <button onClick={agregarPrecio} className="col-span-2 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}><Plus size={15} className="inline" /></button>
+        </div>
+        <p className="text-[11px] text-gray-400 mt-2">Estos precios se aplican solos al crear una orden para este cliente.</p>
+      </div>
+
       {/* Direcciones */}
       <div className="bg-white rounded-2xl shadow-sm border p-4">
         <div className="flex items-center justify-between mb-3">
@@ -111,7 +196,7 @@ export default function ClienteDetalle() {
       <div className="bg-white rounded-2xl shadow-sm border p-4">
         <div className="flex items-center justify-between mb-2">
           <p className="font-semibold text-gray-700">Notas internas</p>
-          <button onClick={() => { setEdit({ notas_internas: c.notas_internas || '', plazo_pago: c.plazo_pago, es_ladys2: c.es_ladys2, tipo: c.tipo, telefono: c.telefono || '', email: c.email || '' }); setModal('edit') }} className="text-xs text-pink-600 font-medium">Editar</button>
+          <button onClick={abrirFicha} className="text-xs text-pink-600 font-medium">Editar</button>
         </div>
         <p className="text-sm text-gray-600 whitespace-pre-wrap">{c.notas_internas || 'Sin notas'}</p>
         {c.es_ladys2 && <p className="text-xs bg-gray-100 text-gray-600 rounded-lg px-2 py-1 mt-2 inline-block">Cliente de Ladys 2 — excluido de las métricas</p>}
@@ -148,22 +233,71 @@ export default function ClienteDetalle() {
         </div>
       )}
 
-      {modal === 'edit' && edit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-          <div className="bg-white rounded-2xl w-full max-w-md p-5 space-y-3">
-            <div className="flex items-center justify-between"><h2 className="font-bold">Editar cliente</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div><label className="text-xs text-gray-500">Teléfono</label><input value={edit.telefono} onChange={e => setEdit({ ...edit, telefono: e.target.value })} className={inp} /></div>
-              <div><label className="text-xs text-gray-500">Email</label><input value={edit.email} onChange={e => setEdit({ ...edit, email: e.target.value })} className={inp} /></div>
-              <div><label className="text-xs text-gray-500">Tipo</label><select value={edit.tipo} onChange={e => setEdit({ ...edit, tipo: e.target.value })} className={inp}><option value="PARTICULAR">Particular</option><option value="EMPRESA">Empresa</option></select></div>
-              <div><label className="text-xs text-gray-500">Plazo de pago (días)</label><input type="number" value={edit.plazo_pago} onChange={e => setEdit({ ...edit, plazo_pago: Number(e.target.value) })} className={inp} /></div>
+      {modal === 'ficha' && edit && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg my-8 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold">Ficha del cliente</h2>
+              <button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button>
             </div>
-            <div><label className="text-xs text-gray-500">Notas internas</label><textarea value={edit.notas_internas} onChange={e => setEdit({ ...edit, notas_internas: e.target.value })} rows={3} className={inp} /></div>
-            <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={!!edit.es_ladys2} onChange={e => setEdit({ ...edit, es_ladys2: e.target.checked })} /> Es cliente de Ladys 2 (excluir de métricas)</label>
-            <div className="flex gap-2"><button onClick={guardar} className="flex-1 py-3 rounded-xl text-white font-semibold text-sm" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Guardar</button><button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button></div>
+
+            <div className="flex rounded-xl overflow-hidden border text-sm">
+              {['PARTICULAR', 'EMPRESA'].map(t => (
+                <button key={t} onClick={() => setEdit({ ...edit, tipo: t, tipo_doc: t === 'EMPRESA' ? 'FACTURA' : 'BOLETA' })}
+                  className={`flex-1 py-2 font-medium ${edit.tipo === t ? 'text-white' : 'text-gray-500'}`}
+                  style={edit.tipo === t ? { background: 'linear-gradient(135deg,#E8177A,#A87BC8)' } : {}}>
+                  {t === 'EMPRESA' ? 'Empresa' : 'Particular'}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-xs text-gray-500">Nombre *</label><input value={edit.nombre} onChange={e => setEdit({ ...edit, nombre: e.target.value })} className={inp} /></div>
+              <div><label className="text-xs text-gray-500">Apellido</label><input value={edit.apellido} onChange={e => setEdit({ ...edit, apellido: e.target.value })} className={inp} /></div>
+              <div><label className="text-xs text-gray-500">Teléfono</label><input value={edit.telefono} onChange={e => setEdit({ ...edit, telefono: e.target.value })} placeholder="+56 9 ..." className={inp} /></div>
+              <div><label className="text-xs text-gray-500">Correo</label><input value={edit.email} onChange={e => setEdit({ ...edit, email: e.target.value })} className={inp} /></div>
+            </div>
+
+            {edit.tipo === 'EMPRESA' && (
+              <div className="bg-blue-50 rounded-xl p-3 space-y-2">
+                <p className="text-xs font-semibold text-blue-700">DATOS PARA FACTURACIÓN</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2"><label className="text-xs text-gray-500">Razón social</label><input value={edit.razon_social} onChange={e => setEdit({ ...edit, razon_social: e.target.value })} className={inp} /></div>
+                  <div><label className="text-xs text-gray-500">RUT</label><input value={edit.id_fiscal} onChange={e => setEdit({ ...edit, id_fiscal: e.target.value })} placeholder="76.123.456-7" className={inp} /></div>
+                  <div><label className="text-xs text-gray-500">Giro</label><input value={edit.giro} onChange={e => setEdit({ ...edit, giro: e.target.value })} className={inp} /></div>
+                  <div className="col-span-2"><label className="text-xs text-gray-500">Dirección comercial</label><input value={edit.direccion_comercial} onChange={e => setEdit({ ...edit, direccion_comercial: e.target.value })} className={inp} /></div>
+                  <div><label className="text-xs text-gray-500">Comuna</label><input value={edit.comuna_comercial} onChange={e => setEdit({ ...edit, comuna_comercial: e.target.value })} className={inp} /></div>
+                  <div><label className="text-xs text-gray-500">Contacto</label><input value={edit.contacto} onChange={e => setEdit({ ...edit, contacto: e.target.value })} placeholder="Nombre y cargo" className={inp} /></div>
+                  <div className="col-span-2"><label className="text-xs text-gray-500">Correo de facturación</label><input value={edit.email_facturacion} onChange={e => setEdit({ ...edit, email_facturacion: e.target.value })} className={inp} /></div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-2">
+              <div><label className="text-xs text-gray-500">Documento</label>
+                <select value={edit.tipo_doc} onChange={e => setEdit({ ...edit, tipo_doc: e.target.value })} className={inp}>
+                  <option value="BOLETA">Boleta</option><option value="FACTURA">Factura</option><option value="SIN_DOCUMENTO">Sin documento</option>
+                </select></div>
+              <div><label className="text-xs text-gray-500">Plazo de pago</label>
+                <select value={edit.plazo_pago} onChange={e => setEdit({ ...edit, plazo_pago: Number(e.target.value) })} className={inp}>
+                  <option value={0}>Contado</option><option value={15}>15 días</option><option value={30}>30 días</option><option value={45}>45 días</option><option value={60}>60 días</option>
+                </select></div>
+              <div><label className="text-xs text-gray-500">Dcto. general %</label><input type="number" value={edit.descuento_pct} onChange={e => setEdit({ ...edit, descuento_pct: Number(e.target.value) })} className={inp} /></div>
+            </div>
+
+            <div><label className="text-xs text-gray-500">Notas internas</label><textarea value={edit.notas_internas} onChange={e => setEdit({ ...edit, notas_internas: e.target.value })} rows={2} className={inp} /></div>
+            <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={!!edit.es_ladys2} onChange={e => setEdit({ ...edit, es_ladys2: e.target.checked })} /> Cliente de Ladys 2 (excluir de métricas)</label>
+
+            <div className="flex gap-2">
+              <button onClick={guardar} disabled={guardando} className="flex-1 py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-50" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                {guardando ? <Loader2 size={15} className="inline animate-spin" /> : <Save size={15} className="inline mr-1.5" />} Guardar ficha
+              </button>
+              <button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
+            </div>
           </div>
         </div>
       )}
+
     </div>
   )
 }

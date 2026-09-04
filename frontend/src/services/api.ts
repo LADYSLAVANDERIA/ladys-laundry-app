@@ -183,3 +183,17 @@ export const seguimientoApi = {
   iniciar: (parada_id: number) => segAx.post('/iniciar', { parada_id }),
   donde: (fecha?: string) => segAx.get('/donde', { params: { fecha } }),
 }
+
+const ETAPAS_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-etapas')
+const etapasAx = axios.create({ baseURL: ETAPAS_URL })
+etapasAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const etapasApi = {
+  marcar: (d: object) => etapasAx.post('/marcar', d),
+  orden: (id: number | string) => etapasAx.get(`/orden/${id}`),
+  tablero: () => etapasAx.get('/tablero'),
+  tiempos: () => etapasAx.get('/tiempos'),
+}

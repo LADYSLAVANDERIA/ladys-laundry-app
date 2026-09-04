@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import {
   LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
-  DollarSign, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation,
+  DollarSign, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine,
   LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet
 } from 'lucide-react'
 
@@ -13,6 +13,7 @@ const menu = [
   { path: '/dashboard',       label: 'Dashboard',        icon: LayoutDashboard, ver: TODOS_OPERATIVOS },
   { path: '/ordenes',         label: 'Pedidos',          icon: ClipboardList,   ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
   { path: '/ordenes/nueva',   label: 'Nueva Orden',      icon: Plus,            ver: TODOS_OPERATIVOS },
+  { path: '/produccion',      label: 'Producción',       icon: ScanLine,        ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
   { path: '/programacion',    label: 'Programación',     icon: Calendar,        ver: TODOS_OPERATIVOS },
   { path: '/por-cobrar',      label: 'Por cobrar',       icon: Wallet,          ver: TODOS_OPERATIVOS },
   { path: '/clientes',        label: 'Clientes',         icon: Users,           ver: TODOS_OPERATIVOS },

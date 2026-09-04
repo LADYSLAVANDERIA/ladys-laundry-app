@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
@@ -32,7 +33,14 @@ export default function OrdenDetalle() {
     Promise.all([formasPagoApi.getAll(), serviciosApi.getAll(), localApi.get(), rutasApi.getAll()])
       .then(([f, s, l, r]) => { setFormas(f.data); setServicios(s.data); setLocal(l.data || {}); setRutas(r.data.filter((x: any) => x.activo !== false)) }).catch(() => {})
   }, [id])
-  useEffect(() => { if (o && params.get('print') === '1') setTimeout(() => window.print(), 600) }, [o])
+  // El QR del ticket: lo lee la pistola y tambien la camara del celular en Produccion
+  const [qr, setQr] = useState('')
+  useEffect(() => {
+    if (!o) return
+    QRCode.toDataURL(String(o.id), { margin: 0, width: 150 })
+      .then(setQr).catch(() => setQr(''))
+  }, [o])
+  useEffect(() => { if (o && params.get('print') === '1' && qr) setTimeout(() => window.print(), 600) }, [o, qr])
 
   if (!o) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
 
@@ -243,6 +251,12 @@ export default function OrdenDetalle() {
           <p>{local.telefono || '+56 9 7541 0232'}</p>
         </div>
         <p style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '3px 0', textAlign: 'center', fontWeight: 'bold', fontSize: 15 }}>ORDEN {ot(o.id)}</p>
+        {qr && (
+          <div style={{ textAlign: 'center', margin: '6px 0' }}>
+            <img src={qr} alt="" style={{ width: 110, height: 110 }} />
+            <p style={{ fontSize: 9, marginTop: 2 }}>Escanear en cada etapa</p>
+          </div>
+        )}
         <p>Fecha: {fechaHora(o.creado_en)}</p>
         <p>Cliente: {o.cliente_nombre}</p>
         <p>Fono: {o.cliente_telefono || '—'}</p>

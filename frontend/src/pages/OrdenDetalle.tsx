@@ -124,6 +124,18 @@ export default function OrdenDetalle() {
     <div className="max-w-4xl mx-auto space-y-4">
       {/* ── PANTALLA ── */}
       <div className="no-print space-y-4">
+        {qr && (
+          <div className="bg-white rounded-2xl border p-4 flex items-center gap-4">
+            <img src={qr} alt="" style={{ width: 96, height: 96 }} />
+            <div className="min-w-0">
+              <p className="text-xs text-gray-400">Código del pedido</p>
+              <p className="font-semibold text-gray-800">Escanéalo en Producción</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Etapa actual: <b>{(o.etapa || 'RECEPCIONADO').replace(/_/g, ' ')}</b>
+              </p>
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/ordenes')} className="p-2 hover:bg-gray-100 rounded-xl"><ArrowLeft size={20} /></button>
           <div className="flex-1">

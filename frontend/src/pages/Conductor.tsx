@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
-import { repartoApi } from '../services/api'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { repartoApi, seguimientoApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
 import {
   Navigation, Phone, MessageCircle, Check, X, MapPin, Package,
-  ChevronDown, ChevronUp, RefreshCw, LogOut, Banknote,
+  ChevronDown, ChevronUp, RefreshCw, LogOut, Banknote, Play, Radio,
 } from 'lucide-react'
 
 const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
@@ -32,6 +32,10 @@ export default function Conductor() {
   const [cargando, setCargando] = useState(true)
   const [abierta, setAbierta] = useState<number | null>(null)
   const [verTodas, setVerTodas] = useState(false)
+  const [enVivo, setEnVivo] = useState(false)
+  const [ultimoEnvio, setUltimoEnvio] = useState<Date | null>(null)
+  const watch = useRef<number | null>(null)
+  const wake = useRef<any>(null)
 
   const cargar = (f = fecha) => {
     setCargando(true)
@@ -42,12 +46,49 @@ export default function Conductor() {
   }
   useEffect(() => { cargar(fecha) }, [fecha])
 
+  // mientras esta pantalla este abierta, reportamos la posicion al servidor
+  const partirGps = async () => {
+    if (!navigator.geolocation) return toast.error('Este teléfono no entrega ubicación')
+    try { wake.current = await (navigator as any).wakeLock?.request('screen') } catch { /* opcional */ }
+    watch.current = navigator.geolocation.watchPosition(
+      pos => {
+        seguimientoApi.posicion({
+          lat: pos.coords.latitude, lng: pos.coords.longitude,
+          exactitud: Math.round(pos.coords.accuracy || 0),
+          velocidad: pos.coords.speed ?? null, fecha,
+        }).then(() => setUltimoEnvio(new Date())).catch(() => {})
+      },
+      () => toast.error('No pudimos leer tu ubicación'),
+      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
+    )
+    setEnVivo(true)
+  }
+  const pararGps = () => {
+    if (watch.current !== null) navigator.geolocation.clearWatch(watch.current)
+    watch.current = null
+    try { wake.current?.release?.() } catch { /* da igual */ }
+    wake.current = null
+    setEnVivo(false)
+  }
+  useEffect(() => () => { if (watch.current !== null) navigator.geolocation.clearWatch(watch.current) }, [])
+
   const paradas: any[] = data?.paradas || []
-  const pendientes = useMemo(() => paradas.filter(p => p.estado === 'PENDIENTE'), [paradas])
+  const pendientes = useMemo(() => paradas.filter(p => p.estado === 'EN_CAMINO' || p.estado === 'PENDIENTE')
+    .sort((a, b) => (a.estado === 'EN_CAMINO' ? -1 : 0) - (b.estado === 'EN_CAMINO' ? -1 : 0)), [paradas])
   const actual = pendientes[0]
   const hechas = paradas.filter(p => p.estado === 'COMPLETADA').length
   const fallidas = paradas.filter(p => p.estado === 'FALLIDA').length
   const avance = paradas.length ? Math.round((hechas / paradas.length) * 100) : 0
+
+  const iniciar = async (p: any) => {
+    try {
+      const { data: r } = await seguimientoApi.iniciar(p.id)
+      if (!enVivo) await partirGps()
+      if (r.whatsapp) window.open(r.whatsapp, '_blank')
+      else toast('Este cliente no tiene teléfono registrado')
+      cargar()
+    } catch { toast.error('No se pudo iniciar el trayecto') }
+  }
 
   const marcar = async (p: any, estado: string) => {
     let nota: string | undefined
@@ -79,6 +120,7 @@ export default function Conductor() {
                 {p.secuencia || '·'}
               </div>
               {p.estado === 'COMPLETADA' && <Check size={16} className="text-green-600 mt-1" />}
+              {p.estado === 'EN_CAMINO' && <Radio size={16} className="text-blue-500 mt-1 animate-pulse" />}
               {p.estado === 'FALLIDA' && <X size={16} className="text-red-500 mt-1" />}
             </div>
             <div className="flex-1 min-w-0">
@@ -132,7 +174,15 @@ export default function Conductor() {
               </a>
             </div>
 
-            {p.estado === 'PENDIENTE' ? (
+            {p.estado === 'PENDIENTE' && (
+              <button onClick={() => iniciar(p)}
+                      className="w-full py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2"
+                      style={{ background: '#4AAEE0' }}>
+                <Play size={18} /> Voy en camino · avisar al cliente
+              </button>
+            )}
+
+            {p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO' ? (
               <div className="grid grid-cols-2 gap-2">
                 <button onClick={() => marcar(p, 'COMPLETADA')}
                         className="py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2"
@@ -171,6 +221,15 @@ export default function Conductor() {
         </div>
         <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
                className="mt-3 w-full rounded-xl px-3 py-2 text-gray-800 text-sm" />
+        <button onClick={() => (enVivo ? pararGps() : partirGps())}
+                className="mt-3 w-full py-2 rounded-xl text-sm flex items-center justify-center gap-2"
+                style={{ background: enVivo ? 'rgba(255,255,255,.25)' : 'rgba(0,0,0,.15)' }}>
+          <Radio size={15} className={enVivo ? 'animate-pulse' : ''} />
+          {enVivo
+            ? `Compartiendo ubicación${ultimoEnvio ? ' · ' + ultimoEnvio.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : ''}`
+            : 'Activar ubicación en vivo'}
+        </button>
+
         <div className="mt-3">
           <div className="flex justify-between text-xs mb-1">
             <span>{hechas} de {paradas.length} listas{fallidas ? ` · ${fallidas} sin lograr` : ''}</span>

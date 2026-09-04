@@ -169,3 +169,17 @@ export const repartoApi = {
   parada: (id: number, estado: string, nota?: string) => repartoAx.post('/parada', { id, estado, nota }),
   reordenar: (ids: number[]) => repartoAx.post('/reordenar', { ids }),
 }
+
+const SEG_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-seguimiento')
+const segAx = axios.create({ baseURL: SEG_URL })
+segAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const seguimientoApi = {
+  seguir: (id: string, token: string) => axios.get(`${SEG_URL}/seguir/${id}/${token}`),
+  posicion: (d: object) => segAx.post('/pos', d),
+  iniciar: (parada_id: number) => segAx.post('/iniciar', { parada_id }),
+  donde: (fecha?: string) => segAx.get('/donde', { params: { fecha } }),
+}

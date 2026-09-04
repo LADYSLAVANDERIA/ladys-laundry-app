@@ -25,6 +25,7 @@ import PorCobrar from './pages/PorCobrar'
 import ClienteDetalle from './pages/ClienteDetalle'
 import Reparto from './pages/Reparto'
 import Configuracion from './pages/Configuracion'
+import SeguirPedido from './pages/SeguirPedido'
 import Conductor from './pages/Conductor'
 
 function SoloToken({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,7 @@ export default function App() {
       <Routes>
         <Route path="/ot/:id/:token" element={<OrdenPublica />} />
         <Route path="/mi/:id/:token" element={<PortalCliente />} />
+        <Route path="/seguir/:id/:token" element={<SeguirPedido />} />
         <Route path="/login" element={<Login />} />
         <Route path="/conductor" element={<SoloToken><Conductor /></SoloToken>} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

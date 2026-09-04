@@ -45,6 +45,7 @@ export default function Estacion() {
   const [manual, setManual] = useState('')
   const [listo, setListo] = useState(false)
   const [pidiendoBultos, setPidiendoBultos] = useState<any>(null)
+  const [bultosElegidos, setBultosElegidos] = useState(0)
 
   const lector = useRef<any>(null)
   const wake = useRef<any>(null)
@@ -62,8 +63,12 @@ export default function Estacion() {
       navigator.vibrate?.(alerta ? [60, 80, 60] : 70)
       setFlash({ ok: !alerta, ...data })
       setHechos(h => [{ ...data, hora: new Date() }, ...h].slice(0, 40))
-      if (estacion === 'EMBOLSADO' && nBultos == null && !data.repetida) setPidiendoBultos(data)
-      setTimeout(() => setFlash(null), 2200)
+      if (estacion === 'EMBOLSADO' && nBultos == null && !data.repetida) {
+        setFlash(null)
+        setPidiendoBultos(data)   // aquí se confirma a mano: no desaparece solo
+      } else {
+        setTimeout(() => setFlash(null), 3500)
+      }
     } catch (e: any) {
       pitar(false)
       navigator.vibrate?.([90, 60, 90])
@@ -222,29 +227,74 @@ export default function Estacion() {
         </div>
       )}
 
-      {/* Bultos: botones enormes, para resolverlo de un toque y seguir */}
+      {/* Embalado: hay que ver QUE lleva y confirmar a mano antes de seguir */}
       {pidiendoBultos && (
-        <div className="fixed inset-0 z-40 bg-black/80 flex items-center justify-center p-5">
-          <div className="bg-gray-800 rounded-2xl w-full max-w-sm p-5 space-y-4">
+        <div className="fixed inset-0 z-40 bg-black/85 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-gray-800 rounded-2xl w-full max-w-sm p-5 space-y-4 my-6">
             <div className="text-center">
               <p className="text-gray-400 text-sm">Pedido #{pidiendoBultos.orden_id}</p>
-              <p className="font-bold text-lg">¿Cuántos bultos?</p>
+              <p className="font-bold text-xl">{pidiendoBultos.cliente}</p>
+              {pidiendoBultos.tipo_servicio === 'EXPRESS' && (
+                <p className="text-amber-400 font-bold text-sm mt-1">** EXPRESS **</p>
+              )}
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[1, 2, 3, 4, 5, 6].map(n => (
-                <button key={n}
-                        onClick={() => {
-                          etapasApi.marcar({ orden_id: pidiendoBultos.orden_id, etapa: 'EMBOLSADO', bultos: n })
-                          setPidiendoBultos(null)
-                        }}
-                        className="py-6 rounded-xl text-2xl font-bold" style={{ background: '#E8177A' }}>
-                  {n}
-                </button>
+
+            {/* Destino: es lo que hay que leer sí o sí */}
+            <div className="rounded-xl p-3 text-center font-bold"
+                 style={{ background: pidiendoBultos.entrega_domicilio ? '#f59e0b' : '#16a34a' }}>
+              {pidiendoBultos.entrega_domicilio
+                ? 'ESTANTERÍA · SALE A DOMICILIO'
+                : 'ESTANTERÍA · RETIRA EN LOCAL'}
+            </div>
+
+            {/* Qué contiene: para que no quede nada en el local */}
+            <div className="bg-gray-900 rounded-xl p-3 space-y-1.5">
+              <p className="text-xs text-gray-400">Este pedido lleva</p>
+              {Number(pidiendoBultos.kilos) > 0 && (
+                <p className="text-sm flex justify-between">
+                  <span>Ropa por kilo</span><b>{Number(pidiendoBultos.kilos)} kg</b>
+                </p>
+              )}
+              {(pidiendoBultos.items || []).map((it: any, i: number) => (
+                <p key={i} className="text-sm flex justify-between gap-3">
+                  <span className="truncate">{it.nombre}</span>
+                  <b className="shrink-0">{Number(it.cantidad)}</b>
+                </p>
               ))}
+              {!Number(pidiendoBultos.kilos) && !(pidiendoBultos.items || []).length && (
+                <p className="text-sm text-gray-500">Sin detalle cargado</p>
+              )}
             </div>
-            <button onClick={() => setPidiendoBultos(null)}
-                    className="w-full py-3 rounded-xl bg-gray-700 text-sm text-gray-300">
-              Saltar
+
+            <div>
+              <p className="text-sm mb-2">¿Cuántos bultos?</p>
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
+                  <button key={n} onClick={() => setBultosElegidos(n)}
+                          className={`py-4 rounded-xl text-xl font-bold ${bultosElegidos === n ? 'text-white' : 'bg-gray-700 text-gray-300'}`}
+                          style={bultosElegidos === n ? { background: '#E8177A' } : {}}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-xs text-gray-400">¿Más de 8?</span>
+                <input type="number" min={1} inputMode="numeric"
+                       value={bultosElegidos > 8 ? bultosElegidos : ''}
+                       onChange={e => setBultosElegidos(Number(e.target.value) || 0)}
+                       placeholder="escribe la cantidad"
+                       className="flex-1 bg-gray-700 rounded-lg px-3 py-2 text-sm outline-none text-white" />
+              </div>
+            </div>
+
+            <button disabled={!bultosElegidos}
+                    onClick={() => {
+                      etapasApi.marcar({ orden_id: pidiendoBultos.orden_id, etapa: 'EMBOLSADO', bultos: bultosElegidos })
+                      setPidiendoBultos(null); setBultosElegidos(0)
+                    }}
+                    className="w-full py-4 rounded-xl font-bold text-lg disabled:opacity-40"
+                    style={{ background: '#16a34a' }}>
+              {bultosElegidos ? `OK · ${bultosElegidos} bulto(s), leído` : 'Elige los bultos'}
             </button>
           </div>
         </div>

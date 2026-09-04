@@ -60,7 +60,8 @@ Deno.serve(async (req: Request) => {
       const id = b.orden_id ? Number(b.orden_id) : leerCodigo(b.codigo);
       if (!id) return json({ error: "No pude leer el código" }, 400);
 
-      const [o] = await SQL`SELECT o.id, o.etapa, o.estado, o.entrega_domicilio, o.bultos,
+      const [o] = await SQL`SELECT o.id, o.etapa, o.estado, o.entrega_domicilio, o.bultos, o.kilos,
+                                   o.tipo_servicio, o.fecha_entrega,
                                    c.nombre, c.apellido, c.razon_social, c.telefono
                             FROM ordenes o JOIN clientes c ON c.id = o.cliente_id
                             WHERE o.id = ${id}`;
@@ -82,8 +83,13 @@ Deno.serve(async (req: Request) => {
                   VALUES (${id}, ${etapa}, ${Number(u.id) || null}, ${b.bultos ?? null}, ${b.nota ?? null})`;
       }
 
+      // Contenido del pedido: lo que hay que empacar y cargar, sin que falte nada
+      const items = await SQL`SELECT nombre, cantidad FROM orden_items
+                              WHERE orden_id = ${id} ORDER BY cantidad DESC, nombre`;
+
       const cliente = o.razon_social || [o.nombre, o.apellido].filter(Boolean).join(" ");
       return json({
+        items, kilos: o.kilos, bultos_previos: o.bultos,
         ok: true, orden_id: id, cliente, etapa_anterior: o.etapa, etapa,
         repetida, retrocede, entrega_domicilio: o.entrega_domicilio,
         aviso: repetida ? `El pedido ${id} ya estaba en esta etapa`

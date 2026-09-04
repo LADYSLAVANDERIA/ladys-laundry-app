@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
+import { etapasApi } from '../services/api'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
@@ -35,6 +36,11 @@ export default function OrdenDetalle() {
   }, [id])
   // El QR del ticket: lo lee la pistola y tambien la camara del celular en Produccion
   const [qr, setQr] = useState('')
+  const [traza, setTraza] = useState<any[]>([])
+  useEffect(() => {
+    if (!o) return
+    etapasApi.orden(o.id).then(r => setTraza(r.data.pasos || [])).catch(() => setTraza([]))
+  }, [o])
   const [tipoTicket, setTipoTicket] = useState<'cliente' | 'interno'>('cliente')
   useEffect(() => {
     if (!o) return
@@ -138,6 +144,33 @@ export default function OrdenDetalle() {
               <p className="text-xs text-gray-500 mt-1">
                 Etapa actual: <b>{(o.etapa || 'RECEPCIONADO').replace(/_/g, ' ')}</b>
               </p>
+            </div>
+          </div>
+        )}
+
+        {!!traza.length && (
+          <div className="bg-white rounded-2xl border p-4">
+            <p className="font-semibold text-gray-800 mb-3">Trazabilidad</p>
+            <div className="space-y-0">
+              {traza.map((t: any, i: number) => (
+                <div key={i} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <div className="w-2.5 h-2.5 rounded-full mt-1.5"
+                         style={{ background: i === traza.length - 1 ? '#E8177A' : '#cbd5e1' }} />
+                    {i < traza.length - 1 && <div className="w-px flex-1 bg-gray-200" />}
+                  </div>
+                  <div className="pb-4 min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-800">
+                      {String(t.etapa).replace(/_/g, ' ')}
+                      {t.bultos ? ` · ${t.bultos} bulto(s)` : ''}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {fechaHora(t.en)} · {t.usuario}
+                    </p>
+                    {t.nota && <p className="text-xs text-gray-400 italic">{t.nota}</p>}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

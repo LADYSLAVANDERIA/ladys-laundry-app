@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import axios from 'axios'
-import { Scale, Package, Clock, CheckCircle2, Truck, Store, Zap, Phone, AlertTriangle, TrendingUp, CreditCard, ChevronRight, Loader2 } from 'lucide-react'
+import { Scale, Package, Clock, CheckCircle2, Truck, Store, Zap, Phone, AlertTriangle, TrendingUp, CreditCard, ChevronRight, ChevronDown, Loader2, Radio, MapPin } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, hora } from '../utils'
+import MapaEnVivo, { useSeguimiento } from '../components/MapaEnVivo'
 
 const PORTAL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-portal')
 const ESTADOS: Record<string, { t: string; c: string }> = {
@@ -10,6 +11,74 @@ const ESTADOS: Record<string, { t: string; c: string }> = {
   EN_PROCESO: { t: 'En proceso',  c: 'bg-yellow-100 text-yellow-700' },
   LISTA:      { t: 'Lista',       c: 'bg-green-100 text-green-700' },
   ENTREGADA:  { t: 'Entregada',   c: 'bg-gray-100 text-gray-500' },
+}
+
+// Cada pedido consulta su estado de reparto: si va en camino, muestra el
+// distintivo y permite desplegar el mapa en vivo sin salir del portal.
+function TarjetaPedido({ o }: { o: any }) {
+  const [abierto, setAbierto] = useState(false)
+  const candidato = o.estado !== 'ENTREGADA' && o.estado !== 'ANULADA'
+  const seg = useSeguimiento(o.id, o.token_publico, candidato)
+  const enCamino = seg?.estado === 'EN_CAMINO'
+  const enRuta = seg && seg.estado !== 'SIN_RUTA' && seg.destino
+
+  return (
+    <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden ${enCamino ? 'ring-2' : ''}`}
+         style={enCamino ? { borderColor: '#4AAEE0', boxShadow: '0 0 0 2px #4AAEE033' } : {}}>
+      <div className="p-4 cursor-pointer" onClick={() => enRuta ? setAbierto(!abierto) : (window.location.hash = `#/ot/${o.id}/${o.token_publico}`)}>
+        <div className="flex items-center justify-between">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-sm">{ot(o.id)}</span>
+              {enCamino ? (
+                <span className="text-[11px] px-2 py-0.5 rounded-full text-white flex items-center gap-1"
+                      style={{ background: '#4AAEE0' }}>
+                  <Radio size={9} className="animate-pulse" /> En camino
+                </span>
+              ) : (
+                <span className={`text-[11px] px-2 py-0.5 rounded-full ${ESTADOS[o.estado]?.c || ''}`}>
+                  {ESTADOS[o.estado]?.t || o.estado}
+                </span>
+              )}
+              {o.tipo_servicio === 'EXPRESS' && <Zap size={11} className="text-amber-500" />}
+              {o.es_membresia && <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Plan</span>}
+            </div>
+            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+              {o.entrega_domicilio ? <Truck size={11} /> : <Store size={11} />}
+              {o.fecha_entrega ? `Entrega ${fechaCorta(o.fecha_entrega)}` : fechaCorta(o.creado_en)}
+              {Number(o.kilos) > 0 && ` · ${Number(o.kilos)} kg`}
+            </p>
+            {enCamino && seg?.eta_min != null && !abierto && (
+              <p className="text-xs mt-1.5 font-medium flex items-center gap-1" style={{ color: '#2b7fa8' }}>
+                <MapPin size={11} /> Llega en unos {seg.eta_min} min · toca para ver el mapa
+              </p>
+            )}
+          </div>
+          <div className="text-right flex-shrink-0 flex items-center gap-2">
+            <div>
+              <p className="font-bold text-gray-800">{fmt(o.monto_total)}</p>
+              {Number(o.saldo_pendiente) > 0
+                ? <p className="text-[11px] text-red-500">debe {fmt(o.saldo_pendiente)}</p>
+                : <p className="text-[11px] text-green-600">pagada</p>}
+            </div>
+            {enRuta
+              ? (abierto ? <ChevronDown size={16} className="text-gray-300" /> : <ChevronRight size={16} className="text-gray-300" />)
+              : <ChevronRight size={16} className="text-gray-300" />}
+          </div>
+        </div>
+      </div>
+
+      {abierto && enRuta && (
+        <div className="border-t">
+          <MapaEnVivo datos={seg} />
+          <a href={`#/ot/${o.id}/${o.token_publico}`}
+             className="block text-center py-2.5 text-xs text-gray-500 border-t">
+            Ver el detalle del pedido
+          </a>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function PortalCliente() {
@@ -141,31 +210,7 @@ export default function PortalCliente() {
 
         {tab === 'pedidos' && (
           <div className="space-y-2">
-            {d.ordenes.map((o: any) => (
-              <a key={o.id} href={`#/ot/${o.id}/${o.token_publico}`} className="block bg-white rounded-2xl shadow-sm border p-4">
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm">{ot(o.id)}</span>
-                      <span className={`text-[11px] px-2 py-0.5 rounded-full ${ESTADOS[o.estado]?.c || ''}`}>{ESTADOS[o.estado]?.t || o.estado}</span>
-                      {o.tipo_servicio === 'EXPRESS' && <Zap size={11} className="text-amber-500" />}
-                      {o.es_membresia && <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">Plan</span>}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                      {o.entrega_domicilio ? <Truck size={11} /> : <Store size={11} />}
-                      {o.fecha_entrega ? `Entrega ${fechaCorta(o.fecha_entrega)}` : fechaCorta(o.creado_en)}
-                      {Number(o.kilos) > 0 && ` · ${Number(o.kilos)} kg`}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-gray-800">{fmt(o.monto_total)}</p>
-                    {Number(o.saldo_pendiente) > 0
-                      ? <p className="text-[11px] text-red-500">debe {fmt(o.saldo_pendiente)}</p>
-                      : <p className="text-[11px] text-green-600">pagada</p>}
-                  </div>
-                </div>
-              </a>
-            ))}
+            {d.ordenes.map((o: any) => <TarjetaPedido key={o.id} o={o} />)}
             {!d.ordenes.length && <p className="text-center text-gray-400 py-10 text-sm">Todavía no tienes pedidos</p>}
           </div>
         )}

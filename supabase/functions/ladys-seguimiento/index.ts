@@ -115,16 +115,20 @@ Deno.serve(async (req: Request) => {
                 WHERE fecha = (SELECT fecha FROM reparto_paradas WHERE id = ${p.id})
                   AND estado = 'EN_CAMINO' AND id <> ${p.id}`;
 
-      const [o] = await SQL`SELECT o.id, o.token_publico, c.nombre, c.telefono
+      const [o] = await SQL`SELECT o.id, o.token_publico, c.id AS cliente_id,
+                                   c.nombre, c.telefono, c.token_portal
                             FROM ordenes o JOIN clientes c ON c.id = o.cliente_id
                             WHERE o.id = ${p.orden_id}`;
       const [cfg] = await SQL`SELECT valor FROM configuracion WHERE clave = 'url_app'`;
       const base = (cfg?.valor || "https://ladyslavanderia.cl/app").replace(/\/$/, "");
-      const enlace = `${base}/#/seguir/${o.id}/${o.token_publico}`;
+      // el cliente entra a su portal de siempre; ahi ve el pedido en camino y despliega el mapa
+      const enlace = o.token_portal
+        ? `${base}/#/mi/${o.cliente_id}/${o.token_portal}`
+        : `${base}/#/seguir/${o.id}/${o.token_publico}`;
 
       const accion = p.tipo === "RETIRO" ? "a retirar tu ropa" : "con tu pedido";
       const texto = `Hola ${(o.nombre || "").split(" ")[0]}, vamos en camino ${accion}. ` +
-        `Puedes seguir al conductor en el mapa aquí: ${enlace}`;
+        `Puedes seguir al conductor en vivo desde tu cuenta: ${enlace}`;
 
       await SQL`UPDATE reparto_paradas SET aviso_enviado = NOW() WHERE id = ${p.id}`;
       const tel = String(o.telefono || "").replace(/[^\d]/g, "");

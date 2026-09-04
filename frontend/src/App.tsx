@@ -27,6 +27,7 @@ import Reparto from './pages/Reparto'
 import Configuracion from './pages/Configuracion'
 import SeguirPedido from './pages/SeguirPedido'
 import Produccion from './pages/Produccion'
+import Estacion from './pages/Estacion'
 import Conductor from './pages/Conductor'
 
 function SoloToken({ children }: { children: React.ReactNode }) {
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/seguir/:id/:token" element={<SeguirPedido />} />
         <Route path="/login" element={<Login />} />
         <Route path="/conductor" element={<SoloToken><Conductor /></SoloToken>} />
+        <Route path="/estacion" element={<SoloToken><Estacion /></SoloToken>} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard"       element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/clientes"        element={<PrivateRoute><Clientes /></PrivateRoute>} />

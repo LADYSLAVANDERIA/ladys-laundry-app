@@ -256,16 +256,16 @@ export default function OrdenDetalle() {
       </div>
 
       {/* ── TICKET 80mm ── */}
-      <div className="print-only text-black" style={{ width: '72mm', fontSize: '11px', fontFamily: 'monospace' }}>
+      <div className="print-only text-black" style={{ width: '54mm', fontSize: '10px', fontFamily: 'monospace' }}>
         <div style={{ textAlign: 'center', marginBottom: 6 }}>
-          <p style={{ fontWeight: 'bold', fontSize: 14 }}>{local.nombre || 'LADYS LAVANDERÍA'}</p>
+          <p style={{ fontWeight: 'bold', fontSize: 12 }}>{local.nombre || 'LADYS LAVANDERÍA'}</p>
           <p>{local.dir_salida || 'Av. Concón Reñaca 102, L. 5 y 6'}</p>
           <p>{local.telefono || '+56 9 7541 0232'}</p>
         </div>
-        <p style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '3px 0', textAlign: 'center', fontWeight: 'bold', fontSize: 15 }}>ORDEN {ot(o.id)}</p>
+        <p style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '3px 0', textAlign: 'center', fontWeight: 'bold', fontSize: 13 }}>ORDEN {ot(o.id)}</p>
         {qr && (
           <div style={{ textAlign: 'center', margin: '6px 0' }}>
-            <img src={qr} alt="" style={{ width: 110, height: 110 }} />
+            <img src={qr} alt="" style={{ width: 86, height: 86 }} />
             <p style={{ fontSize: 9, marginTop: 2 }}>Escanear en cada etapa</p>
           </div>
         )}
@@ -276,7 +276,7 @@ export default function OrdenDetalle() {
         <p style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4 }}>DETALLE</p>
         {o.items.map((i: any) => (
           <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>{Number(i.cantidad)}x {i.nombre.slice(0, 24)}</span><span>{fmt(i.subtotal)}</span>
+            <span>{Number(i.cantidad)}x {i.nombre.slice(0, 18)}</span><span>{fmt(i.subtotal)}</span>
           </div>
         ))}
         <div style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4 }}>

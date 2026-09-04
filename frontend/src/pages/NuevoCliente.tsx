@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clientesApi } from '../services/api'
+import { clientesApi, dirApi } from '../services/api'
+import MapaDireccion from '../components/MapaDireccion'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, MapPin } from 'lucide-react'
 
 export default function NuevoCliente() {
   const navigate = useNavigate()
   const [tipo, setTipo] = useState('PARTICULAR')
   const [form, setForm] = useState<any>({})
   const [loading, setLoading] = useState(false)
+  const [dir, setDir] = useState<any>({ ciudad: 'Concón' })
 
   const set = (k: string, v: string) => setForm((p: any) => ({ ...p, [k]: v }))
 
@@ -17,9 +19,13 @@ export default function NuevoCliente() {
     if (!form.nombre) return toast.error('El nombre es obligatorio')
     setLoading(true)
     try {
-      await clientesApi.create({ ...form, tipo })
+      const { data } = await clientesApi.create({ ...form, tipo })
+      if (dir.calle) {
+        try { await dirApi.crear(data.id, { ...dir, es_principal: true }) }
+        catch { toast('Cliente creado, pero la dirección no se guardó', { icon: '⚠️' }) }
+      }
       toast.success('Cliente creado')
-      navigate('/clientes')
+      navigate(`/clientes/${data.id}`)
     } catch { toast.error('Error al crear cliente') }
     finally { setLoading(false) }
   }
@@ -92,6 +98,17 @@ export default function NuevoCliente() {
           <textarea value={form.observaciones || ''} onChange={e => set('observaciones', e.target.value)} rows={3}
             className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-pink-300 outline-none resize-none" />
         </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-2">
+
+          <p className="font-semibold text-gray-700 text-sm flex items-center gap-1.5"><MapPin size={15} className="text-pink-500" /> Dirección de retiro y entrega</p>
+
+          <p className="text-xs text-gray-400">Opcional. Ubicar el punto en el mapa evita que el conductor se pierda.</p>
+
+          <MapaDireccion valor={dir} onChange={setDir} alto={200} />
+
+        </div>
+
 
         <button type="submit" disabled={loading}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-70"

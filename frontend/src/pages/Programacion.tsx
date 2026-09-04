@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi } from '../services/api'
+import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi, dirApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check } from 'lucide-react'
 import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, pesoSector } from '../utils'
@@ -21,7 +21,15 @@ export default function Programacion() {
   const load = async (f = fecha) => {
     setLoading(true)
     try {
-      const [{ data }, om] = await Promise.all([programacionApi.get(f), ordenRutaApi.get(f).catch(() => ({ data: {} }))])
+      const [{ data }, om, co] = await Promise.all([
+        programacionApi.get(f),
+        ordenRutaApi.get(f).catch(() => ({ data: {} })),
+        dirApi.coordenadas(f).catch(() => ({ data: {} })),
+      ])
+      const coords: any = co.data || {}
+      const pegar = (o: any) => Object.assign(o, coords[String(o.id)] || {})
+      data.rutas?.forEach((r: any) => { r.retiros.forEach(pegar); r.entregas.forEach(pegar) })
+      data.sin_ruta?.forEach(pegar); data.en_local?.forEach(pegar)
       setData(data); setOrdenManual(om.data || {})
     }
     catch { toast.error('No se pudo cargar la programación') } finally { setLoading(false) }
@@ -119,7 +127,7 @@ export default function Programacion() {
             className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${o.telefono ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-300'}`}>
             <MessageCircle size={16} /> WhatsApp
           </button>
-          <a href={mapsLink(dir)} target="_blank" rel="noreferrer"
+          <a href={mapsLink(dir, tipo === 'retiro' ? o.lat_retiro : o.lat_entrega, tipo === 'retiro' ? o.lng_retiro : o.lng_entrega)} target="_blank" rel="noreferrer"
             className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${dir ? 'bg-purple-50 text-purple-600' : 'bg-gray-50 text-gray-300 pointer-events-none'}`}>
             <Navigation size={16} /> Navegar
           </a>
@@ -167,7 +175,7 @@ export default function Programacion() {
               </div>
               {(r.retiros.length + r.entregas.length) > 0 && (
                 <div className="px-4 py-2 border-b bg-gray-50 flex gap-2">
-                  <a href={rutaCompletaMaps([...ordenar(r.retiros, 'dir_retiro').map((o: any) => o.dir_retiro), ...ordenar(r.entregas, 'dir_entrega').map((o: any) => o.dir_entrega)])}
+                  <a href={rutaCompletaMaps([...ordenar(r.retiros, 'dir_retiro').map((o: any) => o.lat_retiro ? `${o.lat_retiro},${o.lng_retiro}` : o.dir_retiro), ...ordenar(r.entregas, 'dir_entrega').map((o: any) => o.lat_entrega ? `${o.lat_entrega},${o.lng_entrega}` : o.dir_entrega)])}
                     target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-100 text-purple-700 text-xs font-medium">
                     <Route size={13} /> Ruta completa en Maps
                   </a>

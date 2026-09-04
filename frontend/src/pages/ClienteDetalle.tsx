@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { clientesApi, fichaApi, serviciosApi } from '../services/api'
+import { clientesApi, fichaApi, serviciosApi, dirApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2, TrendingUp, Clock, Repeat, AlertTriangle, Truck, Zap, Smartphone, Copy } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2, TrendingUp, Clock, Repeat, AlertTriangle, Truck, Zap, Smartphone, Copy, Navigation } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, waLink, telWa, ESTADO_COLOR, ESTADO_LABEL } from '../utils'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
+import MapaDireccion from '../components/MapaDireccion'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 
@@ -291,9 +292,20 @@ export default function ClienteDetalle() {
         {c.direcciones?.length ? (
           <div className="space-y-2">
             {c.direcciones.map((d: any) => (
-              <div key={d.id} className="flex items-center justify-between border rounded-xl px-3 py-2.5">
-                <p className="text-sm text-gray-700">{d.calle} {d.numero}{d.otro ? `, ${d.otro}` : ''}{d.sector ? ` — ${d.sector}` : ''}{d.ciudad ? `, ${d.ciudad}` : ''} {d.es_principal && <span className="ml-1 text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded">principal</span>}</p>
-                <button onClick={() => borrarDir(d.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={14} /></button>
+              <div key={d.id} className="flex items-center justify-between border rounded-xl px-3 py-2.5 gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-700">{d.calle} {d.numero}{d.otro ? `, ${d.otro}` : ''}{d.ciudad ? `, ${d.ciudad}` : ''} {d.es_principal && <span className="ml-1 text-[10px] bg-pink-100 text-pink-600 px-1.5 py-0.5 rounded">principal</span>}</p>
+                  <p className="text-[11px] flex items-center gap-1">
+                    {d.lat ? <span className="text-green-600 flex items-center gap-1"><MapPin size={10} /> con punto en el mapa</span>
+                           : <span className="text-amber-600 flex items-center gap-1"><MapPin size={10} /> sin ubicar</span>}
+                  </p>
+                </div>
+                <div className="flex gap-1 flex-shrink-0">
+                  {d.lat && <a href={`https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lng}`} target="_blank" rel="noreferrer"
+                    className="p-1.5 rounded-lg bg-purple-50 text-purple-600" title="Navegar"><Navigation size={13} /></a>}
+                  <button onClick={() => { setDir({ ...d }); setModal('dir') }} className="p-1.5 rounded-lg bg-gray-100 text-gray-500" title="Editar y ubicar"><Pencil size={13} /></button>
+                  <button onClick={() => borrarDir(d.id)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
+                </div>
               </div>
             ))}
           </div>
@@ -325,18 +337,22 @@ export default function ClienteDetalle() {
       </div>
 
       {modal === 'dir' && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
-          <div className="bg-white rounded-2xl w-full max-w-md p-5 space-y-3">
-            <div className="flex items-center justify-between"><h2 className="font-bold">Nueva dirección</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
-            <div className="grid grid-cols-3 gap-2">
-              <input value={dir.calle || ''} onChange={e => setDir({ ...dir, calle: e.target.value })} placeholder="Calle *" className={inp + ' col-span-2'} />
-              <input value={dir.numero || ''} onChange={e => setDir({ ...dir, numero: e.target.value })} placeholder="N°" className={inp} />
-              <input value={dir.otro || ''} onChange={e => setDir({ ...dir, otro: e.target.value })} placeholder="Depto / casa" className={inp} />
-              <select value={dir.ciudad} onChange={e => setDir({ ...dir, ciudad: e.target.value })} className={inp}>{['Concón', 'Reñaca', 'Viña del Mar', 'Valparaíso', 'Quintero'].map(x => <option key={x}>{x}</option>)}</select>
-              <input value={dir.sector || ''} onChange={e => setDir({ ...dir, sector: e.target.value })} placeholder="Sector" className={inp} />
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg my-8 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold">{dir?.id ? 'Editar dirección' : 'Nueva dirección'}</h2>
+              <button onClick={() => { setModal(null); setDir({ ciudad: 'Concón' }) }}><X size={18} className="text-gray-400" /></button>
             </div>
-            <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={!!dir.es_principal} onChange={e => setDir({ ...dir, es_principal: e.target.checked })} /> Marcar como principal</label>
-            <div className="flex gap-2"><button onClick={guardarDir} className="flex-1 py-3 rounded-xl text-white font-semibold text-sm" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}><Save size={14} className="inline mr-1" /> Guardar</button><button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button></div>
+            <MapaDireccion valor={dir} onChange={setDir} />
+            <label className="flex items-center gap-2 text-sm text-gray-600">
+              <input type="checkbox" checked={!!dir?.es_principal} onChange={e => setDir({ ...dir, es_principal: e.target.checked })} /> Dirección principal
+            </label>
+            <div className="flex gap-2">
+              <button onClick={guardarDir} className="flex-1 py-3 rounded-xl text-white font-semibold text-sm" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                <Save size={14} className="inline mr-1" /> Guardar dirección
+              </button>
+              <button onClick={() => { setModal(null); setDir({ ciudad: 'Concón' }) }} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
+            </div>
           </div>
         </div>
       )}

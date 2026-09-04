@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi, fichaApi } from '../services/api'
+import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi, fichaApi, dirApi } from '../services/api'
 import ItemsPicker, { buildItems } from '../components/ItemsPicker'
+import MapaDireccion from '../components/MapaDireccion'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Search, Save, UserPlus, MapPin, Truck, Store, Percent, AlertTriangle, CreditCard, Plus, X, Phone } from 'lucide-react'
@@ -58,8 +59,12 @@ export default function NuevaOrden() {
   }
   const guardarDir = async () => {
     if (!nuevaDir?.calle) return toast.error('Ingresa la calle')
-    const { data } = await clientesApi.addDireccion(cliente.id, { ciudad: 'Concón', ...nuevaDir, es_principal: !cliente.direcciones?.length })
-    const { data: c } = await clientesApi.getById(cliente.id); setCliente(c); setF((p: any) => ({ ...p, dir_id: String(data.id) })); setNuevaDir(null)
+    try {
+      const { data } = await dirApi.crear(cliente.id, { ciudad: 'Concón', ...nuevaDir, es_principal: !cliente.direcciones?.length })
+      const { data: c } = await clientesApi.getById(cliente.id)
+      setCliente(c); setF((p: any) => ({ ...p, dir_id: String(data.id) })); setNuevaDir(null)
+      toast.success(data.lat ? 'Dirección guardada con ubicación' : 'Dirección guardada')
+    } catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
   }
 
   const serviciosConPrecio = useMemo(() => {
@@ -198,13 +203,11 @@ export default function NuevaOrden() {
                   <button onClick={() => setNuevaDir(nuevaDir ? null : { calle: '', numero: '', otro: '', sector: '', ciudad: 'Concón' })} className="px-3 bg-gray-100 rounded-xl text-sm whitespace-nowrap flex items-center gap-1"><Plus size={14} /> Nueva</button>
                 </div>
                 {nuevaDir && (
-                  <div className="grid sm:grid-cols-5 gap-2 mt-2 bg-gray-50 p-3 rounded-xl">
-                    <input value={nuevaDir.calle} onChange={e => setNuevaDir({ ...nuevaDir, calle: e.target.value })} placeholder="Calle *" className={inp + ' sm:col-span-2'} />
-                    <input value={nuevaDir.numero} onChange={e => setNuevaDir({ ...nuevaDir, numero: e.target.value })} placeholder="N°" className={inp} />
-                    <input value={nuevaDir.otro} onChange={e => setNuevaDir({ ...nuevaDir, otro: e.target.value })} placeholder="Depto / casa" className={inp} />
-                    <select value={nuevaDir.ciudad} onChange={e => setNuevaDir({ ...nuevaDir, ciudad: e.target.value })} className={inp}>{['Concón', 'Reñaca', 'Viña del Mar', 'Valparaíso', 'Quintero'].map(c => <option key={c}>{c}</option>)}</select>
-                    <input value={nuevaDir.sector} onChange={e => setNuevaDir({ ...nuevaDir, sector: e.target.value })} placeholder="Sector / referencia" className={inp + ' sm:col-span-4'} />
-                    <button onClick={guardarDir} className="bg-pink-500 text-white rounded-xl text-sm font-medium">Guardar</button>
+                  <div className="mt-2 bg-gray-50 p-3 rounded-xl">
+                    <MapaDireccion valor={nuevaDir} onChange={setNuevaDir} alto={180} />
+                    <button onClick={guardarDir} className="w-full mt-2 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                      Guardar dirección
+                    </button>
                   </div>
                 )}
               </div>

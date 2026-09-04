@@ -53,8 +53,9 @@ export const mensajeAviso = (tipo: string, o: any, link: string) => {
   return `Hola ${n}, tu pedido ${num} ya está listo. ${donde}${saldo}\n\nDetalle: ${link}`
 }
 
-export const mapsLink = (dir?: string | null) =>
-  dir ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dir + ', Chile')}` : ''
+export const mapsLink = (dir?: string | null, lat?: number | null, lng?: number | null) =>
+  lat && lng ? `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`
+    : dir ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(dir + ', Chile')}` : ''
 
 // Orden geográfico de la ruta: el furgón sale de Concón hacia el sur
 export const ORDEN_COMUNA: Record<string, number> = {

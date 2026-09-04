@@ -91,6 +91,21 @@ export const fichaApi = {
   borrarPrecio: (id: number | string, pid: number) => preciosHttp.delete(`/${id}/precios/${pid}`),
   borrarTodos:  (id: number | string) => preciosHttp.delete(`/${id}/precios`),
 }
+const DIR_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-direcciones') || 'http://localhost:3001/dir'
+const dirHttp = axios.create({ baseURL: DIR_URL })
+dirHttp.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const dirApi = {
+  buscar:     (texto: string) => dirHttp.post('/buscar', { texto }),
+  desdePunto: (d: object) => dirHttp.post('/desde-punto', d),
+  crear:      (cid: number | string, d: object) => dirHttp.post(`/${cid}/direcciones`, d),
+  actualizar: (id: number, d: object) => dirHttp.put(`/direccion/${id}`, d),
+  listar:     (cid: number | string) => dirHttp.get(`/${cid}/direcciones`),
+  coordenadas:(fecha: string) => dirHttp.get('/coordenadas', { params: { fecha } }),
+}
 export const configApi = { get: () => api.get('/config'), set: (d: object) => api.put('/config', d) }
 export const serviciosApi  = {
   getAll:  () => api.get('/servicios'),

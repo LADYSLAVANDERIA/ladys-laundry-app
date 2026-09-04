@@ -7,22 +7,24 @@ import {
   LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet
 } from 'lucide-react'
 
+// Quien ve cada pantalla. ADMINISTRADOR ve todo sin necesidad de listarse.
+const TODOS_OPERATIVOS = ['JEFE_LOCAL']
 const menu = [
-  { path: '/dashboard',       label: 'Dashboard',        icon: LayoutDashboard },
-  { path: '/ordenes',         label: 'Pedidos',          icon: ClipboardList },
-  { path: '/ordenes/nueva',   label: 'Nueva Orden',      icon: Plus },
-  { path: '/programacion',    label: 'Programación',     icon: Calendar },
-  { path: '/por-cobrar',      label: 'Por cobrar',       icon: Wallet },
-  { path: '/clientes',        label: 'Clientes',         icon: Users },
-  { path: '/membresias',      label: 'Membresías',       icon: CreditCard },
-  { path: '/servicios',       label: 'Servicios',        icon: Scissors },
-  { path: '/caja',            label: 'Caja',             icon: DollarSign },
-  { path: '/compras',         label: 'Compras/Gastos',   icon: ShoppingCart },
-  { path: '/reparto',         label: 'Reparto del día',  icon: Navigation },
-  { path: '/rutas',           label: 'Rutas Delivery',   icon: Truck },
-  { path: '/reporte-control', label: 'Reporte Control',  icon: BarChart2 },
-  { path: '/usuarios',        label: 'Usuarios',         icon: UserCog, adminOnly: true },
-  { path: '/config-local',    label: 'Configuración',    icon: Settings, adminOnly: true },
+  { path: '/dashboard',       label: 'Dashboard',        icon: LayoutDashboard, ver: TODOS_OPERATIVOS },
+  { path: '/ordenes',         label: 'Pedidos',          icon: ClipboardList,   ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
+  { path: '/ordenes/nueva',   label: 'Nueva Orden',      icon: Plus,            ver: TODOS_OPERATIVOS },
+  { path: '/programacion',    label: 'Programación',     icon: Calendar,        ver: TODOS_OPERATIVOS },
+  { path: '/por-cobrar',      label: 'Por cobrar',       icon: Wallet,          ver: TODOS_OPERATIVOS },
+  { path: '/clientes',        label: 'Clientes',         icon: Users,           ver: TODOS_OPERATIVOS },
+  { path: '/membresias',      label: 'Membresías',       icon: CreditCard,      ver: TODOS_OPERATIVOS },
+  { path: '/servicios',       label: 'Servicios',        icon: Scissors,        ver: TODOS_OPERATIVOS },
+  { path: '/caja',            label: 'Caja',             icon: DollarSign,      ver: TODOS_OPERATIVOS },
+  { path: '/compras',         label: 'Compras/Gastos',   icon: ShoppingCart,    ver: TODOS_OPERATIVOS },
+  { path: '/reparto',         label: 'Reparto del día',  icon: Navigation,      ver: [...TODOS_OPERATIVOS, 'CONDUCTOR'] },
+  { path: '/rutas',           label: 'Rutas Delivery',   icon: Truck,           ver: TODOS_OPERATIVOS },
+  { path: '/reporte-control', label: 'Reporte Control',  icon: BarChart2,       ver: TODOS_OPERATIVOS },
+  { path: '/usuarios',        label: 'Usuarios',         icon: UserCog,         ver: [] },
+  { path: '/config-local',    label: 'Configuración',    icon: Settings,        ver: [] },
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -33,8 +35,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = () => { logout(); navigate('/login') }
 
-  const NavItem = ({ path, label, icon: Icon, adminOnly }: typeof menu[0]) => {
-    if (adminOnly && !isAdmin()) return null
+  const NavItem = ({ path, label, icon: Icon, ver }: typeof menu[0]) => {
+    if (!isAdmin() && !(ver || []).includes(user?.perfil || '')) return null
     const active = location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path))
     return (
       <Link to={path} onClick={() => setOpen(false)}

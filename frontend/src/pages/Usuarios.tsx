@@ -38,7 +38,7 @@ export default function Usuarios() {
                 <p className="text-xs text-gray-500">{u.email}</p>
               </div>
               <div className="text-right">
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${u.perfil === 'ADMINISTRADOR' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{u.perfil}</span>
+                <span className={`text-xs px-2 py-1 rounded-full font-medium ${u.perfil === 'ADMINISTRADOR' ? 'bg-purple-100 text-purple-700' : u.perfil === 'JEFE_LOCAL' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>{u.perfil}</span>
                 <p className="text-xs mt-1">{u.estado ? <span className="text-green-500 flex items-center gap-1 justify-end"><Check size={11}/>Activo</span> : <span className="text-red-400 flex items-center gap-1 justify-end"><XCircle size={11}/>Inactivo</span>}</p>
               </div>
             </div>
@@ -68,6 +68,7 @@ export default function Usuarios() {
                   <select value={form.perfil} onChange={e => setForm({...form,perfil:e.target.value})} className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none">
                     <option value="ASISTENTE">ASISTENTE</option>
                     <option value="ADMINISTRADOR">ADMINISTRADOR</option>
+                    <option value="JEFE_LOCAL">JEFE DE LOCAL</option>
                     <option value="CONDUCTOR">CONDUCTOR</option>
                   </select>
                 </div>

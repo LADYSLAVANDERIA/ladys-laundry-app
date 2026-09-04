@@ -20,6 +20,7 @@ import ConfigLocal from './pages/ConfigLocal'
 import Prepagos from './pages/Prepagos'
 import Membresias from './pages/Membresias'
 import OrdenPublica from './pages/OrdenPublica'
+import PortalCliente from './pages/PortalCliente'
 import Programacion from './pages/Programacion'
 import PorCobrar from './pages/PorCobrar'
 import MercadoPago from './pages/MercadoPago'
@@ -37,6 +38,7 @@ export default function App() {
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       <Routes>
         <Route path="/ot/:id/:token" element={<OrdenPublica />} />
+        <Route path="/mi/:id/:token" element={<PortalCliente />} />
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard"       element={<PrivateRoute><Dashboard /></PrivateRoute>} />

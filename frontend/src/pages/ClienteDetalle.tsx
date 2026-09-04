@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { clientesApi, fichaApi, serviciosApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2, TrendingUp, Clock, Repeat, AlertTriangle, Truck, Zap } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, waLink, ESTADO_COLOR, ESTADO_LABEL } from '../utils'
+import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2, TrendingUp, Clock, Repeat, AlertTriangle, Truck, Zap, Smartphone, Copy } from 'lucide-react'
+import { fmt, ot, fechaCorta, fechaHora, waLink, telWa, ESTADO_COLOR, ESTADO_LABEL } from '../utils'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
@@ -60,6 +60,14 @@ export default function ClienteDetalle() {
   const borrarPrecio = async (pid: number) => {
     try { await fichaApi.borrarPrecio(c.id, pid); cargarPrecios() } catch { toast.error('Error') }
   }
+  const linkPortal = c.token_portal ? `${location.origin}${location.pathname.replace(/\/$/, '')}/#/mi/${c.id}/${c.token_portal}` : ''
+  const enviarPortal = () => {
+    const tel = telWa(c.telefono)
+    const msg = `Hola ${c.nombre}, acá puedes ver tus pedidos${c.membresia ? ', los kilos que te quedan del plan' : ''} y tu cuenta con Ladys Lavandería cuando quieras:\n\n${linkPortal}\n\nGuárdalo en tu teléfono, es tu enlace personal.`
+    if (!tel) { navigator.clipboard.writeText(linkPortal); return toast.success('Sin teléfono: enlace copiado') }
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
   const cont = c.continuidad_info
 
   return (
@@ -72,6 +80,7 @@ export default function ClienteDetalle() {
           {c.tipo === 'EMPRESA' && <p className="text-xs text-gray-400">{[c.razon_social, c.id_fiscal, c.giro].filter(Boolean).join(' · ') || 'sin datos fiscales'}</p>}
         </div>
         <button onClick={abrirFicha} className="p-2.5 border rounded-xl text-gray-500 hover:bg-gray-50" title="Editar ficha"><Pencil size={16} /></button>
+        {linkPortal && <button onClick={enviarPortal} className="p-2.5 border rounded-xl text-purple-600 hover:bg-purple-50" title="Enviar su enlace de cuenta"><Smartphone size={16} /></button>}
         {c.telefono && <a href={waLink(c.telefono, `Hola ${c.nombre}, te escribimos de Ladys Lavandería.`)} target="_blank" rel="noreferrer" className="p-2.5 border rounded-xl text-green-600 hover:bg-green-50"><MessageCircle size={16} /></a>}
         <button onClick={() => navigate(`/ordenes/nueva?cliente=${c.id}`)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}><Plus size={15} /> Nueva OT</button>
       </div>
@@ -260,6 +269,18 @@ export default function ClienteDetalle() {
         </div>
         <p className="text-[11px] text-gray-400 mt-2">Estos precios se aplican solos al crear una orden para este cliente.</p>
       </div>
+
+      {linkPortal && (
+        <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4">
+          <p className="font-semibold text-purple-800 text-sm flex items-center gap-1.5 mb-1"><Smartphone size={15} /> Enlace personal del cliente</p>
+          <p className="text-xs text-purple-600 mb-2">Ve sus pedidos, kilos disponibles y cobros adicionales. No necesita clave.</p>
+          <div className="flex gap-2">
+            <input readOnly value={linkPortal} className="flex-1 bg-white border rounded-lg px-2 py-1.5 text-[11px] text-gray-500" />
+            <button onClick={() => { navigator.clipboard.writeText(linkPortal); toast.success('Copiado') }} className="px-2.5 rounded-lg bg-white border text-gray-500"><Copy size={14} /></button>
+            <button onClick={enviarPortal} className="px-3 rounded-lg bg-green-500 text-white text-xs font-medium">Enviar</button>
+          </div>
+        </div>
+      )}
 
       {/* Direcciones */}
       <div className="bg-white rounded-2xl shadow-sm border p-4">

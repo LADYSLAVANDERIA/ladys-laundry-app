@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { etapasApi } from '../services/api'
 import {
-  Camera, Check, X, Package, Droplets, Wind, Inbox, Truck, Store,
+  Camera, Check, X, Package, Droplets, Wind, Truck, Store,
   Settings, Keyboard, Sun,
 } from 'lucide-react'
 
 const ESTACIONES = [
-  { id: 'RECEPCIONADO', txt: 'Recepción',   icon: Inbox,    color: '#64748b' },
-  { id: 'EN_LAVADO',    txt: 'Lavado',      icon: Droplets, color: '#4AAEE0' },
-  { id: 'EN_SECADO',    txt: 'Secado',      icon: Wind,     color: '#A87BC8' },
-  { id: 'EMBOLSADO',    txt: 'Embalado',    icon: Package,  color: '#E8177A' },
-  { id: 'LISTO_RETIRO', txt: 'Listo local', icon: Store,    color: '#16a34a' },
-  { id: 'ASIGNADO_RUTA',txt: 'A ruta',      icon: Truck,    color: '#f59e0b' },
+  { id: 'EN_LAVADO', txt: 'Lavado',   icon: Droplets, color: '#4AAEE0' },
+  { id: 'EN_SECADO', txt: 'Secado',   icon: Wind,     color: '#A87BC8' },
+  { id: 'EMBOLSADO', txt: 'Doblado y embalado', icon: Package, color: '#E8177A' },
+  { id: 'ENTREGADO', txt: 'Entrega en local',   icon: Store,   color: '#16a34a' },
 ]
 
 declare global { interface Window { Html5Qrcode: any } }
@@ -168,7 +166,10 @@ export default function Estacion() {
                 <p className="text-3xl font-extrabold mt-3">#{flash.orden_id}</p>
                 <p className="text-xl mt-1">{flash.cliente}</p>
                 <p className="text-base opacity-90 mt-2">
-                  {flash.aviso ? flash.aviso : `Pasó a ${est.txt}`}
+                  {flash.aviso ? flash.aviso
+                    : flash.destino === 'LISTO_DESPACHO' ? 'A estantería · sale a domicilio'
+                    : flash.destino === 'LISTO_RETIRO' ? 'A estantería · retira en local'
+                    : `Pasó a ${est.txt}`}
                 </p>
                 {flash.entrega_domicilio && (
                   <p className="mt-3 px-3 py-1 rounded-full bg-black/25 text-sm flex items-center gap-1.5">

@@ -3,17 +3,15 @@ import { etapasApi } from '../services/api'
 import toast from 'react-hot-toast'
 import {
   Camera, CameraOff, Check, AlertTriangle, Package, Droplets,
-  Wind, Inbox, Truck, Store, Keyboard, MessageCircle,
+  Wind, Truck, Store, Keyboard, MessageCircle,
 } from 'lucide-react'
 
 // La etapa la define la estación: se elige una vez y se escanea sin volver a tocar nada.
 const ESTACIONES = [
-  { id: 'RECEPCIONADO', txt: 'Recepción',  icon: Inbox,    color: '#64748b' },
-  { id: 'EN_LAVADO',    txt: 'Lavado',     icon: Droplets, color: '#4AAEE0' },
-  { id: 'EN_SECADO',    txt: 'Secado',     icon: Wind,     color: '#A87BC8' },
-  { id: 'EMBOLSADO',    txt: 'Embalado',   icon: Package,  color: '#E8177A' },
-  { id: 'LISTO_RETIRO', txt: 'Listo local',icon: Store,    color: '#16a34a' },
-  { id: 'ASIGNADO_RUTA',txt: 'A ruta',     icon: Truck,    color: '#f59e0b' },
+  { id: 'EN_LAVADO', txt: 'Lavado',   icon: Droplets, color: '#4AAEE0' },
+  { id: 'EN_SECADO', txt: 'Secado',   icon: Wind,     color: '#A87BC8' },
+  { id: 'EMBOLSADO', txt: 'Doblado y embalado', icon: Package, color: '#E8177A' },
+  { id: 'ENTREGADO', txt: 'Entrega en local',   icon: Store,   color: '#16a34a' },
 ]
 
 declare global { interface Window { Html5Qrcode: any } }
@@ -86,7 +84,7 @@ export default function Produccion() {
 
       <div className="bg-white rounded-2xl border p-4">
         <p className="text-xs text-gray-500 mb-2">¿En qué estación estás?</p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           {ESTACIONES.map(e => {
             const Icon = e.icon
             const activa = estacion === e.id

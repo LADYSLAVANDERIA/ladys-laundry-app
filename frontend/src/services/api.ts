@@ -93,15 +93,20 @@ export const fichaApi = {
 export const configApi = { get: () => api.get('/config'), set: (d: object) => api.put('/config', d) }
 export const serviciosApi  = {
   getAll:  () => api.get('/servicios'),
-  create:  (d: object) => api.post('/servicios', d),
-  update:  (id: number, d: object) => api.put(`/servicios/${id}`, d),
-  remove:  (id: number) => api.delete(`/servicios/${id}`),
+  create:  (d: object) => preciosHttp.post('/catalogo/servicios', d),
+  update:  (id: number, d: object) => preciosHttp.put(`/catalogo/servicios/${id}`, d),
+  remove:  (id: number) => preciosHttp.delete(`/catalogo/servicios/${id}`),
 }
-export const categoriasApi = { getAll: () => api.get('/categorias') }
+export const categoriasApi = {
+  getAll: () => api.get('/categorias'),
+  create: (d: object) => preciosHttp.post('/catalogo/categorias', d),
+  update: (id: number, d: object) => preciosHttp.put(`/catalogo/categorias/${id}`, d),
+}
 export const rutasApi      = {
   getAll:  () => api.get('/rutas'),
-  create:  (d: object) => api.post('/rutas', d),
-  update:  (id: number, d: object) => api.put(`/rutas/${id}`, d),
+  create:  (d: object) => preciosHttp.post('/catalogo/rutas', d),
+  update:  (id: number, d: object) => preciosHttp.put(`/catalogo/rutas/${id}`, d),
+  remove:  (id: number) => preciosHttp.delete(`/catalogo/rutas/${id}`),
 }
 export const cajaApi = {
   estado: () => api.get('/caja/estado'),

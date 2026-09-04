@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { etapasApi } from '../services/api'
 import {
   Camera, Check, X, Package, Droplets, Wind, Truck, Store,
-  Settings, Keyboard, Sun,
+  Settings, Keyboard, Sun, SwitchCamera,
 } from 'lucide-react'
 
 const ESTACIONES = [
@@ -39,6 +39,7 @@ function pitar(ok: boolean) {
 export default function Estacion() {
   const [estacion, setEstacion] = useState(() => localStorage.getItem('ladys-estacion') || 'EN_LAVADO')
   const [elegir, setElegir] = useState(!localStorage.getItem('ladys-estacion'))
+  const [frontal, setFrontal] = useState(() => localStorage.getItem('ladys-camara') === 'frontal')
   const [flash, setFlash] = useState<any>(null)
   const [hechos, setHechos] = useState<any[]>([])
   const [manual, setManual] = useState('')
@@ -77,7 +78,7 @@ export default function Estacion() {
       const H = await cargarLector()
       if (lector.current) { try { await lector.current.stop() } catch { /* ya estaba */ } }
       lector.current = new H('lector-estacion')
-      await lector.current.start({ facingMode: 'environment' },
+      await lector.current.start({ facingMode: frontal ? 'user' : 'environment' },
         { fps: 10, qrbox: { width: 260, height: 260 } },
         (txt: string) => marcar(txt), () => {})
       try { wake.current = await (navigator as any).wakeLock?.request('screen') } catch { /* opcional */ }
@@ -87,7 +88,14 @@ export default function Estacion() {
     }
   }
 
-  useEffect(() => { if (!elegir) encender() }, [elegir, estacion])
+  useEffect(() => { if (!elegir) encender() }, [elegir, estacion, frontal])
+
+  const voltear = () => {
+    const nueva = !frontal
+    localStorage.setItem('ladys-camara', nueva ? 'frontal' : 'trasera')
+    setListo(false)
+    setFrontal(nueva)
+  }
   useEffect(() => () => { try { lector.current?.stop(); wake.current?.release?.() } catch { /* al salir */ } }, [])
 
   // si la pantalla se durmió y vuelve, recupera el bloqueo de pantalla
@@ -140,6 +148,8 @@ export default function Estacion() {
         </div>
         <div className="flex items-center gap-2">
           {listo && <Sun size={16} className="opacity-70" />}
+          <button onClick={voltear} title="Cambiar de cámara"
+                  className="p-2 rounded-lg bg-black/20"><SwitchCamera size={18} /></button>
           <button onClick={() => setElegir(true)} className="p-2 rounded-lg bg-black/20"><Settings size={18} /></button>
         </div>
       </div>
@@ -149,7 +159,7 @@ export default function Estacion() {
         {!listo && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-400">
             <Camera size={40} />
-            <p className="text-sm">Abriendo la cámara…</p>
+            <p className="text-sm">Abriendo la cámara {frontal ? 'delantera' : 'trasera'}…</p>
             <button onClick={encender} className="px-4 py-2 rounded-xl bg-white/10 text-sm">Reintentar</button>
           </div>
         )}

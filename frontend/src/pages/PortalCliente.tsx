@@ -21,7 +21,8 @@ function TarjetaPedido({ o, seg, abierto, onToggle }: { o: any; seg: any; abiert
   const enRuta = seg && seg.estado !== 'SIN_RUTA' && seg.destino
 
   return (
-    <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden ${enCamino ? 'ring-2' : ''}`}
+    <div id={`pedido-${o.id}`}
+         className={`bg-white rounded-2xl shadow-sm border overflow-hidden ${enCamino ? 'ring-2' : ''}`}
          style={enCamino ? { borderColor: '#4AAEE0', boxShadow: '0 0 0 2px #4AAEE033' } : {}}>
       <div className="p-4 cursor-pointer" onClick={() => enRuta ? onToggle() : (window.location.hash = `#/ot/${o.id}/${o.token_publico}`)}>
         <div className="flex items-center justify-between">
@@ -115,6 +116,16 @@ export default function PortalCliente() {
   const wa = d.local?.whatsapp
   const enCamino = d.ordenes?.find((o: any) => segs[o.id]?.estado === 'EN_CAMINO')
 
+  // abre el pedido y lleva la pantalla hasta el mapa, para que no haya que buscarlo
+  const irAlMapa = (id: number) => {
+    setTab('pedidos')
+    setAbierta(id)
+    setTimeout(() => {
+      document.getElementById(`pedido-${id}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 260)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-8">
       {/* Cabecera */}
@@ -127,7 +138,7 @@ export default function PortalCliente() {
       <div className="max-w-lg mx-auto px-4 -mt-5 space-y-4">
         {/* Va en camino: lo primero que ve al abrir, sin entrar a Pedidos */}
         {enCamino && (
-          <button onClick={() => { setTab('pedidos'); setAbierta(enCamino.id) }}
+          <button onClick={() => irAlMapa(enCamino.id)}
                   className="w-full text-left rounded-2xl p-4 shadow-sm text-white flex items-center gap-3"
                   style={{ background: 'linear-gradient(135deg,#4AAEE0,#2b7fa8)' }}>
             <div className="w-11 h-11 rounded-full bg-white/25 flex items-center justify-center shrink-0">
@@ -252,7 +263,12 @@ export default function PortalCliente() {
             {d.ordenes.map((o: any) => (
               <TarjetaPedido key={o.id} o={o} seg={segs[o.id]}
                 abierto={abierta === o.id}
-                onToggle={() => setAbierta(abierta === o.id ? null : o.id)} />
+                onToggle={() => {
+                  if (abierta === o.id) { setAbierta(null); return }
+                  setAbierta(o.id)
+                  setTimeout(() => document.getElementById(`pedido-${o.id}`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 260)
+                }} />
             ))}
             {!d.ordenes.length && <p className="text-center text-gray-400 py-10 text-sm">Todavía no tienes pedidos</p>}
           </div>

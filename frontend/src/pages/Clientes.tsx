@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clientesApi } from '../services/api'
-import { Search, Plus, Phone, Mail, Building2, User } from 'lucide-react'
+import { clientesApi, dashboardApi } from '../services/api'
+import { Search, Plus, Phone, Mail, Building2, User, Loader2 } from 'lucide-react'
 
 export default function Clientes() {
   const [clientes, setClientes] = useState<any[]>([])
@@ -9,13 +9,21 @@ export default function Clientes() {
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    clientesApi.getAll().then(r => setClientes(r.data)).finally(() => setLoading(false))
-  }, [])
+  const [total, setTotal] = useState(0)
+  useEffect(() => { dashboardApi.get().then(r => setTotal(Number(r.data?.kpis?.total_clientes || 0))).catch(() => {}) }, [])
 
-  const filtrados = clientes.filter(c =>
-    !q || `${c.nombre} ${c.apellido} ${c.telefono} ${c.email}`.toLowerCase().includes(q.toLowerCase())
-  )
+  // La búsqueda va al servidor: son más de 2.000 clientes y no caben todos en pantalla
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setLoading(true)
+      clientesApi.getAll(q.trim() || undefined)
+        .then(r => setClientes(r.data))
+        .finally(() => setLoading(false))
+    }, q ? 350 : 0)
+    return () => clearTimeout(t)
+  }, [q])
+
+  const filtrados = clientes
 
   const fmt = (n: number) => new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n)
 
@@ -24,7 +32,11 @@ export default function Clientes() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Clientes</h1>
-          <p className="text-gray-500 text-sm">{clientes.length} registrados</p>
+          <p className="text-gray-500 text-sm">
+            {q.trim()
+              ? `${clientes.length} ${clientes.length === 1 ? 'resultado' : 'resultados'} para "${q.trim()}"`
+              : `${total.toLocaleString('es-CL')} clientes · mostrando los primeros ${clientes.length}, escribe para buscar entre todos`}
+          </p>
         </div>
         <button onClick={() => navigate('/clientes/nuevo')}
           className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium shadow-sm"
@@ -36,14 +48,22 @@ export default function Clientes() {
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input value={q} onChange={e => setQ(e.target.value)}
-          placeholder="Buscar por nombre, teléfono o email..."
-          className="w-full pl-10 pr-4 py-3 border rounded-xl text-sm focus:ring-2 focus:ring-pink-300 outline-none bg-white" />
+          placeholder="Buscar por nombre, apellido, teléfono, correo o razón social..."
+          className="w-full pl-10 pr-10 py-3 border rounded-xl text-sm focus:ring-2 focus:ring-pink-300 outline-none bg-white" />
+        {loading && q && <Loader2 size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-pink-400 animate-spin" />}
       </div>
 
       {loading ? (
         <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
       ) : (
         <div className="grid gap-3">
+          {!filtrados.length && (
+            <div className="text-center py-16 text-gray-400">
+              <User size={40} className="mx-auto mb-3 opacity-20" />
+              <p className="font-medium">{q ? `Sin resultados para "${q}"` : 'Sin clientes'}</p>
+              {q && <p className="text-xs mt-1">Prueba con el apellido o los últimos dígitos del teléfono</p>}
+            </div>
+          )}
           {filtrados.map(c => (
             <div key={c.id} onClick={() => navigate(`/clientes/${c.id}`)}
               className="bg-white rounded-xl p-4 shadow-sm border hover:shadow-md cursor-pointer transition-shadow">

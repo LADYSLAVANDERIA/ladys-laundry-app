@@ -3,8 +3,9 @@ import { useParams } from 'react-router-dom'
 import axios from 'axios'
 import { Scale, Package, Clock, CheckCircle2, Truck, Store, Zap, Phone, AlertTriangle, TrendingUp, CreditCard, ChevronRight, ChevronDown, Loader2, Radio, MapPin } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, hora } from '../utils'
-import MapaEnVivo, { useSeguimiento } from '../components/MapaEnVivo'
+import MapaEnVivo from '../components/MapaEnVivo'
 
+const SEG_URL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-seguimiento')
 const PORTAL = (import.meta.env.VITE_API_URL || '').replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-portal')
 const ESTADOS: Record<string, { t: string; c: string }> = {
   PRE_ORDEN:  { t: 'Por retirar', c: 'bg-orange-100 text-orange-700' },
@@ -15,17 +16,14 @@ const ESTADOS: Record<string, { t: string; c: string }> = {
 
 // Cada pedido consulta su estado de reparto: si va en camino, muestra el
 // distintivo y permite desplegar el mapa en vivo sin salir del portal.
-function TarjetaPedido({ o }: { o: any }) {
-  const [abierto, setAbierto] = useState(false)
-  const candidato = o.estado !== 'ENTREGADA' && o.estado !== 'ANULADA'
-  const seg = useSeguimiento(o.id, o.token_publico, candidato)
+function TarjetaPedido({ o, seg, abierto, onToggle }: { o: any; seg: any; abierto: boolean; onToggle: () => void }) {
   const enCamino = seg?.estado === 'EN_CAMINO'
   const enRuta = seg && seg.estado !== 'SIN_RUTA' && seg.destino
 
   return (
     <div className={`bg-white rounded-2xl shadow-sm border overflow-hidden ${enCamino ? 'ring-2' : ''}`}
          style={enCamino ? { borderColor: '#4AAEE0', boxShadow: '0 0 0 2px #4AAEE033' } : {}}>
-      <div className="p-4 cursor-pointer" onClick={() => enRuta ? setAbierto(!abierto) : (window.location.hash = `#/ot/${o.id}/${o.token_publico}`)}>
+      <div className="p-4 cursor-pointer" onClick={() => enRuta ? onToggle() : (window.location.hash = `#/ot/${o.id}/${o.token_publico}`)}>
         <div className="flex items-center justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
@@ -86,17 +84,36 @@ export default function PortalCliente() {
   const [d, setD] = useState<any>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'inicio' | 'pedidos' | 'movimientos'>('inicio')
+  const [segs, setSegs] = useState<Record<number, any>>({})
+  const [abierta, setAbierta] = useState<number | null>(null)
 
   useEffect(() => {
     axios.get(`${PORTAL}/${id}/${token}`).then(r => setD(r.data))
       .catch(e => setError(e.response?.data?.error || 'No pudimos abrir tu cuenta'))
   }, [id, token])
 
+  useEffect(() => {
+    const activos = (d?.ordenes || [])
+      .filter((o: any) => o.estado !== 'ENTREGADA' && o.estado !== 'ANULADA').slice(0, 5)
+    if (!activos.length) return
+    let vivo = true
+    const traer = () => {
+      Promise.all(activos.map((o: any) =>
+        axios.get(`${SEG_URL}/seguir/${o.id}/${o.token_publico}`)
+          .then(r => [o.id, r.data]).catch(() => [o.id, null])))
+        .then(pares => { if (vivo) setSegs(Object.fromEntries(pares.filter((x: any) => x[1]))) })
+    }
+    traer()
+    const t = setInterval(traer, 15000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [d])
+
   if (error) return <div className="min-h-screen flex items-center justify-center p-8 text-center text-gray-500">{error}</div>
   if (!d) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-pink-500" size={32} /></div>
 
   const m = d.membresia
   const wa = d.local?.whatsapp
+  const enCamino = d.ordenes?.find((o: any) => segs[o.id]?.estado === 'EN_CAMINO')
 
   return (
     <div className="min-h-screen bg-gray-50 pb-8">
@@ -108,6 +125,28 @@ export default function PortalCliente() {
       </div>
 
       <div className="max-w-lg mx-auto px-4 -mt-5 space-y-4">
+        {/* Va en camino: lo primero que ve al abrir, sin entrar a Pedidos */}
+        {enCamino && (
+          <button onClick={() => { setTab('pedidos'); setAbierta(enCamino.id) }}
+                  className="w-full text-left rounded-2xl p-4 shadow-sm text-white flex items-center gap-3"
+                  style={{ background: 'linear-gradient(135deg,#4AAEE0,#2b7fa8)' }}>
+            <div className="w-11 h-11 rounded-full bg-white/25 flex items-center justify-center shrink-0">
+              <Truck size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold flex items-center gap-1.5">
+                <Radio size={11} className="animate-pulse" />
+                {segs[enCamino.id]?.tipo === 'RETIRO' ? 'Vamos a retirar tu ropa' : 'Tu pedido va en camino'}
+              </p>
+              <p className="text-sm opacity-95">
+                {segs[enCamino.id]?.eta_min != null
+                  ? `Llegamos en unos ${segs[enCamino.id].eta_min} min · toca para ver el mapa`
+                  : 'Toca para seguir al conductor en el mapa'}
+              </p>
+            </div>
+            <ChevronRight size={18} className="opacity-80" />
+          </button>
+        )}
         {/* Kilos disponibles */}
         {m ? (
           <div className="bg-white rounded-2xl shadow-sm border p-5">
@@ -210,7 +249,11 @@ export default function PortalCliente() {
 
         {tab === 'pedidos' && (
           <div className="space-y-2">
-            {d.ordenes.map((o: any) => <TarjetaPedido key={o.id} o={o} />)}
+            {d.ordenes.map((o: any) => (
+              <TarjetaPedido key={o.id} o={o} seg={segs[o.id]}
+                abierto={abierta === o.id}
+                onToggle={() => setAbierta(abierta === o.id ? null : o.id)} />
+            ))}
             {!d.ordenes.length && <p className="text-center text-gray-400 py-10 text-sm">Todavía no tienes pedidos</p>}
           </div>
         )}

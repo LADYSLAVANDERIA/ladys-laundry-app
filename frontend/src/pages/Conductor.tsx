@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { repartoApi, seguimientoApi } from '../services/api'
+import MapaRuta from '../components/MapaRuta'
 import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
 import {
   Navigation, Phone, MessageCircle, Check, X, MapPin, Package,
-  ChevronDown, ChevronUp, RefreshCw, LogOut, Banknote, Play, Radio,
+  ChevronDown, ChevronUp, RefreshCw, LogOut, Banknote, Play, Radio, Map, List,
 } from 'lucide-react'
 
 const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
@@ -32,6 +33,8 @@ export default function Conductor() {
   const [cargando, setCargando] = useState(true)
   const [abierta, setAbierta] = useState<number | null>(null)
   const [verTodas, setVerTodas] = useState(false)
+  const [vista, setVista] = useState<'lista' | 'mapa'>('lista')
+  const [miPos, setMiPos] = useState<{ lat: number; lng: number } | null>(null)
   const [enVivo, setEnVivo] = useState(false)
   const [ultimoEnvio, setUltimoEnvio] = useState<Date | null>(null)
   const watch = useRef<number | null>(null)
@@ -52,6 +55,7 @@ export default function Conductor() {
     try { wake.current = await (navigator as any).wakeLock?.request('screen') } catch { /* opcional */ }
     watch.current = navigator.geolocation.watchPosition(
       pos => {
+        setMiPos({ lat: pos.coords.latitude, lng: pos.coords.longitude })
         seguimientoApi.posicion({
           lat: pos.coords.latitude, lng: pos.coords.longitude,
           exactitud: Math.round(pos.coords.accuracy || 0),
@@ -110,7 +114,8 @@ export default function Conductor() {
     const abierto = abierta === p.id || principal
     const cobra = Number(p.saldo_pendiente || 0) > 0
     return (
-      <div className={`rounded-2xl border overflow-hidden ${principal ? 'border-2 shadow-lg' : 'bg-white'}`}
+      <div id={`parada-${p.id}`}
+           className={`rounded-2xl border overflow-hidden ${principal ? 'border-2 shadow-lg' : 'bg-white'}`}
            style={principal ? { borderColor: '#E8177A', background: '#fff' } : { borderColor: '#e5e7eb' }}>
         <div className="p-4 cursor-pointer" onClick={() => !principal && setAbierta(abierto ? null : p.id)}>
           <div className="flex items-start gap-3">
@@ -242,6 +247,40 @@ export default function Conductor() {
       </div>
 
       <div className="px-4 -mt-3 space-y-3">
+        {/* Lista para trabajar parada a parada, mapa para ubicarse */}
+        {!!paradas.length && (
+          <div className="flex gap-1 bg-white rounded-xl p-1 border">
+            {([['lista', 'Paradas', List], ['mapa', 'Ruta en mapa', Map]] as const).map(([k, txt, Icon]) => (
+              <button key={k} onClick={() => setVista(k as any)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5 ${
+                        vista === k ? 'text-white' : 'text-gray-500'}`}
+                      style={vista === k ? { background: 'linear-gradient(135deg,#E8177A,#A87BC8)' } : {}}>
+                <Icon size={15} /> {txt}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {vista === 'mapa' && !!paradas.length && (
+          <div className="space-y-2">
+            <MapaRuta base={data?.base} paradas={paradas} miPos={miPos} alto={420}
+                      onTocarParada={p => { setVista('lista'); setVerTodas(true); setAbierta(p.id); setTimeout(() => document.getElementById(`parada-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250) }} />
+            <div className="flex flex-wrap gap-3 text-xs text-gray-500 px-1">
+              <span className="flex items-center gap-1">
+                <i style={{ width: 10, height: 10, borderRadius: 9, background: '#4AAEE0', display: 'inline-block' }} /> Retiro
+              </span>
+              <span className="flex items-center gap-1">
+                <i style={{ width: 10, height: 10, borderRadius: 9, background: '#E8177A', display: 'inline-block' }} /> Entrega
+              </span>
+              <span className="flex items-center gap-1">
+                <i style={{ width: 10, height: 10, borderRadius: 9, background: '#16a34a', display: 'inline-block' }} /> Lista
+              </span>
+              <span className="flex items-center gap-1">
+                <i style={{ width: 10, height: 10, borderRadius: 9, background: '#f59e0b', display: 'inline-block' }} /> En camino
+              </span>
+            </div>
+          </div>
+        )}
         {cargando && <div className="bg-white rounded-2xl p-6 text-center text-gray-400">Cargando la ruta…</div>}
 
         {!cargando && !paradas.length && (
@@ -251,14 +290,14 @@ export default function Conductor() {
           </div>
         )}
 
-        {!cargando && actual && (
+        {!cargando && actual && vista === 'lista' && (
           <>
             <p className="text-xs font-semibold text-gray-500 uppercase pt-2">Tu próxima parada</p>
             <Tarjeta p={actual} principal />
           </>
         )}
 
-        {!cargando && paradas.length > 0 && (
+        {!cargando && paradas.length > 0 && vista === 'lista' && (
           <>
             <button onClick={() => setVerTodas(!verTodas)}
                     className="w-full py-2.5 rounded-xl bg-white border text-sm text-gray-600 flex items-center justify-center gap-2">

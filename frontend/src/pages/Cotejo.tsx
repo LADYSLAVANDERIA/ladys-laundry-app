@@ -12,7 +12,7 @@ const plata = (n: any) => '$' + Number(n || 0).toLocaleString('es-CL')
 // Trae las OT del día y las deja copiadas en el portapapeles.
 const GUION = `fetch('/ws.aspx/OT_RETIRADAS_X_LOCAL_Traer_Periodo',{method:'POST',
 headers:{'Content-Type':'application/json'},
-body:JSON.stringify({FECHA_INICIO:'FECHA',FECHA_TERMINO:'FECHA'})})
+body:JSON.stringify({FECHA_INICIO:'@DIA@',FECHA_TERMINO:'@DIA@'})})
 .then(r=>r.json()).then(d=>{const x=JSON.parse(d.d||'[]');
 copy(JSON.stringify(x));console.log('Copiadas '+x.length+' OT')})`
 
@@ -40,7 +40,7 @@ export default function Cotejo() {
     finally { setCargando(false) }
   }
 
-  const guion = GUION.replace(/FECHA/g, fecha)
+  const guion = GUION.replace(/@DIA@/g, fecha)
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">

@@ -28,6 +28,7 @@ import Configuracion from './pages/Configuracion'
 import SeguirPedido from './pages/SeguirPedido'
 import Produccion from './pages/Produccion'
 import Estacion from './pages/Estacion'
+import Cotejo from './pages/Cotejo'
 import Conductor from './pages/Conductor'
 
 function SoloToken({ children }: { children: React.ReactNode }) {
@@ -70,6 +71,7 @@ export default function App() {
         <Route path="/rutas"           element={<PrivateRoute><Rutas /></PrivateRoute>} />
         <Route path="/reparto"         element={<PrivateRoute><Reparto /></PrivateRoute>} />
         <Route path="/produccion"      element={<PrivateRoute><Produccion /></PrivateRoute>} />
+        <Route path="/cotejo"          element={<PrivateRoute><Cotejo /></PrivateRoute>} />
         <Route path="/usuarios"        element={<PrivateRoute><Usuarios /></PrivateRoute>} />
         <Route path="/agenda"          element={<PrivateRoute><Agenda /></PrivateRoute>} />
         <Route path="/reporte-control" element={<PrivateRoute><ReporteControl /></PrivateRoute>} />

@@ -197,3 +197,15 @@ export const etapasApi = {
   tablero: () => etapasAx.get('/tablero'),
   tiempos: () => etapasAx.get('/tiempos'),
 }
+
+const COTEJO_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-cotejo')
+const cotejoAx = axios.create({ baseURL: COTEJO_URL })
+cotejoAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const cotejoApi = {
+  comparar: (fecha: string, filas: any[]) => cotejoAx.post('/comparar', { fecha, filas }),
+  historial: () => cotejoAx.get('/historial'),
+}

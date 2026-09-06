@@ -279,9 +279,16 @@ factAx.interceptors.request.use(config => {
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
+type Filtro = { anio?: number; mes?: number; cliente_id?: number | '' }
 export const facturacionApi = {
-  empresas:   () => factAx.get('/empresas'),
-  guardar:    (id: number, datos: any) => factAx.put(`/empresa/${id}`, datos),
-  borradores: (periodo?: string) => factAx.get('/borradores', { params: { periodo } }),
-  emitidos:   () => factAx.get('/emitidos'),
+  clientes:     () => factAx.get('/clientes'),
+  porFacturar:  (f: Filtro) => factAx.get('/ordenes-por-facturar', { params: f }),
+  porCobrar:    (f: Filtro) => factAx.get('/ordenes-por-cobrar', { params: f }),
+  porPrenda:    (f: Filtro) => factAx.get('/por-prenda', { params: f }),
+  consolidado:  (f: Filtro) => factAx.get('/consolidado', { params: f }),
+  emitidos:     () => factAx.get('/emitidos'),
+  empresas:     () => factAx.get('/empresas'),
+  guardar:      (id: number, datos: any) => factAx.put(`/empresa/${id}`, datos),
+  crearDoc:     (datos: any) => factAx.post('/documento', datos),
+  borrarDoc:    (id: number) => factAx.delete(`/documento/${id}`),
 }

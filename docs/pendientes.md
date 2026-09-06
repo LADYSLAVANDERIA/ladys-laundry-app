@@ -85,10 +85,13 @@ Para lograrlo, las 5.999 órdenes históricas se corrieron de 10001–15999 a **
 
 Ya cargado en la base: rutas, `horario_local`, `horario_ruta`, `regla_express` y el horario del local. Verificado contra el endpoint de SofIA.
 
-**Falta actualizar donde el cliente lo ve**, porque estos horarios contradicen lo publicado:
-- El prompt de SofIA en GHL (decía 16:00–18:00).
+**SofIA ya estaba correcta** (verificado el 6-sep leyendo su prompt real): tiene los horarios de arriba, la prohibición de retiros el sábado y la derivación del express a agente humano. Lo desactualizado eran la base de datos y los documentos, no el bot. Única diferencia: SofIA dice que el sábado el local cierra 13:30 y Lufi indicó 13:40.
+
+**Falta actualizar donde el cliente lo ve:**
 - El sitio web y Google Business.
-- Los documentos del proyecto `rrss-automatizacion.md` y `estrategia-contenido-instagram.md`, que tienen la regla vieja y prohíben mencionar la ruta 19–21 — ahora es justo al revés.
+- Los documentos del proyecto `rrss-automatizacion.md` y `estrategia-contenido-instagram.md`, que traen la regla vieja de 16:00–18:00 y prohíben mencionar la ruta 19–21 — hoy es justo al revés.
+
+**Cómo tocar a SofIA cuando haga falta:** el PIT guardado en la skill `ghl-credenciales` devuelve 401. El camino que funciona es el workflow `actualizar-sofia.yml` del repo `ladys-reporte` (correrlo primero con `dry_run=true`, que deja el prompt en `debug/sofia_instructions.txt`). El script ya reafirma `isPrimary` y verifica después.
 
 ## Chequeo del 6-sep — hallazgos y arreglos
 

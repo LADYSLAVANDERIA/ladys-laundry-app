@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import SolicitudRecogida from '../components/SolicitudRecogida'
 import { useNavigate } from 'react-router-dom'
 import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi, dirApi } from '../services/api'
 import toast from 'react-hot-toast'
@@ -6,6 +7,7 @@ import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, C
 import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, pesoSector } from '../utils'
 
 export default function Programacion() {
+  const [solicitud, setSolicitud] = useState(false)
   const navigate = useNavigate()
   const [fecha, setFecha] = useState(hoy())
   const [data, setData] = useState<any>(null)
@@ -149,6 +151,10 @@ export default function Programacion() {
           <p className="text-gray-500 text-sm capitalize">{fechaLarga(fecha)}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={() => setSolicitud(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-green-600 text-white text-sm font-medium whitespace-nowrap">
+            <Truck size={15} /> Solicitud de recogida
+          </button>
           <button onClick={() => setFecha(addDias(fecha, -1))} className="p-2.5 border rounded-xl"><ChevronLeft size={16} /></button>
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)} className="border rounded-xl px-3 py-2 text-sm outline-none" />
           <button onClick={() => setFecha(addDias(fecha, 1))} className="p-2.5 border rounded-xl"><ChevronRight size={16} /></button>
@@ -317,6 +323,7 @@ export default function Programacion() {
           </div>
         </div>
       )}
+      {solicitud && <SolicitudRecogida onCerrar={() => setSolicitud(false)} onListo={() => load(fecha)} />}
     </div>
   )
 }

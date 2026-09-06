@@ -6,7 +6,7 @@ import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi } from '../
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT } from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
@@ -20,6 +20,8 @@ export default function OrdenDetalle() {
   const [cobro, setCobro] = useState<any>(null)
   const [generando, setGenerando] = useState(false)
   const [comp, setComp] = useState<any>({ monto: '', nombre_origen: '', nota: '' })
+  const [pos, setPos] = useState<any>(null)          // { mp_order_id, monto, estado }
+  const [posError, setPosError] = useState('')
   const [modal, setModal] = useState<string | null>(null)
   const [edit, setEdit] = useState<any>(null)
   const [kilos, setKilos] = useState(''); const [express, setExpress] = useState(false); const [prendas, setPrendas] = useState<Item[]>([])
@@ -152,6 +154,37 @@ export default function OrdenDetalle() {
     } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo registrar') }
   }
 
+  const cobrarEnMaquina = async () => {
+    setPosError(''); setPos({ cargando: true })
+    try {
+      const { data } = await cobrosApi.cobrarPos(o.id)
+      setPos({ ...data, estado: 'esperando' })
+    } catch (e: any) {
+      setPos(null)
+      setPosError(e?.response?.data?.error || 'No se pudo mandar el cobro a la máquina')
+    }
+  }
+
+  const cancelarMaquina = async () => {
+    if (!pos?.mp_order_id) { setModal(null); setPos(null); return }
+    try { await cobrosApi.cancelarPos(pos.mp_order_id); toast.success('Cobro cancelado') }
+    catch (e: any) { toast.error(e?.response?.data?.error || 'Cancélalo desde la máquina') }
+    setModal(null); setPos(null)
+  }
+
+  // Mientras el cobro está vivo se pregunta cada 3 s cómo va.
+  useEffect(() => {
+    if (modal !== 'maquina' || !pos?.mp_order_id || pos.estado === 'PAGADA') return
+    const t = setInterval(async () => {
+      try {
+        const { data } = await cobrosApi.estadoPos(pos.mp_order_id)
+        setPos((p: any) => ({ ...p, estado: data.estado }))
+        if (data.estado === 'PAGADA') { toast.success('Pago recibido'); load() }
+      } catch { /* si falla una consulta, se reintenta en la siguiente */ }
+    }, 3000)
+    return () => clearInterval(t)
+  }, [modal, pos?.mp_order_id, pos?.estado])
+
   const msgWa = `Hola ${o.cliente_nombre?.split(' ')[0]}, tu pedido ${ot(o.id)} de Ladys Lavandería ya está listo. ${o.entrega_domicilio ? `Te lo llevamos el ${fechaCorta(o.fecha_entrega)}${o.ruta_entrega ? ` entre las ${hora(o.ruta_entrega_hora)}` : ''}.` : 'Puedes pasar a retirarlo al local.'}${Number(o.saldo_pendiente) > 0 ? ` Saldo pendiente: ${fmt(o.saldo_pendiente)}.` : ''}`
 
   return (
@@ -221,6 +254,7 @@ export default function OrdenDetalle() {
           <div className="flex gap-2 flex-wrap">
             {sig && <button onClick={() => cambiar(sig)} className="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Marcar como {ESTADO_LABEL[sig].toLowerCase()}</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => setModal('pago')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold"><DollarSign size={14} /> Registrar pago {fmt(o.saldo_pendiente)}</button>}
+            {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setPos(null); setPosError(''); setModal('maquina') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold"><CreditCard size={14} /> Cobrar en la máquina {fmt(o.saldo_pendiente)}</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setCobro(null); setModal('cobrar') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Link2 size={14} /> Cobrar con link</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setComp({ monto: String(Math.round(Number(o.saldo_pendiente))), nombre_origen: '', nota: '' }); setModal('comprobante') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Send size={14} /> Comprobante de transferencia</button>}
             {o.estado !== 'ENTREGADA' && <button onClick={abrirEdicionItems} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Package size={14} /> Editar ítems</button>}
@@ -387,6 +421,66 @@ export default function OrdenDetalle() {
       </div>
 
       {/* ── MODALES ── */}
+      {modal === 'maquina' && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold">Cobrar en la máquina</h2>
+              <button onClick={() => { setModal(null); setPos(null) }}><X size={18} className="text-gray-400" /></button>
+            </div>
+
+            {!pos && !posError && (
+              <>
+                <p className="text-sm text-gray-500">Se le manda el monto de <strong className="text-pink-600">{fmt(o.saldo_pendiente)}</strong> a la máquina. El cliente solo pasa la tarjeta.</p>
+                <button onClick={cobrarEnMaquina} className="w-full py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm">
+                  Mandar el cobro
+                </button>
+              </>
+            )}
+
+            {posError && (
+              <>
+                <p className="text-sm text-red-600">{posError}</p>
+                <button onClick={() => { setPosError(''); setPos(null) }} className="w-full py-3 rounded-xl border text-sm font-medium text-gray-600">Reintentar</button>
+              </>
+            )}
+
+            {pos?.cargando && <p className="text-sm text-gray-500 flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Mandando a la máquina…</p>}
+
+            {pos?.mp_order_id && pos.estado !== 'PAGADA' && !['CANCELED','EXPIRED','FAILED'].includes(pos.estado) && (
+              <>
+                <div className="rounded-xl bg-blue-50 border border-blue-200 p-4 text-center space-y-1">
+                  <div className="text-2xl font-bold text-blue-700">{fmt(pos.monto)}</div>
+                  <div className="text-sm text-blue-800 flex items-center justify-center gap-2">
+                    <Loader2 size={14} className="animate-spin" />
+                    {pos.estado === 'at_terminal' || pos.estado === 'EN_MAQUINA' ? 'En la máquina, esperando la tarjeta' : 'Esperando que la máquina lo tome'}
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500">Pásale la máquina al cliente. Si no aparece el monto, aprieta el botón verde del aparato.</p>
+                <button onClick={cancelarMaquina} className="w-full py-3 rounded-xl border border-red-200 text-red-500 text-sm font-medium">Cancelar el cobro</button>
+              </>
+            )}
+
+            {pos?.estado === 'PAGADA' && (
+              <>
+                <div className="rounded-xl bg-green-50 border border-green-200 p-5 text-center space-y-1">
+                  <div className="text-2xl font-bold text-green-700">Pagado</div>
+                  <div className="text-sm text-green-800">{fmt(pos.monto)} quedaron abonados al pedido</div>
+                </div>
+                <button onClick={() => { setModal(null); setPos(null) }} className="w-full py-3 rounded-xl bg-green-500 text-white font-semibold text-sm">Listo</button>
+              </>
+            )}
+
+            {['CANCELED','EXPIRED','FAILED'].includes(pos?.estado) && (
+              <>
+                <p className="text-sm text-gray-600">El cobro {pos.estado === 'EXPIRED' ? 'expiró' : 'no se completó'}. Puedes mandarlo de nuevo.</p>
+                <button onClick={() => setPos(null)} className="w-full py-3 rounded-xl border text-sm font-medium text-gray-600">Mandar otra vez</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {modal === 'cobrar' && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setModal(null)}>
           <div className="bg-white rounded-2xl p-5 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>

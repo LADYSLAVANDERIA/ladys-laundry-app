@@ -247,4 +247,8 @@ export const cobrosApi = {
   links: (orden_id: number) => cobrosAx.get(`/links/${orden_id}`),
   pos: (fecha?: string) => cobrosAx.get('/pos', { params: { fecha } }),
   posAsignar: (mp_payment_id: string, orden_id: number) => cobrosAx.post('/pos/asignar', { mp_payment_id, orden_id }),
+  terminales: () => cobrosAx.get('/pos/terminales'),
+  cobrarPos: (orden_id: number, monto?: number) => cobrosAx.post('/pos/cobrar', { orden_id, monto }),
+  estadoPos: (mp_order_id: string) => cobrosAx.get(`/pos/cobro/${mp_order_id}`),
+  cancelarPos: (mp_order_id: string) => cobrosAx.post('/pos/cancelar', { mp_order_id }),
 }

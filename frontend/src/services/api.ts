@@ -260,3 +260,14 @@ export const cobrosApi = {
   estadoPos: (mp_order_id: string) => cobrosAx.get(`/pos/cobro/${mp_order_id}`),
   cancelarPos: (mp_order_id: string) => cobrosAx.post('/pos/cancelar', { mp_order_id }),
 }
+
+const TABLERO_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-tablero')
+const tabAx = axios.create({ baseURL: TABLERO_URL })
+tabAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const tableroApi = {
+  resumen: (mes?: string) => tabAx.get('/resumen', { params: { mes } }),
+}

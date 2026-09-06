@@ -21,7 +21,9 @@ export const telWa = (t?: string | null) => {
   return d
 }
 export const waLink = (tel?: string | null, texto = '') => `https://wa.me/${telWa(tel)}?text=${encodeURIComponent(texto)}`
-export const ot = (id: number | string) => '#' + String(id).padStart(5, '0')
+// El número de OT continúa el correlativo de EasyLaundry (6431 en adelante),
+// así que se muestra tal cual: rellenarlo con ceros lo haría irreconocible.
+export const ot = (id: number | string) => '#' + String(id)
 export const ESTADO_COLOR: Record<string, string> = {
   PRE_ORDEN: 'bg-orange-100 text-orange-700', EN_PROCESO: 'bg-yellow-100 text-yellow-700', LISTA: 'bg-green-100 text-green-700',
   ENTREGADA: 'bg-blue-100 text-blue-700', PAGADA: 'bg-purple-100 text-purple-700', ANULADA: 'bg-red-100 text-red-600',

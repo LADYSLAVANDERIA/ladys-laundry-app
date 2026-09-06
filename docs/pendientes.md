@@ -52,6 +52,14 @@ Recordar la trampa de siempre: **cada PUT al agente en GHL deja `isPrimary` en `
 
 **Sobre el agente de voz en el mesón:** evaluado y descartado por ahora. El cuello de botella de la atención presencial no son las palabras sino las manos — pesar, revisar, embolsar, buscar la bolsa. La voz solo paga junto con lockers, porque ahí sí desaparece una persona del proceso. Además el ruido de las máquinas rompe el reconocimiento de voz; cualquier prueba tiene que ser en el local con todo andando.
 
+## Correlativo de OT
+
+Desde el 6-sep el número de orden de la app **continúa el de EasyLaundry**: la última OT de EasyLaundry fue la 6430 y la app parte en 6431. Así el número que ve el cliente y el equipo no cambia con el corte del 14.
+
+Para lograrlo, las 5.999 órdenes históricas se corrieron de 10001–15999 a **110001–115999**, dejando libre todo el tramo 6431–109999 (más de cien mil órdenes, no vuelve a chocar). Las 12 tablas hijas quedaron con `ON UPDATE CASCADE`, así que arrastraron solas; verificado: cero huérfanos.
+
+**Ojo si alguien busca una orden histórica**: su número interno ahora empieza en 110001, pero su OT real de EasyLaundry sigue guardada en `ot_easylaundry`.
+
 ## Otros
 
 - **Resuelto (6-sep):** el detalle por servicio de las OT históricas quedó importado. 5.988 de 5.996 órdenes con detalle, 9.112 líneas, kilos recalculados. Quedan 10 sin detalle (no existen en el reporte de EasyLaundry).
@@ -66,6 +74,8 @@ Recordar la trampa de siempre: **cada PUT al agente en GHL deja `isPrimary` en `
 - Decidir el canal de aviso para el traspaso a agente humano (Telegram evaluado como el más confiable; falta aprobación de plantilla de WhatsApp).
 
 ## Deuda técnica conocida
+
+- **Falta quitar el relleno de ceros en la API principal.** En `supabase/functions/ladys/index.ts`, la línea `const otTxt = (id) => "#" + String(id).padStart(5, "0")` hace que los mensajes al cliente digan `#06431` en vez de `#6431`. El resto del sistema ya se corrigió. Cambiar a `"#" + String(id)` y desplegar.
 
 - **El reporte "Detalle de órdenes por fecha" de EasyLaundry va un mes atrasado.** Cada click en Consultar pierde el local seleccionado por el postback de ASP.NET, así que la tabla muestra el resultado de la consulta anterior. Para traer el mes N hay que pedir el rango N a N+1 y quedarse con lo que llegue. Verificado: pedir solo mayo 2025 devuelve cero filas; pedir mayo–junio devuelve las 693 de mayo. **Nunca confiar en el mes que dice `por_mes`: hay que mirar la fecha de las propias filas.**
 - Por lo mismo, el archivo trae meses repetidos. Hay que **deduplicar por fila exacta** antes de sumar, o los montos salen al doble.

@@ -16,7 +16,7 @@ const json = (d: unknown, s = 200) =>
   new Response(JSON.stringify(d), { status: s, headers: { "content-type": "application/json", ...CORS } });
 
 const clp = (n: any) => "$" + Math.round(Number(n) || 0).toLocaleString("es-CL");
-const ot = (id: number) => "#" + String(id).padStart(5, "0");
+const ot = (id: number) => "#" + String(id);
 
 // El teléfono llega de mil formas: +56 9 ..., 9..., con puntos. Se compara por
 // los últimos 8 dígitos, que es lo único estable.

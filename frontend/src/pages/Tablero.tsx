@@ -15,6 +15,22 @@ const diaCorto = (f: any) => {
   const d = new Date(String(f).slice(0, 10) + 'T12:00:00')
   return `${d.getDate()}/${d.getMonth() + 1}`
 }
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+const diaLargo = (f: any) => {
+  const d = new Date(String(f).slice(0, 10) + 'T12:00:00')
+  return `${DIAS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]}`
+}
+const mesLargo = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
+// Miles abreviados, para que el número quepa sobre una barra angosta.
+const miles = (n: any) => {
+  const v = Number(n) || 0
+  return v >= 1000 ? Math.round(v / 1000) + 'k' : String(v)
+}
+// La altura va en píxeles a propósito: un porcentaje dentro de un contenedor
+// flexible no lo puede resolver el navegador y las barras salen aplastadas.
+const alto = (v: number, max: number, tope: number) =>
+  `${Math.max(3, Math.round((v / (max || 1)) * tope))}px`
 
 function Delta({ v }: { v: number | null }) {
   if (v === null || v === undefined) return <span className="text-xs text-gray-400">sin comparación</span>
@@ -69,6 +85,7 @@ export default function Tablero() {
   const [hasta, setHasta] = useState(hoy())
   const [d, setD] = useState<any>(null)
   const [cargando, setCargando] = useState(true)
+  const [detalle, setDetalle] = useState<any>(null)
 
   const cargar = (dd = desde, hh = hasta) => {
     setCargando(true)
@@ -162,16 +179,21 @@ export default function Tablero() {
       <div className="bg-white rounded-xl border p-5 space-y-3">
         <h2 className="font-semibold text-gray-800">Ventas por día</h2>
         {(d.diarias || []).length === 0 ? <p className="text-sm text-gray-400">Sin ventas en el período.</p> : (
-          <div className="flex items-end gap-1 h-36">
-            {d.diarias.map((x: any) => (
-              <div key={x.fecha} className="flex-1 flex flex-col items-center gap-1 min-w-0"
-                   title={`${plata(x.total)} · ${x.ordenes} pedidos`}>
-                <div className="w-full rounded-t"
-                     style={{ height: `${(Number(x.total) / maxDia) * 100}%`,
-                              background: 'linear-gradient(180deg,#E8177A,#A87BC8)', minHeight: 3 }} />
-                <span className="text-[10px] text-gray-400 truncate">{diaCorto(x.fecha)}</span>
-              </div>
-            ))}
+          <div className="overflow-x-auto -mx-1 px-1">
+            <div className="flex items-end gap-1.5" style={{ minWidth: d.diarias.length * 34 }}>
+              {d.diarias.map((x: any) => (
+                <div key={x.fecha} className="flex-1 flex flex-col items-center gap-1 min-w-[28px]"
+                     onClick={() => setDetalle({ titulo: diaLargo(x.fecha), lineas: [
+                       `${plata(x.total)} en ventas`, `${x.ordenes} pedidos`,
+                       `ticket ${plata(Number(x.total) / (x.ordenes || 1))}`] })}>
+                  <span className="text-[9px] text-gray-500 whitespace-nowrap">{miles(x.total)}</span>
+                  <div className="w-full rounded-t cursor-pointer"
+                       style={{ height: alto(Number(x.total), maxDia, 130),
+                                background: 'linear-gradient(180deg,#E8177A,#A87BC8)' }} />
+                  <span className="text-[10px] text-gray-400 whitespace-nowrap">{diaCorto(x.fecha)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -246,21 +268,43 @@ export default function Tablero() {
       </div>
 
       <div className="bg-white rounded-xl border p-5 space-y-3">
-        <h2 className="font-semibold text-gray-800">Tendencia de los últimos 24 meses</h2>
-        <div className="flex items-end gap-0.5 h-40 overflow-x-auto">
-          {(d.por_mes || []).map((m: any) => (
-            <div key={m.mes} className="flex-1 flex flex-col items-center gap-1 min-w-[18px]"
-                 title={`${m.mes}: ${plata(m.total)} · ${m.ordenes} pedidos`}>
-              <div className="w-full rounded-t"
-                   style={{ height: `${(Number(m.total) / maxMes) * 100}%`,
-                            background: m.mes.startsWith(hoy().slice(0, 4)) ? '#E8177A' : '#9CA3AF',
-                            minHeight: 2 }} />
-              <span className="text-[9px] text-gray-400">{m.mes.slice(5)}</span>
-            </div>
-          ))}
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <h2 className="font-semibold text-gray-800">Tendencia mensual</h2>
+          <span className="text-xs text-gray-400">{(d.por_mes || []).length} meses con datos</span>
         </div>
-        <p className="text-xs text-gray-400">En rosado el año en curso. Mantén el dedo en una barra para ver el monto.</p>
+        <div className="overflow-x-auto -mx-1 px-1">
+          <div className="flex items-end gap-1" style={{ minWidth: (d.por_mes || []).length * 30 }}>
+            {(d.por_mes || []).map((m: any, i: number) => {
+              const anio = m.mes.slice(0, 4)
+              const nuevoAnio = i === 0 || anio !== d.por_mes[i - 1].mes.slice(0, 4)
+              return (
+                <div key={m.mes} className="flex-1 flex flex-col items-center gap-1 min-w-[24px]"
+                     onClick={() => setDetalle({ titulo: mesLargo(m.mes), lineas: [
+                       `${plata(m.total)} en ventas`, `${m.ordenes} pedidos`,
+                       `ticket ${plata(Number(m.total) / (m.ordenes || 1))}`] })}>
+                  <div className="w-full rounded-t cursor-pointer"
+                       style={{ height: alto(Number(m.total), maxMes, 140),
+                                background: anio === hoy().slice(0, 4) ? '#E8177A' : '#9CA3AF' }} />
+                  <span className="text-[9px] text-gray-400">{m.mes.slice(5)}</span>
+                  <span className="text-[9px] font-medium text-gray-500 h-3">{nuevoAnio ? anio : ''}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">En rosado el año en curso. Toca una barra para ver el detalle.</p>
       </div>
+
+      {detalle && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setDetalle(null)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-xs space-y-2" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-800 capitalize">{detalle.titulo}</h3>
+            {detalle.lineas.map((l: string) => <p key={l} className="text-sm text-gray-600">{l}</p>)}
+            <button onClick={() => setDetalle(null)}
+                    className="w-full mt-2 py-2.5 rounded-xl border text-sm font-medium text-gray-600">Cerrar</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

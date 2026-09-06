@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import {
@@ -36,6 +36,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, logout, isAdmin } = useAuthStore()
 
   const handleLogout = () => { logout(); navigate('/login') }
+
+  // Una sesión vieja o a medias deja el menú en blanco y sin explicación.
+  // Si falta el perfil, se cierra sola y se pide entrar de nuevo.
+  useEffect(() => {
+    if (!user?.perfil) { logout(); navigate('/login') }
+  }, [user?.perfil])
 
   const NavItem = ({ path, label, icon: Icon, ver }: typeof menu[0]) => {
     if (!isAdmin() && !(ver || []).includes(user?.perfil || '')) return null

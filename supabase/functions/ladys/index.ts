@@ -1,5 +1,4 @@
-// Ladys Laundry API v2 — Supabase Edge Function
-// Se conecta a la base con SUPABASE_DB_URL (inyectada por Supabase, sin credenciales manuales)
+// Ladys Laundry API v2.1 — Supabase Edge Function
 import postgres from "npm:postgres@3.4.4";
 import bcrypt from "npm:bcryptjs@2.4.3";
 import * as jose from "npm:jose@5.9.6";
@@ -11,7 +10,6 @@ const SQL = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
 });
 const SECRET = new TextEncoder().encode(Deno.env.get("JWT_SECRET") || "ladys_jwt_secret_super_seguro_2024");
 const WEBHOOK_KEY = Deno.env.get("WEBHOOK_KEY") || "ladys_webhook_2026";
-const CDN = "https://cdn.jsdelivr.net/gh/LADYSLAVANDERIA/ladys-laundry-app@e7acb1e24696400854d47a4e423d03e78ae44c3f/frontend/dist/assets";
 
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-api-key, content-type", "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS" };
 const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: { "content-type": "application/json", ...CORS } });
@@ -25,13 +23,6 @@ const estadoPago = (t: number, a: number) => (a <= 0 ? "PENDIENTE" : a >= t ? "P
 const clp = (n: number) => "$" + Math.round(n).toLocaleString("es-CL");
 const normTel = (t: string) => { const d = String(t || "").replace(/\D/g, ""); if (d.startsWith("56") && d.length === 11) return d; if (d.length === 9) return "56" + d; if (d.length === 8) return "569" + d; return d; };
 const ESTADOS = ["PRE_ORDEN","EN_PROCESO","LISTA","ENTREGADA","ANULADA"];
-
-const INDEX = `<!doctype html><html lang="es"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Ladys Lavandería — Pedidos</title>
-<link rel="stylesheet" href="${CDN}/index-Dgy83E0X.css">
-<style>body{margin:0;background:#f9fafb}</style></head>
-<body><div id="root"></div><script type="module" src="${CDN}/index-DngmzRym.js"></script></body></html>`;
 
 async function firmar(u: Record<string, unknown>) {
   return await new jose.SignJWT(u).setProtectedHeader({ alg: "HS256" }).setExpirationTime("30d").sign(SECRET);
@@ -57,7 +48,7 @@ async function cfg(k: string, d: number) {
   const r = await SQL`SELECT valor FROM configuracion WHERE clave=${k}`;
   return r[0] ? Number(r[0].valor) : d;
 }
-async function recalcular(t: postgres.TransactionSql, id: number) {
+async function recalcular(t: any, id: number) {
   const [o] = await t`SELECT * FROM ordenes WHERE id=${id}`;
   const [s] = await t`SELECT COALESCE(SUM(subtotal),0) AS st FROM orden_items WHERE orden_id=${id}`;
   const sub = N(s.st), desc = Math.round(sub * N(o.descuento_pct) / 100);
@@ -65,10 +56,10 @@ async function recalcular(t: postgres.TransactionSql, id: number) {
   await t`UPDATE ordenes SET subtotal=${sub}, descuento_monto=${desc}, monto_total=${total}, saldo_pendiente=${saldo}, estado_pago=${estadoPago(total, N(o.monto_abonado))} WHERE id=${id}`;
   return { sub, desc, total, saldo };
 }
-async function hist(t: postgres.TransactionSql, id: number, estado: string | null, nota: string | null, uid: number | null) {
+async function hist(t: any, id: number, estado: string | null, nota: string | null, uid: number | null) {
   await t`INSERT INTO ordenes_historial (orden_id,estado,nota,usuario_id) VALUES (${id},${estado},${nota},${uid})`;
 }
-async function aplicarPago(t: postgres.TransactionSql, ordenId: number, fp: number | null, monto: number, ref: string | null, uid: number | null) {
+async function aplicarPago(t: any, ordenId: number, fp: number | null, monto: number, ref: string | null, uid: number | null) {
   const [o] = await t`SELECT * FROM ordenes WHERE id=${ordenId} FOR UPDATE`;
   if (!o) throw new Error("Orden no encontrada");
   monto = Math.round(monto);
@@ -79,7 +70,7 @@ async function aplicarPago(t: postgres.TransactionSql, ordenId: number, fp: numb
   await t`UPDATE ordenes SET monto_abonado=${ab}, saldo_pendiente=${sa}, estado_pago=${ep}, pagada_el=CASE WHEN ${ep === "PAGADA"} THEN COALESCE(pagada_el,NOW()) ELSE pagada_el END WHERE id=${ordenId}`;
   return { abonado: ab, saldo: sa, estado_pago: ep };
 }
-async function insertarItems(t: postgres.TransactionSql, id: number, items: any[]) {
+async function insertarItems(t: any, id: number, items: any[]) {
   for (const i of items) {
     const c = N(i.cantidad), p = N(i.precio_unit);
     if (!(c > 0) || !i.nombre) continue;
@@ -89,7 +80,7 @@ async function insertarItems(t: postgres.TransactionSql, id: number, items: any[
 }
 
 const SUPA_URL = Deno.env.get("SUPABASE_URL")!;
-const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SB_SECRET_KEY") || "";
+const SRK = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const APP_URL = "https://ladyslavanderia.cl/app";
 const otTxt = (id: number) => "#" + String(id).padStart(5, "0");
 
@@ -102,7 +93,7 @@ async function subirFoto(ordenId: number, dataUrl: string) {
   const ext = mime.split("/")[1].replace("jpeg", "jpg");
   const ruta = `orden-${ordenId}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
   const r = await fetch(`${SUPA_URL}/storage/v1/object/ordenes/${ruta}`, {
-    method: "POST", headers: { Authorization: `Bearer ${SRK}`, apikey: SRK, "Content-Type": mime, "x-upsert": "true" }, body: bin,
+    method: "POST", headers: { Authorization: `Bearer ${SRK}`, "Content-Type": mime, "x-upsert": "true" }, body: bin,
   });
   if (!r.ok) throw new Error("No se pudo guardar la foto: " + (await r.text()).slice(0, 120));
   return { ruta, url: `${SUPA_URL}/storage/v1/object/public/ordenes/${ruta}` };
@@ -126,7 +117,7 @@ function textoAviso(tipo: string, o: any, link: string) {
 async function solicitarRetiro(b: any, u: any) {
   const lid = u?.local_id || 1, uid = (u?.id as number) || null;
   if (!b.fecha || (!b.telefono && !b.cliente_id)) return err("fecha y telefono (o cliente_id) son requeridos", 400);
-  return await SQL.begin(async (t) => {
+  return await SQL.begin(async (t: any) => {
     let cli: any = null, nuevo = false;
     if (b.cliente_id) [cli] = await t`SELECT * FROM clientes WHERE id=${b.cliente_id}`;
     if (!cli && b.telefono) {
@@ -147,7 +138,7 @@ async function solicitarRetiro(b: any, u: any) {
         VALUES (${cli.id},${b.comuna || b.ciudad || "Concón"},${b.sector || null},${b.calle},${b.numero || null},${b.otro || b.depto || null},TRUE) RETURNING *`;
     }
     if (!dir) [dir] = await t`SELECT * FROM direcciones_clientes WHERE cliente_id=${cli.id} ORDER BY es_principal DESC, id DESC LIMIT 1`;
-    if (!dir) return err("El cliente no tiene dirección; envía calle y número", 422);
+    if (!dir) return json({ codigo: "SIN_DIRECCION", error: "El cliente no tiene dirección; envía calle y número", cliente_id: cli.id }, 422);
     const dia = diaSemana(b.fecha);
     const [fer] = await t`SELECT motivo FROM dias_inhabiles WHERE local_id=${lid} AND fecha=${b.fecha}`;
     if (fer && !b.forzar) return json({ codigo: "FERIADO", error: `El ${b.fecha} es feriado (${fer.motivo}): no hay ruta` }, 422);
@@ -164,9 +155,10 @@ async function solicitarRetiro(b: any, u: any) {
       VALUES (${lid},${cli.id},${uid},'PRE_ORDEN','PENDIENTE',${origen},${b.express ? "EXPRESS" : "NORMAL"},TRUE,TRUE,
         ${dir.id},${dir.id},${b.fecha},${ruta.id},${b.observaciones || null},TRUE,0,0,0,0) RETURNING *`;
     await hist(t, o.id, "PRE_ORDEN", `Solicitud de retiro vía ${origen === "SOFIA" ? "SofIA/WhatsApp" : "mostrador"} — ${ruta.nombre} del ${b.fecha}`, uid);
-    return json({ ok: true, ot: o.id, ot_texto: "#" + String(o.id).padStart(5, "0"), fecha: b.fecha, ruta: ruta.nombre,
+    return json({ ok: true, ot: o.id, ot_texto: otTxt(o.id), fecha: b.fecha, ruta: ruta.nombre,
       hora: `${String(ruta.hora_inicio).slice(0, 5)}–${String(ruta.hora_fin).slice(0, 5)}`,
       cliente: `${cli.nombre} ${cli.apellido || ""}`.trim(), cliente_nuevo: nuevo,
+      link: `${APP_URL}/#/ot/${o.id}/${o.token_publico}`,
       direccion: `${dir.calle} ${dir.numero || ""}${dir.otro ? ", " + dir.otro : ""}`.trim() }, 201);
   });
 }
@@ -177,14 +169,14 @@ Deno.serve(async (req: Request) => {
   let p = url.pathname.replace(/^\/functions\/v1\/ladys/, "").replace(/^\/ladys/, "") || "/";
   const q = url.searchParams;
 
-  if (!p.startsWith("/api")) return new Response(INDEX, { headers: { "content-type": "text/html; charset=utf-8" } });
+  if (!p.startsWith("/api")) return json({ app: "Ladys Laundry API", web: APP_URL });
   p = p.slice(4) || "/";
   const m = req.method;
-  const body = ["POST", "PUT"].includes(m) ? await req.json().catch(() => ({})) : {};
+  const body: any = ["POST", "PUT"].includes(m) ? await req.json().catch(() => ({})) : {};
   const seg = p.split("/").filter(Boolean);
 
   try {
-    if (p === "/health") return json({ status: "ok", version: "2.0.0", hora_chile: new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" }) });
+    if (p === "/health") return json({ status: "ok", version: "2.1.0", hora_chile: new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" }) });
 
     if (p === "/auth/login" && m === "POST") {
       const [u] = await SQL`SELECT * FROM usuarios WHERE email=${String(body.email || "").toLowerCase()} AND estado=TRUE`;
@@ -215,7 +207,6 @@ Deno.serve(async (req: Request) => {
     if (!u) return err("Token requerido", 401);
     const lid = Number(u.local_id) || 1, uid = (u.id as number) ?? null;
 
-    // ── CATÁLOGO ──
     if (p === "/servicios" && m === "GET")
       return json(await SQL`SELECT s.*, c.nombre AS categoria, c.orden AS cat_orden FROM servicios s LEFT JOIN categorias c ON s.categoria_id=c.id
         WHERE s.local_id=${lid} AND s.activo=TRUE ORDER BY c.orden, s.nombre`);
@@ -237,7 +228,6 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true });
     }
 
-    // ── CLIENTES ──
     if (p === "/clientes" && m === "GET") {
       const s = q.get("q");
       return json(await SQL`SELECT c.*,
@@ -306,7 +296,6 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true });
     }
 
-    // ── ÓRDENES ──
     if (p === "/ordenes/resumen") {
       const hoy = q.get("fecha") || hoyChile();
       const [r] = await SQL`SELECT
@@ -328,7 +317,8 @@ Deno.serve(async (req: Request) => {
       const est = q.get("estado"), s = q.get("q"), cid = q.get("cliente_id");
       return json(await SQL`SELECT o.*, c.nombre||' '||COALESCE(c.apellido,'') AS cliente_nombre, c.telefono AS cliente_telefono,
           rr.nombre AS ruta_retiro, re.nombre AS ruta_entrega,
-          (SELECT string_agg(i.nombre||' x'||to_char(i.cantidad,'FM999990.##'), ', ') FROM orden_items i WHERE i.orden_id=o.id) AS resumen_items
+          (SELECT string_agg(i.nombre||' x'||to_char(i.cantidad,'FM999990.##'), ', ') FROM orden_items i WHERE i.orden_id=o.id) AS resumen_items,
+          (SELECT COUNT(*)::int FROM orden_fotos f WHERE f.orden_id=o.id) AS n_fotos
         FROM ordenes o JOIN clientes c ON o.cliente_id=c.id
         LEFT JOIN rutas rr ON o.ruta_recogida_id=rr.id LEFT JOIN rutas re ON o.ruta_entrega_id=re.id
         WHERE o.local_id=${lid} AND c.es_ladys2=FALSE
@@ -356,7 +346,8 @@ Deno.serve(async (req: Request) => {
         SQL`SELECT * FROM orden_fotos WHERE orden_id=${id} ORDER BY id`,
         SQL`SELECT * FROM orden_avisos WHERE orden_id=${id} ORDER BY id DESC`,
       ]);
-      return json({ ...o, direccion_retiro: dirTexto(o, "dr"), direccion_entrega: dirTexto(o, "de"), items, pagos, historial: h, fotos, avisos });
+      return json({ ...o, direccion_retiro: dirTexto(o, "dr"), direccion_entrega: dirTexto(o, "de"), items, pagos, historial: h, fotos, avisos,
+        link_publico: `${APP_URL}/#/ot/${o.id}/${o.token_publico}` });
     }
     if (p === "/ordenes" && m === "POST") {
       const items = Array.isArray(body.items) ? body.items : [];
@@ -370,7 +361,7 @@ Deno.serve(async (req: Request) => {
         return json({ codigo: "MINIMO", error: `El mínimo para servicio a domicilio es ${clp(minimo)} (esta orden suma ${clp(total)})` }, 422);
       const estado = ESTADOS.includes(body.estado_inicial) ? body.estado_inicial : (body.retiro_domicilio && !body.ropa_en_local ? "PRE_ORDEN" : "EN_PROCESO");
       const origen = body.origen || (body.retiro_domicilio ? "DOMICILIO" : "LOCAL");
-      return await SQL.begin(async (t) => {
+      return await SQL.begin(async (t: any) => {
         const [o] = await t`INSERT INTO ordenes (local_id,cliente_id,usuario_id,tipo_doc,estado,estado_pago,origen,tipo_servicio,kilos,
             retiro_domicilio,entrega_domicilio,dir_recogida_id,dir_entrega_id,fecha_recogida,ruta_recogida_id,fecha_entrega,ruta_entrega_id,bultos,observaciones,
             descuento_pct,monto_delivery,monto_total,monto_abonado,saldo_pendiente,es_membresia,es_pre_orden,recibida_el)
@@ -392,7 +383,7 @@ Deno.serve(async (req: Request) => {
     }
     if (seg[0] === "ordenes" && seg.length === 2 && m === "PUT") {
       const id = Number(seg[1]);
-      return await SQL.begin(async (t) => {
+      return await SQL.begin(async (t: any) => {
         const [o] = await t`SELECT * FROM ordenes WHERE id=${id} AND local_id=${lid} FOR UPDATE`;
         if (!o) return err("Orden no encontrada", 404);
         if (o.estado === "ANULADA") return err("La orden está anulada", 400);
@@ -411,7 +402,7 @@ Deno.serve(async (req: Request) => {
     if (seg[0] === "ordenes" && seg[2] === "estado" && m === "PUT") {
       const id = Number(seg[1]), estado = body.estado;
       if (!ESTADOS.includes(estado)) return err("Estado inválido", 400);
-      return await SQL.begin(async (t) => {
+      return await SQL.begin(async (t: any) => {
         const [o] = await t`SELECT * FROM ordenes WHERE id=${id} AND local_id=${lid} FOR UPDATE`;
         if (!o) return err("Orden no encontrada", 404);
         if (o.estado === "ANULADA") return err("La orden ya está anulada", 400);
@@ -428,7 +419,7 @@ Deno.serve(async (req: Request) => {
     if (seg[0] === "ordenes" && seg[2] === "pago" && m === "POST") {
       const id = Number(seg[1]);
       try {
-        return await SQL.begin(async (t) => {
+        return await SQL.begin(async (t: any) => {
           const r = await aplicarPago(t, id, body.forma_pago_id || null, N(body.monto), body.referencia || null, uid);
           await hist(t, id, null, `Pago ${clp(N(body.monto))}`, uid);
           return json(r, 201);
@@ -436,7 +427,6 @@ Deno.serve(async (req: Request) => {
       } catch (e) { return err((e as Error).message, 400); }
     }
 
-    // ── PROGRAMACIÓN Y RETIROS ──
     // ── FOTOS ──
     if (seg[0] === "ordenes" && seg[2] === "fotos" && m === "GET")
       return json(await SQL`SELECT * FROM orden_fotos WHERE orden_id=${Number(seg[1])} ORDER BY id`);
@@ -457,7 +447,7 @@ Deno.serve(async (req: Request) => {
     }
     if (seg[0] === "fotos" && seg[1] && m === "DELETE") {
       const [f] = await SQL`DELETE FROM orden_fotos WHERE id=${Number(seg[1])} RETURNING *`;
-      if (f?.ruta) await fetch(`${SUPA_URL}/storage/v1/object/ordenes/${f.ruta}`, { method: "DELETE", headers: { Authorization: `Bearer ${SRK}`, apikey: SRK } }).catch(() => {});
+      if (f?.ruta) await fetch(`${SUPA_URL}/storage/v1/object/ordenes/${f.ruta}`, { method: "DELETE", headers: { Authorization: `Bearer ${SRK}` } }).catch(() => {});
       return json({ ok: true });
     }
 
@@ -486,7 +476,7 @@ Deno.serve(async (req: Request) => {
       const [rutas, ords, fer] = await Promise.all([
         SQL`SELECT * FROM rutas WHERE local_id=${lid} AND activo=TRUE AND dia_semana=${dia} ORDER BY hora_inicio`,
         SQL`SELECT o.id,o.estado,o.estado_pago,o.saldo_pendiente,o.monto_total,o.kilos,o.bultos,o.fecha_recogida,o.fecha_entrega,o.ruta_recogida_id,o.ruta_entrega_id,
-              o.observaciones,o.origen,o.tipo_servicio,o.retiro_domicilio,o.entrega_domicilio,
+              o.observaciones,o.origen,o.tipo_servicio,o.retiro_domicilio,o.entrega_domicilio,o.token_publico,
               c.nombre||' '||COALESCE(c.apellido,'') AS cliente, c.telefono,
               dr.calle AS dr_calle, dr.numero AS dr_numero, dr.otro AS dr_otro, dr.sector AS dr_sector, dr.ciudad AS dr_ciudad,
               de.calle AS de_calle, de.numero AS de_numero, de.otro AS de_otro, de.sector AS de_sector, de.ciudad AS de_ciudad
@@ -515,7 +505,6 @@ Deno.serve(async (req: Request) => {
     }
     if ((p === "/retiros" || p === "/webhook/retiro") && m === "POST") return await solicitarRetiro(body, u);
 
-    // ── MEMBRESÍAS ──
     if (p === "/prepagos/planes" && m === "GET") return json(await SQL`SELECT * FROM planes_prepago WHERE local_id=${lid} AND activo=TRUE ORDER BY precio`);
     if (p === "/prepagos/saldos")
       return json(await SQL`SELECT pc.*, c.nombre||' '||COALESCE(c.apellido,'') AS cliente, c.telefono, pp.nombre AS plan, pp.precio AS precio_plan
@@ -528,7 +517,7 @@ Deno.serve(async (req: Request) => {
       const [pl] = await SQL`SELECT * FROM planes_prepago WHERE id=${body.plan_id}`;
       if (!pl) return err("Plan no encontrado", 404);
       const monto = N(body.monto_pagado) || N(pl.precio), ini = body.fecha_inicio || hoyChile();
-      return await SQL.begin(async (t) => {
+      return await SQL.begin(async (t: any) => {
         const [pc] = await t`INSERT INTO prepagos_cliente (cliente_id,plan_id,saldo_inicial,saldo_actual,fecha_inicio,fecha_venc,activo)
           VALUES (${body.cliente_id},${body.plan_id},${monto},${monto},${ini},(${ini}::date + ${Number(pl.duracion || 30)}), TRUE) RETURNING *`;
         await t`INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,monto) VALUES (${pc.id},${body.cliente_id},'CARGA',${monto})`;
@@ -537,7 +526,7 @@ Deno.serve(async (req: Request) => {
     }
     if (seg[0] === "prepagos" && seg[2] === "recargar" && m === "POST") {
       const id = Number(seg[1]), monto = N(body.monto);
-      return await SQL.begin(async (t) => {
+      return await SQL.begin(async (t: any) => {
         const [pc] = await t`UPDATE prepagos_cliente SET saldo_actual=saldo_actual+${monto} WHERE id=${id} RETURNING *`;
         await t`INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,monto) VALUES (${id},${pc.cliente_id},'RECARGA',${monto})`;
         return json(pc);
@@ -545,7 +534,7 @@ Deno.serve(async (req: Request) => {
     }
     if (seg[0] === "prepagos" && seg[2] === "consumir" && m === "POST") {
       const id = Number(seg[1]), monto = N(body.monto), ordenId = body.orden_id || null;
-      return await SQL.begin(async (t) => {
+      return await SQL.begin(async (t: any) => {
         const [pc] = await t`SELECT * FROM prepagos_cliente WHERE id=${id} FOR UPDATE`;
         if (!pc) return err("Membresía no encontrada", 404);
         if (N(pc.saldo_actual) < monto) return err("Saldo insuficiente", 400);
@@ -561,7 +550,6 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // ── DASHBOARD ──
     if (p === "/dashboard") {
       const hoy = hoyChile();
       const [kpis, vd, ts, eo, ma] = await Promise.all([
@@ -592,7 +580,6 @@ Deno.serve(async (req: Request) => {
       return json({ fecha: hoy, kpis: kpis[0], ventasDiarias: vd, topServicios: ts, estadoOrdenes: eo, ventasMesAnterior: ma[0].total });
     }
 
-    // ── SECUNDARIOS ──
     if (p === "/caja/estado") return json(null);
     if (p === "/caja/reporte") return json({ movimientos: [], totales: {} });
     if (p === "/compras" && m === "GET") return json(await SQL`SELECT * FROM compras WHERE local_id=${lid} ORDER BY fecha_compra DESC LIMIT 200`);

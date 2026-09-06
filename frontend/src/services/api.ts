@@ -218,3 +218,19 @@ export const cotejoApi = {
   comparar: (fecha: string, filas: any[]) => cotejoAx.post('/comparar', { fecha, filas }),
   historial: () => cotejoAx.get('/historial'),
 }
+
+const TRANSF_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-transferencias')
+const transfAx = axios.create({ baseURL: TRANSF_URL })
+transfAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const transferenciasApi = {
+  comprobante: (d: object) => transfAx.post('/comprobante', d),
+  pendientes: () => transfAx.get('/pendientes'),
+  asignar: (id: number, orden_id: number) => transfAx.post('/asignar', { id, orden_id }),
+  marcar: (id: number, estado: string, nota?: string) => transfAx.post('/marcar', { id, estado, nota }),
+  suscribir: () => transfAx.post('/bci/suscribir', {}),
+  ultimos: () => transfAx.get('/bci/ultimos'),
+}

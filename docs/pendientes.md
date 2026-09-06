@@ -73,6 +73,23 @@ Para lograrlo, las 5.999 órdenes históricas se corrieron de 10001–15999 a **
 - Reconectar `ladysconcon@gmail.com` o crear reenvío de los correos de BCI (hoy está conectado `xlufix@gmail.com`).
 - Decidir el canal de aviso para el traspaso a agente humano (Telegram evaluado como el más confiable; falta aprobación de plantilla de WhatsApp).
 
+## Horarios reales (confirmados por Lufi el 6-sep-2026)
+
+| | Local | Ruta a domicilio |
+|---|---|---|
+| Lunes a viernes | 10:00–13:30 y 14:30–18:30 | 13:30–14:30 (**4 cupos**) y 19:00–21:00 (**8 cupos**) |
+| Sábado | 10:00–13:40 | 14:00–15:00, **solo entregas** (8 cupos) |
+| Domingo | cerrado | sin ruta |
+
+**Express:** lo evalúa y decide el jefe de local, caso a caso. No se agenda por calendario.
+
+Ya cargado en la base: rutas, `horario_local`, `horario_ruta`, `regla_express` y el horario del local. Verificado contra el endpoint de SofIA.
+
+**Falta actualizar donde el cliente lo ve**, porque estos horarios contradicen lo publicado:
+- El prompt de SofIA en GHL (decía 16:00–18:00).
+- El sitio web y Google Business.
+- Los documentos del proyecto `rrss-automatizacion.md` y `estrategia-contenido-instagram.md`, que tienen la regla vieja y prohíben mencionar la ruta 19–21 — ahora es justo al revés.
+
 ## Chequeo del 6-sep — hallazgos y arreglos
 
 **Corregido:**
@@ -85,7 +102,6 @@ Para lograrlo, las 5.999 órdenes históricas se corrieron de 10001–15999 a **
 - 25 funciones activas, token de Mercado Pago cargado, 77 servicios, 6 formas de pago, 4 usuarios.
 
 **Por revisar con Lufi:**
-- **Horarios de ruta.** El sistema tiene lunes a viernes 13:30–14:30 y 17:00–18:00, y sábado 14:00–15:00 solo entregas. La documentación de agosto dice 16:00–18:00 de lunes a viernes y sábado 13:30–14:30. Hay que decidir cuál es la buena, porque SofIA promete una cosa y la app agenda otra.
 - **1.838.555 por cobrar en 18 órdenes**, la más antigua del 22 de julio.
 - 444 clientes activos sin teléfono: SofIA no los puede identificar cuando escriben.
 - 33 direcciones sin coordenadas: quedan fuera del recorrido optimizado.

@@ -158,6 +158,7 @@ export const usuariosApi = {
   getAll:  () => usrAx.get('/'),
   create:  (d: object) => usrAx.post('/', d),
   update:  (id: number, d: object) => usrAx.put(`/${id}`, d),
+  miClave: (actual: string, nueva: string) => usrAx.post('/mi-clave', { actual, nueva }),
 }
 export const diasInhabilesApi = {
   getAll: () => api.get('/dias-inhabiles'),

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
+import { usuariosApi } from '../services/api'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import {
   LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
   DollarSign, ArrowLeftRight, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
-  LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet
+  LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet, KeyRound
 } from 'lucide-react'
 
 // Quien ve cada pantalla. ADMINISTRADOR ve todo sin necesidad de listarse.
@@ -32,11 +34,24 @@ const menu = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [clave, setClave] = useState<any>(null)   // { actual, nueva, repetir } cuando el modal está abierto
+  const [guardandoClave, setGuardandoClave] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, isAdmin } = useAuthStore()
 
   const handleLogout = () => { logout(); navigate('/login') }
+
+  const cambiarClave = async () => {
+    if (clave.nueva !== clave.repetir) return toast.error('Las dos claves nuevas no coinciden')
+    setGuardandoClave(true)
+    try {
+      await usuariosApi.miClave(clave.actual, clave.nueva)
+      toast.success('Clave cambiada')
+      setClave(null)
+    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo cambiar') }
+    finally { setGuardandoClave(false) }
+  }
 
   // Una sesión vieja o a medias deja el menú en blanco y sin explicación.
   // Si falta el perfil, se cierra sola y se pide entrar de nuevo.
@@ -85,6 +100,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <p className="text-white/50 text-xs truncate">{user?.perfil}</p>
           </div>
         </div>
+        <button onClick={() => { setOpen(false); setClave({ actual: '', nueva: '', repetir: '' }) }}
+          className="w-full flex items-center gap-2 text-white/70 hover:text-white text-xs py-1.5 px-2 rounded-lg hover:bg-white/10 transition-colors">
+          <KeyRound size={14} /> Cambiar mi clave
+        </button>
         <button onClick={handleLogout}
           className="w-full flex items-center gap-2 text-white/70 hover:text-white text-xs py-1.5 px-2 rounded-lg hover:bg-white/10 transition-colors">
           <LogOut size={14} /> Cerrar sesión
@@ -123,6 +142,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      {clave && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setClave(null)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-sm space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-gray-800">Cambiar mi clave</h2>
+              <button onClick={() => setClave(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-500">Elige una clave que solo tú sepas. Mínimo 6 caracteres.</p>
+            <input type="password" autoComplete="current-password" placeholder="Clave actual"
+                   className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300"
+                   value={clave.actual} onChange={e => setClave({ ...clave, actual: e.target.value })} />
+            <input type="password" autoComplete="new-password" placeholder="Clave nueva"
+                   className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300"
+                   value={clave.nueva} onChange={e => setClave({ ...clave, nueva: e.target.value })} />
+            <input type="password" autoComplete="new-password" placeholder="Repite la clave nueva"
+                   className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300"
+                   value={clave.repetir} onChange={e => setClave({ ...clave, repetir: e.target.value })} />
+            <button onClick={cambiarClave} disabled={guardandoClave || !clave.actual || !clave.nueva}
+                    className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-50"
+                    style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+              {guardandoClave ? 'Guardando…' : 'Cambiar mi clave'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

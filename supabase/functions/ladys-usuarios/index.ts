@@ -49,6 +49,20 @@ Deno.serve(async (req: Request) => {
         FROM usuarios WHERE local_id=${lid} ORDER BY estado DESC, nombre`);
     }
 
+    // Cambiar la propia clave. Cualquiera puede, pero tiene que saber la actual.
+    if (req.method === "POST" && ruta === "/mi-clave") {
+      const b = await req.json();
+      const actual = String(b.actual || "");
+      const nueva = String(b.nueva || "");
+      if (nueva.length < 6) return json({ error: "La clave nueva debe tener al menos 6 caracteres" }, 400);
+      if (nueva === actual) return json({ error: "La clave nueva tiene que ser distinta de la actual" }, 400);
+      const [yo] = await SQL`SELECT id, password_hash FROM usuarios WHERE id=${Number(u.id)}`;
+      if (!yo) return json({ error: "No encuentro tu usuario" }, 404);
+      if (!bcrypt.compareSync(actual, yo.password_hash)) return json({ error: "La clave actual no coincide" }, 401);
+      await SQL`UPDATE usuarios SET password_hash=${bcrypt.hashSync(nueva, 10)} WHERE id=${yo.id}`;
+      return json({ ok: true });
+    }
+
     if (u.perfil !== "ADMINISTRADOR") return json({ error: "Solo el administrador puede administrar usuarios" }, 403);
 
     if (req.method === "POST" && ruta === "/") {

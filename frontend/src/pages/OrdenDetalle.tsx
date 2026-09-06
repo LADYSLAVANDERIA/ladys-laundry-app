@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { etapasApi } from '../services/api'
+import { etapasApi, cobrosApi, transferenciasApi } from '../services/api'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
@@ -17,6 +17,9 @@ export default function OrdenDetalle() {
   const [o, setO] = useState<any>(null); const [local, setLocal] = useState<any>({})
   const [formas, setFormas] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([]); const [rutas, setRutas] = useState<any[]>([])
   const [pago, setPago] = useState<any>({ forma_pago_id: '', monto: '' })
+  const [cobro, setCobro] = useState<any>(null)
+  const [generando, setGenerando] = useState(false)
+  const [comp, setComp] = useState<any>({ monto: '', nombre_origen: '', nota: '' })
   const [modal, setModal] = useState<string | null>(null)
   const [edit, setEdit] = useState<any>(null)
   const [kilos, setKilos] = useState(''); const [express, setExpress] = useState(false); const [prendas, setPrendas] = useState<Item[]>([])
@@ -129,6 +132,26 @@ export default function OrdenDetalle() {
 
   const idx = FLUJO.indexOf(o.estado)
   const sig = idx >= 0 && idx < 3 ? FLUJO[idx + 1] : null
+  const generarLink = async () => {
+    setGenerando(true)
+    try {
+      const { data } = await cobrosApi.link(o.id)
+      setCobro(data)
+    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo generar el link') }
+    finally { setGenerando(false) }
+  }
+
+  const guardarComprobante = async () => {
+    const monto = Number(comp.monto)
+    if (!monto) return toast.error('Escribe el monto de la transferencia')
+    try {
+      await transferenciasApi.comprobante({ orden_id: o.id, monto,
+        nombre_origen: comp.nombre_origen || null, nota: comp.nota || null })
+      toast.success('Anotada. Queda por confirmar con el banco.')
+      setModal(null); setComp({ monto: '', nombre_origen: '', nota: '' }); load()
+    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo registrar') }
+  }
+
   const msgWa = `Hola ${o.cliente_nombre?.split(' ')[0]}, tu pedido ${ot(o.id)} de Ladys Lavandería ya está listo. ${o.entrega_domicilio ? `Te lo llevamos el ${fechaCorta(o.fecha_entrega)}${o.ruta_entrega ? ` entre las ${hora(o.ruta_entrega_hora)}` : ''}.` : 'Puedes pasar a retirarlo al local.'}${Number(o.saldo_pendiente) > 0 ? ` Saldo pendiente: ${fmt(o.saldo_pendiente)}.` : ''}`
 
   return (
@@ -198,6 +221,8 @@ export default function OrdenDetalle() {
           <div className="flex gap-2 flex-wrap">
             {sig && <button onClick={() => cambiar(sig)} className="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Marcar como {ESTADO_LABEL[sig].toLowerCase()}</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => setModal('pago')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold"><DollarSign size={14} /> Registrar pago {fmt(o.saldo_pendiente)}</button>}
+            {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setCobro(null); setModal('cobrar') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Link2 size={14} /> Cobrar con link</button>}
+            {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setComp({ monto: String(Math.round(Number(o.saldo_pendiente))), nombre_origen: '', nota: '' }); setModal('comprobante') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Send size={14} /> Comprobante de transferencia</button>}
             {o.estado !== 'ENTREGADA' && <button onClick={abrirEdicionItems} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Package size={14} /> Editar ítems</button>}
             <button onClick={() => { setEdit({ fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos }); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
             <button onClick={() => prepararAviso(o.estado === 'LISTA' ? 'LISTA' : o.estado === 'PRE_ORDEN' ? 'INGRESO' : o.estado === 'ENTREGADA' ? 'ENTREGADA' : 'INGRESO')}
@@ -362,6 +387,48 @@ export default function OrdenDetalle() {
       </div>
 
       {/* ── MODALES ── */}
+      {modal === 'cobrar' && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between"><h2 className="font-bold">Cobrar con link</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
+            {!cobro ? (
+              <>
+                <p className="text-sm text-gray-500">Se genera un link de Mercado Pago por <strong className="text-pink-600">{fmt(o.saldo_pendiente)}</strong>. Cuando el cliente pague, el pedido se abona solo.</p>
+                <button onClick={generarLink} disabled={generando} className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-50" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                  {generando ? 'Generando…' : 'Generar el link'}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">Link listo por <strong>{fmt(cobro.monto)}</strong>.</p>
+                <input readOnly value={cobro.url} className={inp + ' bg-gray-50 text-xs'} onFocus={e => e.currentTarget.select()} />
+                <div className="flex gap-2">
+                  <button onClick={() => { navigator.clipboard.writeText(cobro.url); toast.success('Link copiado') }} className="flex-1 py-3 rounded-xl border text-sm font-medium text-gray-600">Copiar link</button>
+                  {cobro.whatsapp && <a href={cobro.whatsapp} target="_blank" rel="noreferrer" className="flex-1 py-3 rounded-xl bg-green-500 text-white text-sm font-semibold text-center">Mandar por WhatsApp</a>}
+                </div>
+                <p className="text-xs text-gray-400">El pedido queda sin pagar hasta que Mercado Pago avise que el cliente pagó.</p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {modal === 'comprobante' && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" onClick={() => setModal(null)}>
+          <div className="bg-white rounded-2xl p-5 w-full max-w-md space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between"><h2 className="font-bold">Comprobante de transferencia</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
+            <p className="text-sm text-gray-500">El cliente mandó el comprobante. Se abona el pedido, pero queda en <strong>Pagos por revisar</strong> hasta que alguien confirme contra la cartola.</p>
+            <input type="number" value={comp.monto} onChange={e => setComp({ ...comp, monto: e.target.value })} placeholder="Monto transferido" className={inp} />
+            <input value={comp.nombre_origen} onChange={e => setComp({ ...comp, nombre_origen: e.target.value })} placeholder="Nombre de quien transfirió (opcional)" className={inp} />
+            <input value={comp.nota} onChange={e => setComp({ ...comp, nota: e.target.value })} placeholder="Nota (opcional)" className={inp} />
+            <div className="flex gap-2">
+              <button onClick={guardarComprobante} className="flex-1 py-3 rounded-xl bg-green-500 text-white font-semibold text-sm">Anotar comprobante</button>
+              <button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modal === 'pago' && (
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-3">

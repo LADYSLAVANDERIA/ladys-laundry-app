@@ -234,3 +234,17 @@ export const transferenciasApi = {
   suscribir: () => transfAx.post('/bci/suscribir', {}),
   ultimos: () => transfAx.get('/bci/ultimos'),
 }
+
+const COBROS_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-cobros')
+const cobrosAx = axios.create({ baseURL: COBROS_URL })
+cobrosAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const cobrosApi = {
+  link: (orden_id: number, monto?: number) => cobrosAx.post('/link', { orden_id, monto }),
+  links: (orden_id: number) => cobrosAx.get(`/links/${orden_id}`),
+  pos: (fecha?: string) => cobrosAx.get('/pos', { params: { fecha } }),
+  posAsignar: (mp_payment_id: string, orden_id: number) => cobrosAx.post('/pos/asignar', { mp_payment_id, orden_id }),
+}

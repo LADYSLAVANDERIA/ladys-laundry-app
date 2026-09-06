@@ -20,7 +20,7 @@ const menu = [
   { path: '/membresias',      label: 'Membresías',       icon: CreditCard,      ver: TODOS_OPERATIVOS },
   { path: '/servicios',       label: 'Servicios',        icon: Scissors,        ver: TODOS_OPERATIVOS },
   { path: '/caja',            label: 'Caja',             icon: DollarSign,      ver: TODOS_OPERATIVOS },
-  { path: '/transferencias',  label: 'Transferencias',   icon: ArrowLeftRight,  ver: TODOS_OPERATIVOS },
+  { path: '/transferencias',  label: 'Pagos por revisar',icon: ArrowLeftRight,  ver: TODOS_OPERATIVOS },
   { path: '/compras',         label: 'Compras/Gastos',   icon: ShoppingCart,    ver: TODOS_OPERATIVOS },
   { path: '/reparto',         label: 'Reparto del día',  icon: Navigation,      ver: [...TODOS_OPERATIVOS, 'CONDUCTOR'] },
   { path: '/rutas',           label: 'Rutas Delivery',   icon: Truck,           ver: TODOS_OPERATIVOS },

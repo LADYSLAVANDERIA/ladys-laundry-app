@@ -45,7 +45,8 @@ export default function Usuarios() {
 
   const guardar = async () => {
     const datos: any = {
-      nombre: editando.nombre, telefono: editando.telefono,
+      nombre: editando.nombre, apellido: editando.apellido,
+      email: editando.email, telefono: editando.telefono,
       perfil: editando.perfil, estado: editando.estado,
     }
     if (clave.trim()) datos.password = clave.trim()
@@ -127,11 +128,23 @@ export default function Usuarios() {
               <h2 className="font-bold text-gray-800">Editar usuario</h2>
               <button onClick={() => setEditando(null)}><X size={18} className="text-gray-400" /></button>
             </div>
-            <p className="text-xs text-gray-500">{editando.email}</p>
-
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-gray-500">Nombre</label>
+                <input value={editando.nombre || ''} onChange={e => setEditando({ ...editando, nombre: e.target.value })} className={inp} />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">Apellido</label>
+                <input value={editando.apellido || ''} onChange={e => setEditando({ ...editando, apellido: e.target.value })} className={inp} />
+              </div>
+            </div>
             <div>
-              <label className="text-xs text-gray-500">Nombre</label>
-              <input value={editando.nombre || ''} onChange={e => setEditando({ ...editando, nombre: e.target.value })} className={inp} />
+              <label className="text-xs text-gray-500">Correo</label>
+              <input value={editando.email || ''} type="email"
+                     onChange={e => setEditando({ ...editando, email: e.target.value })} className={inp} />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Es la llave con la que entra al sistema. Si la cambias, avísale.
+              </p>
             </div>
             <div>
               <label className="text-xs text-gray-500">Teléfono</label>

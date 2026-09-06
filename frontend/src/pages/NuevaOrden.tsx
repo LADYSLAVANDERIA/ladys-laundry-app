@@ -31,7 +31,6 @@ export default function NuevaOrden() {
     }).catch(() => toast.error('No se pudo cargar el catálogo'))
     const cid = params.get('cliente'); if (cid) seleccionar(Number(cid))
   }, [])
-  useEffect(() => { setF((p: any) => ({ ...p, fecha_entrega: express ? hoy() : addDiasHabiles(hoy(), 2) })) }, [express])
 
   const cargarCupos = async (fecha: string) => { try { const { data } = await retirosApi.disponibilidad(fecha); const m: Record<number, number> = {}; data.rutas.forEach((r: any) => { m[r.id] = r.cupos }); setCupos(p => ({ ...p, [fecha]: m })) } catch { /* sin cupos */ } }
   useEffect(() => { if (f.retiro_domicilio && f.fecha_recogida) cargarCupos(f.fecha_recogida) }, [f.fecha_recogida, f.retiro_domicilio])
@@ -80,6 +79,25 @@ export default function NuevaOrden() {
   }, [servicios, convenio])
 
   const items = useMemo(() => buildItems(serviciosConPrecio, kilos, express, prendas), [serviciosConPrecio, kilos, express, prendas])
+  // La fecha de entrega la manda el servicio de plazo MÁS LARGO de la orden:
+  // si entra ropa por kilo (2 días) junto a un cobertor (5), se propone el 5.
+  // Los productos y despachos van en 0 y no alargan nada.
+  const plazo = useMemo(() => {
+    const dias = items.map((i: any) => {
+      const s = servicios.find((x: any) => x.id === i.servicio_id)
+      if (s) return Number(s.dias_habiles ?? 5)
+      return i.tipo === 'KILO' ? (express ? 0 : 2) : 5
+    })
+    return dias.length ? Math.max(...dias) : (express ? 0 : 2)
+  }, [items, servicios, express])
+
+  // Solo se mueve sola mientras nadie la haya tocado a mano.
+  const [fechaTocada, setFechaTocada] = useState(false)
+  useEffect(() => {
+    if (fechaTocada) return
+    setF((p: any) => ({ ...p, fecha_entrega: addDiasHabiles(p.fecha_recogida || hoy(), plazo) }))
+  }, [plazo, f.fecha_recogida, fechaTocada])
+
   const subtotal = items.reduce((s, i) => s + i.subtotal, 0)
   const pct = Number(config.descuento_continuidad || 10)
   const descuento = f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0
@@ -230,7 +248,16 @@ export default function NuevaOrden() {
               )}
               <div className={`space-y-2 p-3 rounded-xl ${f.entrega_domicilio ? 'bg-blue-50' : 'bg-gray-50'}`}>
                 <p className={`text-xs font-semibold ${f.entrega_domicilio ? 'text-blue-700' : 'text-gray-500'}`}>{f.entrega_domicilio ? 'ENTREGA A DOMICILIO' : 'ENTREGA EN LOCAL (fecha estimada)'}</p>
-                <input type="date" value={f.fecha_entrega} onChange={e => setF({ ...f, fecha_entrega: e.target.value, ruta_entrega_id: '' })} className={inp} />
+                <input type="date" value={f.fecha_entrega}
+                       onChange={e => { setFechaTocada(true); setF({ ...f, fecha_entrega: e.target.value, ruta_entrega_id: '' }) }}
+                       className={inp} />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  {fechaTocada
+                    ? <>Fecha puesta a mano. <button type="button" className="underline"
+                        onClick={() => { setFechaTocada(false) }}>volver al plazo automático</button></>
+                    : plazo === 0 ? 'Express: se entrega el mismo día.'
+                    : `Propuesta por el servicio más lento de la orden: ${plazo} ${plazo === 1 ? 'día hábil' : 'días hábiles'}.`}
+                </p>
                 {f.entrega_domicilio && (
                   <select value={f.ruta_entrega_id} onChange={e => setF({ ...f, ruta_entrega_id: e.target.value })} className={inp}>
                     <option value="">{rutasEnt.length ? 'Ruta de entrega…' : 'Sin ruta ese día'}</option>

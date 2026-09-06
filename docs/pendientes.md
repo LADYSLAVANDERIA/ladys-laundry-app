@@ -54,7 +54,7 @@ Recordar la trampa de siempre: **cada PUT al agente en GHL deja `isPrimary` en `
 
 ## Otros
 
-- Detalle por servicio de las 5.996 OT importadas de EasyLaundry.
+- **Resuelto (6-sep):** el detalle por servicio de las OT históricas quedó importado. 5.988 de 5.996 órdenes con detalle, 9.112 líneas, kilos recalculados. Quedan 10 sin detalle (no existen en el reporte de EasyLaundry).
 - 45 direcciones con la comuna mal ("Valparaíso"); las coordenadas están bien. Geocodificación: 657 de 690 ubicadas.
 - Avisos automáticos del Club.
 - Borrar el cliente duplicado 380 ("CLIENTE", 0 pedidos), que comparte teléfono con la ficha real de Lufi (1872).
@@ -66,6 +66,9 @@ Recordar la trampa de siempre: **cada PUT al agente en GHL deja `isPrimary` en `
 - Decidir el canal de aviso para el traspaso a agente humano (Telegram evaluado como el más confiable; falta aprobación de plantilla de WhatsApp).
 
 ## Deuda técnica conocida
+
+- **El reporte "Detalle de órdenes por fecha" de EasyLaundry va un mes atrasado.** Cada click en Consultar pierde el local seleccionado por el postback de ASP.NET, así que la tabla muestra el resultado de la consulta anterior. Para traer el mes N hay que pedir el rango N a N+1 y quedarse con lo que llegue. Verificado: pedir solo mayo 2025 devuelve cero filas; pedir mayo–junio devuelve las 693 de mayo. **Nunca confiar en el mes que dice `por_mes`: hay que mirar la fecha de las propias filas.**
+- Por lo mismo, el archivo trae meses repetidos. Hay que **deduplicar por fila exacta** antes de sumar, o los montos salen al doble.
 
 - **Resuelto (6-sep):** el repo tenía la v2.0.0 de `supabase/functions/ladys/index.ts` mientras producción corría la v2.1.0. Se bajó la versión real y quedó commiteada. **Antes de desplegar cualquier función, comparar contra lo que corre en Supabase** — el repo no siempre es la verdad.
 

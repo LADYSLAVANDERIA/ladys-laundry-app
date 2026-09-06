@@ -48,6 +48,8 @@ Nuestro lado ya está listo y probado: el endpoint lee los nombres de campo real
 
 ## Deuda técnica conocida
 
+- **La copia local de `supabase/functions/ladys/index.ts` está atrasada.** El repo tiene la v2.0.0 y en producción corre la v2.1.0 (con fotos, avisos al cliente y enlace público de OT). **No desplegar ese archivo desde el repo: haría retroceder la API entera.** Hay que bajar la versión desplegada, commitearla y recién ahí volver a tocarla. Por eso los usuarios quedaron en la función aparte `ladys-usuarios`.
+
 - **El filtrado del menú por perfil es solo visual**, no hay bloqueo en el servidor. Alcanza para tres personas; hay que reforzarlo cuando el equipo crezca.
 - Los montos de Mercado Pago Point en Chile van **como texto y sin decimales**. La documentación de México dice lo contrario y devuelve 400.
 - `print_on_terminal` en modo PDV solo acepta `seller_ticket`. `buyer_ticket` exige modo autoservicio.

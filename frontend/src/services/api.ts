@@ -147,10 +147,17 @@ export const comprasApi = {
   create:  (d: object) => api.post('/compras', d),
   remove:  (id: number) => api.delete(`/compras/${id}`),
 }
+const USR_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-usuarios')
+const usrAx = axios.create({ baseURL: USR_URL })
+usrAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 export const usuariosApi = {
-  getAll:  () => api.get('/usuarios'),
-  create:  (d: object) => api.post('/usuarios', d),
-  update:  (id: number, d: object) => api.put(`/usuarios/${id}`, d),
+  getAll:  () => usrAx.get('/'),
+  create:  (d: object) => usrAx.post('/', d),
+  update:  (id: number, d: object) => usrAx.put(`/${id}`, d),
 }
 export const diasInhabilesApi = {
   getAll: () => api.get('/dias-inhabiles'),

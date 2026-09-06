@@ -35,6 +35,8 @@ export default function Facturacion() {
   const [sel, setSel] = useState<number[]>([])
   const [cargando, setCargando] = useState(false)
   const [editando, setEditando] = useState<any>(null)
+  const [folio, setFolio] = useState('')
+  const [fechaDoc, setFechaDoc] = useState(hoy())
 
   useEffect(() => { facturacionApi.clientes().then(r => setClientes(r.data.clientes)).catch(() => {}) }, [])
 
@@ -74,9 +76,15 @@ export default function Facturacion() {
     const conFalta = elegidas.find((f: any) => f.falta?.length)
     if (conFalta) return toast.error(`A ${conFalta.cliente} le falta ${conFalta.falta.join(', ')}`)
     try {
-      const { data } = await facturacionApi.crearDoc({ orden_ids: sel, tipo_dte: 33 })
-      toast.success(`Documento borrador creado con ${data.ordenes} órdenes`)
-      consultar()
+      const { data } = await facturacionApi.crearDoc({
+        orden_ids: sel, tipo_dte: 33,
+        folio: folio ? Number(folio) : undefined,
+        fecha_doc: folio ? fechaDoc : undefined,
+      })
+      toast.success(data.dte.folio
+        ? `Factura ${data.dte.folio} registrada con ${data.ordenes} órdenes`
+        : `Borrador creado con ${data.ordenes} órdenes`)
+      setFolio(''); consultar()
     } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo crear') }
   }
 
@@ -309,11 +317,22 @@ export default function Facturacion() {
           <div className="text-sm">
             <b>{sel.length}</b> {sel.length === 1 ? 'orden' : 'órdenes'} · ${plata(selTotal)}
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-end gap-2 flex-wrap">
+            <div>
+              <label className="text-[11px] text-gray-500">N° documento</label>
+              <input value={folio} onChange={e => setFolio(e.target.value.replace(/\D/g, ''))}
+                     inputMode="numeric" placeholder="folio del SII"
+                     className="border rounded-xl px-3 py-2 text-sm w-32" />
+            </div>
+            <div>
+              <label className="text-[11px] text-gray-500">Fecha</label>
+              <input type="date" value={fechaDoc} onChange={e => setFechaDoc(e.target.value)}
+                     className="border rounded-xl px-3 py-2 text-sm" />
+            </div>
             <button onClick={() => setSel([])} className="px-4 py-2 rounded-xl border text-sm text-gray-600">Limpiar</button>
             <button onClick={generar} className="px-4 py-2 rounded-xl text-white text-sm font-medium flex items-center gap-1.5"
                     style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-              <FileText size={15} /> Generar documento
+              <FileText size={15} /> {folio ? 'Guardar factura' : 'Dejar como borrador'}
             </button>
           </div>
         </div>

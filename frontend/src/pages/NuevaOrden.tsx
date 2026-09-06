@@ -113,6 +113,10 @@ export default function NuevaOrden() {
         pago: (!usarMemb && pago.ahora && pago.forma_pago_id && total > 0) ? { forma_pago_id: Number(pago.forma_pago_id), monto: Number(pago.monto || total) } : null,
       }
       const { data: o } = await ordenesApi.create(body)
+      // Mientras convivan los dos sistemas, esta es la única forma de aparearlos
+      // en el cotejo: cada uno le pone un número distinto a la misma orden.
+      if (String(f.ot_easylaundry || '').trim())
+        await ordenesApi.update(o.id, { ot_easylaundry: String(f.ot_easylaundry).trim() }).catch(() => {})
       if (usarMemb && memb) await api.post(`/prepagos/${memb.id}/consumir`, { monto: total, orden_id: o.id })
       toast.success(`OT ${ot(o.id)} creada`)
       navigate(`/ordenes/${o.id}?print=1`)
@@ -247,6 +251,14 @@ export default function NuevaOrden() {
               <div><label className="text-xs text-gray-500">Bultos</label><input type="number" min="1" value={f.bultos} onChange={e => setF({ ...f, bultos: e.target.value })} className={inp} /></div>
               <div><label className="text-xs text-gray-500">Documento</label><select value={f.tipo_doc} onChange={e => setF({ ...f, tipo_doc: e.target.value })} className={inp}><option value="BOLETA">Boleta</option><option value="FACTURA">Factura</option><option value="SIN_DOCUMENTO">Sin documento</option></select></div>
               <div><label className="text-xs text-gray-500">Observaciones</label><input value={f.observaciones} onChange={e => setF({ ...f, observaciones: e.target.value })} placeholder="Manchas, sin suavizante, etc." className={inp} /></div>
+              <div>
+                <label className="text-xs text-gray-500">N° OT en EasyLaundry</label>
+                <input value={f.ot_easylaundry || ''} onChange={e => setF({ ...f, ot_easylaundry: e.target.value })}
+                       inputMode="numeric" placeholder="mientras funcionen los dos sistemas" className={inp} />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Anótalo para que el cotejo del día pueda aparear esta orden con la de EasyLaundry.
+                </p>
+              </div>
             </div>
           </div>
         </div>

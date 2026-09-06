@@ -258,7 +258,7 @@ export default function OrdenDetalle() {
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setCobro(null); setModal('cobrar') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Link2 size={14} /> Cobrar con link</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setComp({ monto: String(Math.round(Number(o.saldo_pendiente))), nombre_origen: '', nota: '' }); setModal('comprobante') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Send size={14} /> Comprobante de transferencia</button>}
             {o.estado !== 'ENTREGADA' && <button onClick={abrirEdicionItems} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Package size={14} /> Editar ítems</button>}
-            <button onClick={() => { setEdit({ fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos }); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
+            <button onClick={() => { setEdit({ ot_easylaundry: o.ot_easylaundry || '', fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos }); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
             <button onClick={() => prepararAviso(o.estado === 'LISTA' ? 'LISTA' : o.estado === 'PRE_ORDEN' ? 'INGRESO' : o.estado === 'ENTREGADA' ? 'ENTREGADA' : 'INGRESO')}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium"><Send size={14} /> Avisar al cliente</button>
             <button onClick={() => setModal('anular')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm"><Ban size={14} /> Anular</button>
@@ -552,6 +552,11 @@ export default function OrdenDetalle() {
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
           <div className="bg-white rounded-2xl w-full max-w-md p-5 space-y-3">
             <div className="flex items-center justify-between"><h2 className="font-bold">Editar retiro y entrega</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
+            <div>
+              <label className="text-xs text-gray-500">N° OT en EasyLaundry</label>
+              <input value={edit.ot_easylaundry || ''} onChange={e => setEdit({ ...edit, ot_easylaundry: e.target.value })}
+                     inputMode="numeric" placeholder="para aparear en el cotejo" className={inp} />
+            </div>
             {o.retiro_domicilio && (
               <div className="grid grid-cols-2 gap-2">
                 <div><label className="text-xs text-gray-500">Fecha retiro</label><input type="date" value={edit.fecha_recogida} onChange={e => setEdit({ ...edit, fecha_recogida: e.target.value, ruta_recogida_id: '' })} className={inp} /></div>

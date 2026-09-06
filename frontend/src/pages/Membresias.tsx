@@ -66,7 +66,7 @@ export default function Membresias() {
     if (!(kilos > 0)) return toast.error('Ingresa los kilos')
     try {
       const sv = servicios.find((x: any) => /^CARGA 1 KILO$/i.test(x.nombre))
-      const pu = Number(sv?.precio_lav_secado || 2900)
+      const pu = Number(sv?.precio_lav_secado) || 2900
       const { data: orden } = await ordenesApi.create({
         cliente_id: sel.cliente_id, kilos, es_membresia: true,
         items: [{ servicio_id: sv?.id || null, nombre: 'Lavado por kilo (plan)', cantidad: kilos, precio_unit: pu }],
@@ -97,7 +97,7 @@ export default function Membresias() {
 
   const addItem = (s: any) => {
     const items = form.items || []
-    const p = Number(s.precio_lav_planch || s.precio_lav_secado || 0)
+    const p = Number(s.precio_lav_planch) || Number(s.precio_lav_secado) || 0
     const ex = items.find((i: any) => i.servicio_id === s.id)
     setForm({ ...form, items: ex
       ? items.map((i: any) => i.servicio_id === s.id ? { ...i, cantidad: i.cantidad + 1, subtotal: (i.cantidad + 1) * i.precio_unit } : i)
@@ -222,7 +222,7 @@ export default function Membresias() {
                   <div className="flex flex-wrap gap-1.5">
                     {items.map((s: any) => (
                       <button key={s.id} onClick={() => addItem(s)} className="px-2.5 py-1 bg-gray-100 hover:bg-pink-100 rounded-lg text-xs">
-                        + {s.nombre} <span className="text-gray-400">{fmt(s.precio_lav_planch || s.precio_lav_secado)}</span>
+                        + {s.nombre} <span className="text-gray-400">{fmt(Number(s.precio_lav_planch) || Number(s.precio_lav_secado))}</span>
                       </button>
                     ))}
                   </div>

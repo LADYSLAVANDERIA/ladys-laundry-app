@@ -6,7 +6,13 @@ export type Item = { servicio_id: number | null; nombre: string; cantidad: numbe
 type Props = { servicios: any[]; kilos: string; setKilos: (v: string) => void; express: boolean; setExpress: (v: boolean) => void; prendas: Item[]; setPrendas: (v: Item[]) => void }
 
 const esKilo = (s: any) => /CARGA 1 KILO/i.test(s?.nombre || '')
-export const precioDe = (s: any) => Number(s.precio_lav_planch || s.precio_lav_secado || s.precio_solo_planch || s.precio_productos || 0)
+// OJO: la API devuelve los precios como texto ("0.00"), y en JavaScript esa
+// cadena es verdadera. Encadenar con || sobre el texto se quedaba siempre con
+// el primero aunque valiera cero, y todos los servicios salían en $0.
+// Hay que convertir a número ANTES de comparar.
+export const precioDe = (s: any) =>
+  Number(s?.precio_lav_planch) || Number(s?.precio_lav_secado) ||
+  Number(s?.precio_solo_planch) || Number(s?.precio_productos) || 0
 export const kiloServicio = (servicios: any[], express: boolean) =>
   servicios.find(s => (express ? /CARGA 1 KILO EXPRESS/i.test(s.nombre) : /^CARGA 1 KILO$/i.test(s.nombre)))
 

@@ -91,6 +91,21 @@ export default function NuevaOrden() {
     return dias.length ? Math.max(...dias) : (express ? 0 : 2)
   }, [items, servicios, express])
 
+  // Si en la misma orden entran servicios con plazos distintos, conviene partirla:
+  // un cobertor de 5 días no debe retener la ropa por kilo que ya estaba lista.
+  const gruposPorPlazo = useMemo(() => {
+    const m = new Map<number, any[]>()
+    for (const i of items) {
+      const s = servicios.find((x: any) => x.id === i.servicio_id)
+      const d = s ? Number(s.dias_habiles ?? 5) : (i.tipo === 'KILO' ? (express ? 0 : 2) : 5)
+      if (!m.has(d)) m.set(d, [])
+      m.get(d)!.push(i)
+    }
+    return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([dias, its]) => ({ dias, items: its }))
+  }, [items, servicios, express])
+  const [dividir, setDividir] = useState(true)
+  const hayVariosPlazos = gruposPorPlazo.length > 1
+
   // Solo se mueve sola mientras nadie la haya tocado a mano.
   const [fechaTocada, setFechaTocada] = useState(false)
   useEffect(() => {
@@ -130,14 +145,48 @@ export default function NuevaOrden() {
         origen: f.retiro_domicilio ? 'DOMICILIO' : 'LOCAL', es_membresia: usarMemb && !!memb, forzar,
         pago: (!usarMemb && pago.ahora && pago.forma_pago_id && total > 0) ? { forma_pago_id: Number(pago.forma_pago_id), monto: Number(pago.monto || total) } : null,
       }
-      const { data: o } = await ordenesApi.create(body)
-      // Mientras convivan los dos sistemas, esta es la única forma de aparearlos
-      // en el cotejo: cada uno le pone un número distinto a la misma orden.
-      if (String(f.ot_easylaundry || '').trim())
-        await ordenesApi.update(o.id, { ot_easylaundry: String(f.ot_easylaundry).trim() }).catch(() => {})
-      if (usarMemb && memb) await api.post(`/prepagos/${memb.id}/consumir`, { monto: total, orden_id: o.id })
-      toast.success(`OT ${ot(o.id)} creada`)
-      navigate(`/ordenes/${o.id}?print=1`)
+      // Una orden por plazo cuando corresponde dividir; si no, una sola con todo.
+      const partes = (hayVariosPlazos && dividir)
+        ? gruposPorPlazo
+        : [{ dias: plazo, items }]
+      const creadas: number[] = []
+
+      for (let n = 0; n < partes.length; n++) {
+        const parte = partes[n]
+        const sub = parte.items.reduce((s: number, i: any) => s + i.subtotal, 0)
+        const desc = f.aplicar_descuento ? Math.round(sub * pct / 100) : 0
+        // El delivery se cobra una sola vez, en la parte que sale primero.
+        const envio = n === 0 ? Number(f.monto_delivery || 0) : 0
+        const kilosParte = parte.items
+          .filter((i: any) => i.tipo === 'KILO')
+          .reduce((s: number, i: any) => s + i.cantidad, 0)
+        const nota = [f.observaciones, partes.length > 1 ? `Parte ${n + 1} de ${partes.length}` : '']
+          .filter(Boolean).join(' · ')
+
+        const { data: o } = await ordenesApi.create({
+          ...body,
+          items: parte.items,
+          kilos: kilosParte,
+          observaciones: nota,
+          monto_delivery: envio,
+          fecha_entrega: addDiasHabiles(f.fecha_recogida || hoy(), parte.dias),
+          // Cada parte se entrega en su fecha, así que la ruta se elige después.
+          ruta_entrega_id: partes.length > 1 ? null : body.ruta_entrega_id,
+        })
+        creadas.push(o.id)
+
+        // Mientras convivan los dos sistemas, esta es la única forma de aparearlos
+        // en el cotejo: cada uno le pone un número distinto a la misma orden.
+        if (n === 0 && String(f.ot_easylaundry || '').trim())
+          await ordenesApi.update(o.id, { ot_easylaundry: String(f.ot_easylaundry).trim() }).catch(() => {})
+        if (usarMemb && memb)
+          await api.post(`/prepagos/${memb.id}/consumir`, { monto: sub - desc + envio, orden_id: o.id })
+      }
+
+      toast.success(creadas.length > 1
+        ? `${creadas.length} órdenes creadas: ${creadas.map(ot).join(', ')}`
+        : `OT ${ot(creadas[0])} creada`)
+      navigate(`/ordenes/${creadas[0]}?print=1`)
     } catch (e: any) {
       const d = e.response?.data
       if (d?.codigo === 'MINIMO' && confirm(`${d.error}\n\n¿Crear la orden de todas formas?`)) return crear(true)
@@ -248,6 +297,32 @@ export default function NuevaOrden() {
               )}
               <div className={`space-y-2 p-3 rounded-xl ${f.entrega_domicilio ? 'bg-blue-50' : 'bg-gray-50'}`}>
                 <p className={`text-xs font-semibold ${f.entrega_domicilio ? 'text-blue-700' : 'text-gray-500'}`}>{f.entrega_domicilio ? 'ENTREGA A DOMICILIO' : 'ENTREGA EN LOCAL (fecha estimada)'}</p>
+                {hayVariosPlazos && (
+                  <div className="mb-2 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                    <p className="text-xs text-amber-900">
+                      <b>Esta orden tiene servicios con plazos distintos.</b> Si va todo junto,
+                      lo rápido espera por lo lento.
+                    </p>
+                    <label className="flex items-start gap-2 text-xs text-amber-900 cursor-pointer">
+                      <input type="checkbox" checked={dividir} onChange={e => setDividir(e.target.checked)} className="mt-0.5" />
+                      <span>Dividir en {gruposPorPlazo.length} órdenes, cada una con su fecha</span>
+                    </label>
+                    {dividir && (
+                      <div className="space-y-1 pt-1 border-t border-amber-200">
+                        {gruposPorPlazo.map((g, n) => (
+                          <p key={g.dias} className="text-[11px] text-amber-800">
+                            <b>Parte {n + 1}</b> · {g.items.length} {g.items.length === 1 ? 'ítem' : 'ítems'} ·
+                            {' '}{g.dias === 0 ? 'mismo día' : `${g.dias} ${g.dias === 1 ? 'día hábil' : 'días hábiles'}`} ·
+                            {' '}entrega {addDiasHabiles(f.fecha_recogida || hoy(), g.dias)}
+                          </p>
+                        ))}
+                        <p className="text-[11px] text-amber-700 pt-1">
+                          El delivery se cobra una sola vez y la ruta de entrega se asigna después, en cada orden.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <input type="date" value={f.fecha_entrega}
                        onChange={e => { setFechaTocada(true); setF({ ...f, fecha_entrega: e.target.value, ruta_entrega_id: '' }) }}
                        className={inp} />

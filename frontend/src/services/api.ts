@@ -269,5 +269,5 @@ tabAx.interceptors.request.use(config => {
   return config
 })
 export const tableroApi = {
-  resumen: (mes?: string) => tabAx.get('/resumen', { params: { mes } }),
+  resumen: (desde?: string, hasta?: string) => tabAx.get('/resumen', { params: { desde, hasta } }),
 }

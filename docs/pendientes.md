@@ -60,6 +60,26 @@ Para lograrlo, las 5.999 órdenes históricas se corrieron de 10001–15999 a **
 
 **Ojo si alguien busca una orden histórica**: su número interno ahora empieza en 110001, pero su OT real de EasyLaundry sigue guardada en `ot_easylaundry`.
 
+## Facturación electrónica a empresas
+
+**Decidido el 6-sep:** boletas siguen en la máquina de Mercado Pago; las facturas salen por **BaseAPI**, que automatiza por API REST el Portal MiPyme del SII (el sistema oficial gratuito). No hay que migrar de facturador ni pasar el proceso CAL.
+
+**Una factura mensual consolidada por empresa**, emitida al cierre del mes, salvo **Ultratug que va por pedido** porque cada uno lleva orden de compra. Con eso el volumen real es de **6 a 8 documentos al mes** (verificado contra 2026 completo), y la capa gratuita de BaseAPI son 20 emisiones mensuales. Sale en cero, con margen para el doble.
+
+**Construido y probado:**
+- `clientes`: `comuna_facturacion`, `dir_facturacion`, `email_dte`, `modo_facturacion` (MENSUAL / POR_PEDIDO). Ultratug ya quedó en POR_PEDIDO.
+- Tablas `dtes` y `dte_ordenes`. El índice único sobre `dte_ordenes.orden_id` es lo que **impide facturar un pedido dos veces**.
+- Función `ladys-facturacion`: `/empresas` (qué le falta a cada una), `/borradores?periodo=YYYY-MM`, `/emitidos`, `/validar-rut` (módulo 11).
+
+**Falta:**
+- Cuenta en BaseAPI y su API key. **Ojo: BaseAPI opera sobre el Portal MiPyme usando las credenciales SII del contribuyente** — es una decisión de confianza distinta a un facturador certificado.
+- La pantalla en la app (hoy solo existe el endpoint).
+- Completar RUT, giro, dirección y comuna de las 30 empresas. Ninguna los tiene. El endpoint `dte.receptor` de BaseAPI los autocompleta por RUT.
+- **Confirmar con el contador** que facturar consolidado al cierre del mes calza con las reglas del SII sobre cuándo corresponde emitir.
+- La comuna va en campo propio (`CmnaRecep`): dentro del texto de la dirección el SII rechaza.
+
+**Trampa cazada:** nuestros precios son con IVA incluido y el DTE los quiere netos. La función ya divide por 1,19. Sin eso, una factura de $274.000 se habría emitido por $326.000.
+
 ## Otros
 
 - **Resuelto (6-sep):** el detalle por servicio de las OT históricas quedó importado. 5.988 de 5.996 órdenes con detalle, 9.112 líneas, kilos recalculados. Quedan 10 sin detalle (no existen en el reporte de EasyLaundry).

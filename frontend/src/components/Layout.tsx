@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import {
   LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
-  DollarSign, ArrowLeftRight, PieChart, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
+  DollarSign, ArrowLeftRight, PieChart, FileText, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
   LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet, KeyRound
 } from 'lucide-react'
 
@@ -26,6 +26,7 @@ const menu = [
   { path: '/compras',         label: 'Compras/Gastos',   icon: ShoppingCart,    ver: TODOS_OPERATIVOS },
   { path: '/reparto',         label: 'Reparto del día',  icon: Navigation,      ver: [...TODOS_OPERATIVOS, 'CONDUCTOR'] },
   { path: '/rutas',           label: 'Rutas Delivery',   icon: Truck,           ver: TODOS_OPERATIVOS },
+  { path: '/facturacion',     label: 'Facturación',      icon: FileText,        ver: [] },
   { path: '/analisis',        label: 'Análisis',         icon: PieChart,        ver: [] },
   { path: '/reporte-control', label: 'Reporte Control',  icon: BarChart2,       ver: TODOS_OPERATIVOS },
   { path: '/cotejo',          label: 'Cotejo EasyLaundry', icon: Scale,         ver: [] },

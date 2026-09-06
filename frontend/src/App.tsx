@@ -18,6 +18,7 @@ import Agenda from './pages/Agenda'
 import ReporteControl from './pages/ReporteControl'
 import Transferencias from './pages/Transferencias'
 import Tablero from './pages/Tablero'
+import Facturacion from './pages/Facturacion'
 import Prepagos from './pages/Prepagos'
 import Membresias from './pages/Membresias'
 import OrdenPublica from './pages/OrdenPublica'
@@ -78,6 +79,7 @@ export default function App() {
         <Route path="/agenda"          element={<PrivateRoute><Agenda /></PrivateRoute>} />
         <Route path="/reporte-control" element={<PrivateRoute><ReporteControl /></PrivateRoute>} />
         <Route path="/config-local"    element={<PrivateRoute><Configuracion /></PrivateRoute>} />
+        <Route path="/facturacion" element={<PrivateRoute><Facturacion /></PrivateRoute>} />
         <Route path="/analisis" element={<PrivateRoute><Tablero /></PrivateRoute>} />
         <Route path="/transferencias" element={<PrivateRoute><Transferencias /></PrivateRoute>} />
         <Route path="/prepagos"       element={<PrivateRoute><Prepagos /></PrivateRoute>} />

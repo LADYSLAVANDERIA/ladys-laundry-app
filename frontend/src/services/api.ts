@@ -271,3 +271,17 @@ tabAx.interceptors.request.use(config => {
 export const tableroApi = {
   resumen: (desde?: string, hasta?: string) => tabAx.get('/resumen', { params: { desde, hasta } }),
 }
+
+const FACT_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-facturacion')
+const factAx = axios.create({ baseURL: FACT_URL })
+factAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const facturacionApi = {
+  empresas:   () => factAx.get('/empresas'),
+  guardar:    (id: number, datos: any) => factAx.put(`/empresa/${id}`, datos),
+  borradores: (periodo?: string) => factAx.get('/borradores', { params: { periodo } }),
+  emitidos:   () => factAx.get('/emitidos'),
+}

@@ -73,6 +73,24 @@ Para lograrlo, las 5.999 órdenes históricas se corrieron de 10001–15999 a **
 - Reconectar `ladysconcon@gmail.com` o crear reenvío de los correos de BCI (hoy está conectado `xlufix@gmail.com`).
 - Decidir el canal de aviso para el traspaso a agente humano (Telegram evaluado como el más confiable; falta aprobación de plantilla de WhatsApp).
 
+## Chequeo del 6-sep — hallazgos y arreglos
+
+**Corregido:**
+- 5.767 órdenes importadas estaban marcadas pagadas con el abonado en cero, y 22 con el abonado al doble. Se dejó `monto_abonado = monto_total` en las cerradas. Ahora el panel de cobranza dice la verdad.
+- La función `ladys-detalle` duplicaba a `ladys-importar-detalle` y podía insertar el detalle histórico dos veces. Quedó respondiendo 410, no borrada, para que cualquier llamada vieja falle fuerte y no en silencio.
+
+**Sano:**
+- Cero huérfanos en las 12 tablas hijas tras el cambio de correlativo. Cero saldos negativos, cero órdenes sin cliente.
+- Los feriados están cargados hasta diciembre, incluidas las Fiestas Patrias del 18 y 19.
+- 25 funciones activas, token de Mercado Pago cargado, 77 servicios, 6 formas de pago, 4 usuarios.
+
+**Por revisar con Lufi:**
+- **Horarios de ruta.** El sistema tiene lunes a viernes 13:30–14:30 y 17:00–18:00, y sábado 14:00–15:00 solo entregas. La documentación de agosto dice 16:00–18:00 de lunes a viernes y sábado 13:30–14:30. Hay que decidir cuál es la buena, porque SofIA promete una cosa y la app agenda otra.
+- **1.838.555 por cobrar en 18 órdenes**, la más antigua del 22 de julio.
+- 444 clientes activos sin teléfono: SofIA no los puede identificar cuando escriben.
+- 33 direcciones sin coordenadas: quedan fuera del recorrido optimizado.
+- 1.096 órdenes donde el detalle no suma el total cobrado. Es esperable (el detalle viene a precio de lista), pero varias muestran "cobrado 13.500" con montos de lista distintos, lo que parece un valor por defecto de la importación vieja.
+
 ## Deuda técnica conocida
 
 - **Falta quitar el relleno de ceros en la API principal.** En `supabase/functions/ladys/index.ts`, la línea `const otTxt = (id) => "#" + String(id).padStart(5, "0")` hace que los mensajes al cliente digan `#06431` en vez de `#6431`. El resto del sistema ya se corrigió. Cambiar a `"#" + String(id)` y desplegar.

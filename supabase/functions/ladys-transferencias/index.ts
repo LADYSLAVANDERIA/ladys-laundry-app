@@ -237,7 +237,7 @@ Deno.serve(async (req: Request) => {
       try { cuerpo = JSON.parse(txt); } catch { /* el banco no siempre devuelve json */ }
 
       // El id y el estado quedan guardados: sirven para reclamarle a BCI si algo no llega.
-      const idSus = String(cuerpo?.Data?.Id ?? cuerpo?.Data?.id ?? cuerpo?.id ?? cuerpo?.Id ?? "");
+      const idSus = String(cuerpo?.Data?.ID ?? cuerpo?.Data?.Id ?? cuerpo?.Data?.id ?? cuerpo?.ID ?? cuerpo?.id ?? cuerpo?.Id ?? "");
       const estado = String(cuerpo?.Data?.Status ?? cuerpo?.Data?.State ?? cuerpo?.status ?? "");
       if (idSus) {
         await SQL`INSERT INTO configuracion (clave, valor) VALUES ('bci_suscripcion_id', ${idSus})

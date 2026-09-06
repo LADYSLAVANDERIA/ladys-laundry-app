@@ -16,6 +16,7 @@ import Rutas from './pages/Rutas'
 import Usuarios from './pages/Usuarios'
 import Agenda from './pages/Agenda'
 import ReporteControl from './pages/ReporteControl'
+import Transferencias from './pages/Transferencias'
 import Prepagos from './pages/Prepagos'
 import Membresias from './pages/Membresias'
 import OrdenPublica from './pages/OrdenPublica'
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="/agenda"          element={<PrivateRoute><Agenda /></PrivateRoute>} />
         <Route path="/reporte-control" element={<PrivateRoute><ReporteControl /></PrivateRoute>} />
         <Route path="/config-local"    element={<PrivateRoute><Configuracion /></PrivateRoute>} />
+        <Route path="/transferencias" element={<PrivateRoute><Transferencias /></PrivateRoute>} />
         <Route path="/prepagos"       element={<PrivateRoute><Prepagos /></PrivateRoute>} />
         <Route path="/membresias"    element={<PrivateRoute><Membresias /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

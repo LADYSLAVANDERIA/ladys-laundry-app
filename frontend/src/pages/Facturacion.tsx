@@ -51,7 +51,7 @@ export default function Facturacion() {
       `RUT: ${c.id_fiscal || '—'}`,
       `Razón social: ${c.razon_social || b.cliente}`,
       `Giro: ${c.giro || '—'}`,
-      `Dirección: ${c.dir_facturacion || '—'}, ${c.comuna_facturacion || '—'}`,
+      `Dirección: ${c.direccion_comercial || '—'}, ${c.comuna_comercial || '—'}`,
       ``,
       `Servicio de lavandería — ${mesLargo(bor.periodo)}`,
       `Pedidos: ${b.ordenes.map((o: any) => '#' + o.id).join(', ')}`,
@@ -224,19 +224,19 @@ export default function Facturacion() {
             </div>
             <div>
               <label className="text-xs text-gray-500">Dirección</label>
-              <input value={editando.dir_facturacion || ''}
-                     onChange={(ev) => setEditando({ ...editando, dir_facturacion: ev.target.value })} className={inp} />
+              <input value={editando.direccion_comercial || ''}
+                     onChange={(ev) => setEditando({ ...editando, direccion_comercial: ev.target.value })} className={inp} />
             </div>
             <div>
               <label className="text-xs text-gray-500">Comuna</label>
-              <input value={editando.comuna_facturacion || ''} placeholder="Concón"
-                     onChange={(ev) => setEditando({ ...editando, comuna_facturacion: ev.target.value })} className={inp} />
+              <input value={editando.comuna_comercial || ''} placeholder="Concón"
+                     onChange={(ev) => setEditando({ ...editando, comuna_comercial: ev.target.value })} className={inp} />
               <p className="text-[11px] text-gray-400 mt-1">Va en campo aparte: dentro de la dirección el SII la rechaza.</p>
             </div>
             <div>
               <label className="text-xs text-gray-500">Correo para enviar la factura</label>
-              <input value={editando.email_dte || ''} type="email"
-                     onChange={(ev) => setEditando({ ...editando, email_dte: ev.target.value })} className={inp} />
+              <input value={editando.email_facturacion || ''} type="email"
+                     onChange={(ev) => setEditando({ ...editando, email_facturacion: ev.target.value })} className={inp} />
             </div>
             <div>
               <label className="text-xs text-gray-500">Cómo se factura</label>

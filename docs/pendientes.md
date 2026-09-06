@@ -34,11 +34,30 @@ Nuestro lado ya está listo y probado: el endpoint lee los nombres de campo real
 - **Marcar físicamente las dos máquinas** con el número de serie para que nadie se confunda.
 - **Dejar por escrito junto a la caja**: si se cobra en la de respaldo, esa venta queda sin boleta y hay que emitirla aparte.
 
+## SofIA con datos reales — construido, falta conectarlo
+
+El endpoint `ladys-sofia` ya está desplegado y probado. Devuelve la frase armada para copiar al cliente.
+Autenticación: header `x-api-key: ladys_webhook_2026`. Base: `https://vhjsizkbmabznupkfzji.supabase.co/functions/v1/ladys-sofia`
+
+| Pregunta del cliente | Llamada |
+|---|---|
+| ¿Está listo mi pedido? ¿Cuándo llega? ¿Cuántos kilos me quedan? | `GET /cliente?telefono={{telefono}}` |
+| ¿Cómo va el pedido 15990? | `GET /pedido/15990` |
+| ¿Qué días y horarios pasan? ¿Hay cupo? | `GET /ruta?fecha=2026-09-08` |
+
+**Lo que falta, y es solo esto: editar el prompt de SofIA en GHL** para que sepa cuándo llamar a cada una.
+Se toca al final, después del corte del 14 — no antes, para no mover el bot mientras la operación cambia de sistema.
+
+Recordar la trampa de siempre: **cada PUT al agente en GHL deja `isPrimary` en `false`** y SofIA deja de responder en silencio. Hay que volver a marcarlo primario en la interfaz después de cada cambio.
+
+**Sobre el agente de voz en el mesón:** evaluado y descartado por ahora. El cuello de botella de la atención presencial no son las palabras sino las manos — pesar, revisar, embolsar, buscar la bolsa. La voz solo paga junto con lockers, porque ahí sí desaparece una persona del proceso. Además el ruido de las máquinas rompe el reconocimiento de voz; cualquier prueba tiene que ser en el local con todo andando.
+
 ## Otros
 
 - Detalle por servicio de las 5.996 OT importadas de EasyLaundry.
 - 45 direcciones con la comuna mal ("Valparaíso"); las coordenadas están bien. Geocodificación: 657 de 690 ubicadas.
 - Avisos automáticos del Club.
+- Borrar el cliente duplicado 380 ("CLIENTE", 0 pedidos), que comparte teléfono con la ficha real de Lufi (1872).
 - Lockers.
 - Lista de precios que sube el 1 de noviembre.
 - Unificación visual del PDF del reporte diario automático (a medias).

@@ -127,11 +127,20 @@ export const rutasApi      = {
   update:  (id: number, d: object) => preciosHttp.put(`/catalogo/rutas/${id}`, d),
   remove:  (id: number) => preciosHttp.delete(`/catalogo/rutas/${id}`),
 }
+const CAJA_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-caja')
+const cajaAx = axios.create({ baseURL: CAJA_URL })
+cajaAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
 export const cajaApi = {
-  estado: () => api.get('/caja/estado'),
-  abrir:  (d: object) => api.post('/caja/abrir', d),
-  cerrar: (id: number, d: object) => api.post(`/caja/cerrar/${id}`, d),
-  reporte:(p: object) => api.get('/caja/reporte', { params: p }),
+  estado:     () => cajaAx.get('/estado'),
+  abrir:      (d: object) => cajaAx.post('/abrir', d),
+  movimiento: (d: object) => cajaAx.post('/movimiento', d),
+  cerrar:     (d: object) => cajaAx.post('/cerrar', d),
+  historial:  () => cajaAx.get('/historial'),
+  detalle:    (id: number) => cajaAx.get(`/${id}`),
 }
 export const comprasApi = {
   getAll:  (p: object) => api.get('/compras', { params: p }),

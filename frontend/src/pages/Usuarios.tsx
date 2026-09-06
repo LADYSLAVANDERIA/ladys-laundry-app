@@ -1,85 +1,200 @@
 import { useEffect, useState } from 'react'
 import { usuariosApi } from '../services/api'
+import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
-import { Plus, UserCog, X, Save, Check, XCircle } from 'lucide-react'
+import { Plus, X, Check, KeyRound, UserX, UserCheck, Pencil } from 'lucide-react'
+
+const PERFILES = [
+  { id: 'ADMINISTRADOR', label: 'Administrador', desc: 'Ve todo, incluida la plata y la configuración' },
+  { id: 'JEFE_LOCAL',    label: 'Jefe de local', desc: 'Opera el local y la ruta, sin configuración' },
+  { id: 'ASISTENTE',     label: 'Asistente',     desc: 'Recepción, producción y entrega' },
+  { id: 'CONDUCTOR',     label: 'Conductor',     desc: 'Solo la app de reparto' },
+]
+const COLOR: Record<string, string> = {
+  ADMINISTRADOR: 'bg-purple-100 text-purple-700',
+  JEFE_LOCAL:    'bg-pink-100 text-pink-700',
+  ASISTENTE:     'bg-blue-100 text-blue-700',
+  CONDUCTOR:     'bg-amber-100 text-amber-700',
+}
+const inp = 'w-full border rounded-xl px-3 py-2 text-sm'
 
 export default function Usuarios() {
+  const { user: yo } = useAuthStore()
   const [usuarios, setUsuarios] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(false)
-  const [form, setForm] = useState<any>({ perfil: 'ASISTENTE' })
+  const [cargando, setCargando] = useState(true)
+  const [nuevo, setNuevo] = useState<any>(null)
+  const [editando, setEditando] = useState<any>(null)
+  const [clave, setClave] = useState('')
 
-  const load = () => { usuariosApi.getAll().then(r => setUsuarios(r.data)).finally(() => setLoading(false)) }
-  useEffect(() => { load() }, [])
+  const cargar = () => {
+    setCargando(true)
+    usuariosApi.getAll()
+      .then(r => setUsuarios(r.data))
+      .catch(() => toast.error('No se pudo cargar'))
+      .finally(() => setCargando(false))
+  }
+  useEffect(cargar, [])
 
-  const save = async () => {
-    if (!form.nombre || !form.email || !form.password) return toast.error('Nombre, email y contraseña requeridos')
-    try { await usuariosApi.create(form); toast.success('Usuario creado'); setModal(false); setForm({ perfil: 'ASISTENTE' }); load() }
-    catch { toast.error('Error al crear usuario') }
+  const crear = async () => {
+    try {
+      await usuariosApi.create(nuevo)
+      toast.success('Usuario creado')
+      setNuevo(null); cargar()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo crear') }
   }
 
+  const guardar = async () => {
+    const datos: any = {
+      nombre: editando.nombre, telefono: editando.telefono,
+      perfil: editando.perfil, estado: editando.estado,
+    }
+    if (clave.trim()) datos.password = clave.trim()
+    try {
+      await usuariosApi.update(editando.id, datos)
+      toast.success(clave.trim() ? 'Guardado y clave cambiada' : 'Guardado')
+      setEditando(null); setClave(''); cargar()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar') }
+  }
+
+  // Desactivar es reversible y no borra nada: el historial de ese usuario queda.
+  const cambiarEstado = async (u: any) => {
+    try {
+      await usuariosApi.update(u.id, { estado: !u.estado })
+      toast.success(u.estado ? `${u.nombre} quedó desactivado` : `${u.nombre} quedó activo`)
+      cargar()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo cambiar') }
+  }
+
+  if (cargando) return <div className="py-20 text-center text-gray-400">Cargando…</div>
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
+    <div className="max-w-2xl mx-auto space-y-4">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-800">Usuarios</h1>
-        <button onClick={() => setModal(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium" style={{background:'linear-gradient(135deg,#E8177A,#A87BC8)'}}>
-          <Plus size={16}/> Nuevo usuario
+        <button onClick={() => setNuevo({ perfil: 'ASISTENTE' })}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium"
+                style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+          <Plus size={16} /> Nuevo usuario
         </button>
       </div>
-      {loading ? <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"/></div> : (
-        <div className="grid gap-3">
-          {usuarios.map(u => (
-            <div key={u.id} className="bg-white rounded-xl p-4 shadow-sm border flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style={{background:'linear-gradient(135deg,#E8177A,#A87BC8)'}}>
-                {u.nombre[0].toUpperCase()}
+
+      <div className="space-y-3">
+        {usuarios.map(u => (
+          <div key={u.id} className={`bg-white rounded-xl border p-4 ${u.estado ? '' : 'opacity-60'}`}>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold shrink-0"
+                   style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                {String(u.nombre || '?')[0].toUpperCase()}
               </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-800">{u.nombre} {u.apellido}</p>
-                <p className="text-xs text-gray-500">{u.email}</p>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-800 truncate">
+                  {u.nombre}
+                  {u.id === yo?.id && <span className="ml-2 text-[10px] text-gray-400">(tú)</span>}
+                </p>
+                <p className="text-xs text-gray-400 truncate">{u.email}</p>
               </div>
-              <div className="text-right">
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${u.perfil === 'ADMINISTRADOR' ? 'bg-purple-100 text-purple-700' : u.perfil === 'JEFE_LOCAL' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'}`}>{u.perfil}</span>
-                <p className="text-xs mt-1">{u.estado ? <span className="text-green-500 flex items-center gap-1 justify-end"><Check size={11}/>Activo</span> : <span className="text-red-400 flex items-center gap-1 justify-end"><XCircle size={11}/>Inactivo</span>}</p>
+              <div className="text-right shrink-0 space-y-1">
+                <span className={`text-[10px] px-2 py-1 rounded-full font-medium ${COLOR[u.perfil] || 'bg-gray-100 text-gray-600'}`}>
+                  {u.perfil}
+                </span>
+                <p className={`text-xs flex items-center justify-end gap-1 ${u.estado ? 'text-green-600' : 'text-gray-400'}`}>
+                  {u.estado ? <><Check size={13} /> Activo</> : 'Desactivado'}
+                </p>
               </div>
             </div>
-          ))}
-          {usuarios.length === 0 && <div className="text-center py-12 text-gray-400"><UserCog size={36} className="mx-auto mb-2 opacity-30"/><p>Sin usuarios</p></div>}
+
+            <div className="flex gap-2 mt-3 pt-3 border-t">
+              <button onClick={() => { setEditando({ ...u }); setClave('') }}
+                      className="flex-1 py-2 rounded-xl border text-xs text-gray-600 flex items-center justify-center gap-1.5">
+                <Pencil size={14} /> Editar
+              </button>
+              <button onClick={() => cambiarEstado(u)} disabled={u.id === yo?.id}
+                      className={`flex-1 py-2 rounded-xl border text-xs flex items-center justify-center gap-1.5 ${
+                        u.id === yo?.id ? 'text-gray-300' : u.estado ? 'text-red-600' : 'text-green-700'}`}>
+                {u.estado ? <><UserX size={14} /> Desactivar</> : <><UserCheck size={14} /> Activar</>}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {editando && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4"
+             onClick={() => setEditando(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-5 space-y-3 max-h-[92vh] overflow-y-auto"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-gray-800">Editar usuario</h2>
+              <button onClick={() => setEditando(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <p className="text-xs text-gray-500">{editando.email}</p>
+
+            <div>
+              <label className="text-xs text-gray-500">Nombre</label>
+              <input value={editando.nombre || ''} onChange={e => setEditando({ ...editando, nombre: e.target.value })} className={inp} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Teléfono</label>
+              <input value={editando.telefono || ''} placeholder="+56 9 ..."
+                     onChange={e => setEditando({ ...editando, telefono: e.target.value })} className={inp} />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Perfil</label>
+              <select value={editando.perfil} onChange={e => setEditando({ ...editando, perfil: e.target.value })} className={inp}>
+                {PERFILES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">
+                {PERFILES.find(p => p.id === editando.perfil)?.desc}
+              </p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+              <label className="text-xs font-medium text-amber-900 flex items-center gap-1.5">
+                <KeyRound size={13} /> Cambiar la clave de esta persona
+              </label>
+              <input value={clave} onChange={e => setClave(e.target.value)} type="text"
+                     placeholder="dejar en blanco para no cambiarla" className={inp} />
+              <p className="text-[11px] text-amber-800">
+                Mínimo 6 caracteres. Avísale para que la cambie ella misma después.
+              </p>
+            </div>
+
+            <button onClick={guardar} className="w-full py-3 rounded-xl text-white font-medium"
+                    style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+              Guardar cambios
+            </button>
+          </div>
         </div>
       )}
 
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold">Nuevo usuario</h2>
-              <button onClick={() => setModal(false)}><X size={18} className="text-gray-400"/></button>
+      {nuevo && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4"
+             onClick={() => setNuevo(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md p-5 space-y-3 max-h-[92vh] overflow-y-auto"
+               onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-gray-800">Nuevo usuario</h2>
+              <button onClick={() => setNuevo(null)}><X size={18} className="text-gray-400" /></button>
             </div>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                {[['nombre','Nombre'],['apellido','Apellido'],['email','Email'],['password','Contraseña'],['telefono','Teléfono']].map(([k,l]) => (
-                  <div key={k} className={k==='email'||k==='password'?'col-span-2':''}>
-                    <label className="text-xs text-gray-500 block mb-1">{l}</label>
-                    <input type={k==='password'?'password':k==='email'?'email':'text'} value={form[k]||''} onChange={e => setForm({...form,[k]:e.target.value})}
-                      className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none"/>
-                  </div>
-                ))}
-                <div className="col-span-2">
-                  <label className="text-xs text-gray-500 block mb-1">Perfil</label>
-                  <select value={form.perfil} onChange={e => setForm({...form,perfil:e.target.value})} className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none">
-                    <option value="ASISTENTE">ASISTENTE</option>
-                    <option value="ADMINISTRADOR">ADMINISTRADOR</option>
-                    <option value="JEFE_LOCAL">JEFE DE LOCAL</option>
-                    <option value="CONDUCTOR">CONDUCTOR</option>
-                  </select>
-                </div>
+            {[['nombre', 'Nombre', 'text'], ['email', 'Correo', 'email'],
+              ['telefono', 'Teléfono', 'text'], ['password', 'Clave inicial', 'text']].map(([k, label, tipo]) => (
+              <div key={k}>
+                <label className="text-xs text-gray-500">{label}</label>
+                <input type={tipo} value={nuevo[k] || ''}
+                       onChange={e => setNuevo({ ...nuevo, [k]: e.target.value })} className={inp} />
               </div>
+            ))}
+            <div>
+              <label className="text-xs text-gray-500">Perfil</label>
+              <select value={nuevo.perfil} onChange={e => setNuevo({ ...nuevo, perfil: e.target.value })} className={inp}>
+                {PERFILES.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+              <p className="text-[11px] text-gray-400 mt-1">{PERFILES.find(p => p.id === nuevo.perfil)?.desc}</p>
             </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={save} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-white text-sm font-medium" style={{background:'linear-gradient(135deg,#E8177A,#A87BC8)'}}>
-                <Save size={14}/> Crear usuario
-              </button>
-              <button onClick={() => setModal(false)} className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-600 text-sm">Cancelar</button>
-            </div>
+            <button onClick={crear} className="w-full py-3 rounded-xl text-white font-medium"
+                    style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+              Crear usuario
+            </button>
           </div>
         </div>
       )}

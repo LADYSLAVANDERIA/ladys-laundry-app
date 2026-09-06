@@ -218,7 +218,14 @@ Deno.serve(async (req: Request) => {
       const callback = `https://vhjsizkbmabznupkfzji.supabase.co/functions/v1/ladys-transferencias/aviso-banco?k=${ck}`;
       const r = await fetch(`https://apipartner.bci.cl/${amb}/v2/api-business-notifications/subscription`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Ocp-Apim-Subscription-Key": apiKey },
+        // x-apikey es el encabezado verificado contra la API de BCI.
+        // Se manda también el de Azure APIM por si el ambiente productivo lo exige.
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+          "x-apikey": apiKey,
+          "Ocp-Apim-Subscription-Key": apiKey,
+        },
         body: JSON.stringify({
           OrganizationName: "Ladys Lavanderia Concon SpA",
           Account: cuenta, RUT: rut, CheckDigit: dv,
@@ -226,7 +233,25 @@ Deno.serve(async (req: Request) => {
         }),
       });
       const txt = await r.text();
-      return json({ ok: r.ok, status: r.status, callback, respuesta: txt.slice(0, 600) });
+      let cuerpo: any = null;
+      try { cuerpo = JSON.parse(txt); } catch { /* el banco no siempre devuelve json */ }
+
+      // El id y el estado quedan guardados: sirven para reclamarle a BCI si algo no llega.
+      const idSus = String(cuerpo?.Data?.Id ?? cuerpo?.Data?.id ?? cuerpo?.id ?? cuerpo?.Id ?? "");
+      const estado = String(cuerpo?.Data?.Status ?? cuerpo?.Data?.State ?? cuerpo?.status ?? "");
+      if (idSus) {
+        await SQL`INSERT INTO configuracion (clave, valor) VALUES ('bci_suscripcion_id', ${idSus})
+                  ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor`;
+      }
+      if (estado) {
+        await SQL`INSERT INTO configuracion (clave, valor) VALUES ('bci_suscripcion_estado', ${estado})
+                  ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor`;
+      }
+      return json({
+        ok: r.ok, status: r.status, callback, ambiente: amb,
+        suscripcion_id: idSus || null, estado: estado || null,
+        respuesta: txt.slice(0, 2000),
+      });
     }
 
     return json({ error: "Ruta no encontrada" }, 404);

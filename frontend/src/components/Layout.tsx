@@ -11,27 +11,41 @@ import {
 
 // Quien ve cada pantalla. ADMINISTRADOR ve todo sin necesidad de listarse.
 const TODOS_OPERATIVOS = ['JEFE_LOCAL']
+// El menú va agrupado por momento del trabajo, no por orden de construcción:
+// primero el día a día, después el dinero, y al final lo que casi nunca se toca.
 const menu = [
-  { path: '/dashboard',       label: 'Dashboard',        icon: LayoutDashboard, ver: TODOS_OPERATIVOS },
-  { path: '/ordenes',         label: 'Pedidos',          icon: ClipboardList,   ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
-  { path: '/ordenes/nueva',   label: 'Nueva Orden',      icon: Plus,            ver: TODOS_OPERATIVOS },
-  { path: '/produccion',      label: 'Producción',       icon: ScanLine,        ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
-  { path: '/programacion',    label: 'Programación',     icon: Calendar,        ver: TODOS_OPERATIVOS },
-  { path: '/por-cobrar',      label: 'Por cobrar',       icon: Wallet,          ver: TODOS_OPERATIVOS },
-  { path: '/clientes',        label: 'Clientes',         icon: Users,           ver: TODOS_OPERATIVOS },
-  { path: '/membresias',      label: 'Membresías',       icon: CreditCard,      ver: TODOS_OPERATIVOS },
-  { path: '/servicios',       label: 'Servicios',        icon: Scissors,        ver: TODOS_OPERATIVOS },
-  { path: '/caja',            label: 'Caja',             icon: DollarSign,      ver: TODOS_OPERATIVOS },
-  { path: '/transferencias',  label: 'Pagos por revisar',icon: ArrowLeftRight,  ver: TODOS_OPERATIVOS },
-  { path: '/compras',         label: 'Compras/Gastos',   icon: ShoppingCart,    ver: TODOS_OPERATIVOS },
-  { path: '/reparto',         label: 'Reparto del día',  icon: Navigation,      ver: [...TODOS_OPERATIVOS, 'CONDUCTOR'] },
-  { path: '/rutas',           label: 'Rutas Delivery',   icon: Truck,           ver: TODOS_OPERATIVOS },
-  { path: '/facturacion',     label: 'Facturación',      icon: FileText,        ver: [] },
-  { path: '/analisis',        label: 'Análisis',         icon: PieChart,        ver: [] },
-  { path: '/reporte-control', label: 'Reporte Control',  icon: BarChart2,       ver: TODOS_OPERATIVOS },
-  { path: '/cotejo',          label: 'Cotejo EasyLaundry', icon: Scale,         ver: [] },
-  { path: '/usuarios',        label: 'Usuarios',         icon: UserCog,         ver: [] },
-  { path: '/config-local',    label: 'Configuración',    icon: Settings,        ver: [] },
+  { grupo: null, items: [
+    { path: '/dashboard',       label: 'Dashboard',         icon: LayoutDashboard, ver: TODOS_OPERATIVOS },
+  ]},
+  { grupo: 'El día', items: [
+    { path: '/ordenes/nueva',   label: 'Nueva orden',       icon: Plus,            ver: TODOS_OPERATIVOS },
+    { path: '/ordenes',         label: 'Pedidos',           icon: ClipboardList,   ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
+    { path: '/produccion',      label: 'Producción',        icon: ScanLine,        ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
+    { path: '/reparto',         label: 'Reparto del día',   icon: Navigation,      ver: [...TODOS_OPERATIVOS, 'CONDUCTOR'] },
+    { path: '/programacion',    label: 'Programación',      icon: Calendar,        ver: TODOS_OPERATIVOS },
+  ]},
+  { grupo: 'Dinero', items: [
+    { path: '/caja',            label: 'Caja',              icon: DollarSign,      ver: TODOS_OPERATIVOS },
+    { path: '/transferencias',  label: 'Pagos por revisar', icon: ArrowLeftRight,  ver: TODOS_OPERATIVOS },
+    { path: '/por-cobrar',      label: 'Por cobrar',        icon: Wallet,          ver: TODOS_OPERATIVOS },
+    { path: '/facturacion',     label: 'Facturación',       icon: FileText,        ver: [] },
+    { path: '/compras',         label: 'Compras y gastos',  icon: ShoppingCart,    ver: TODOS_OPERATIVOS },
+  ]},
+  { grupo: 'Clientes', items: [
+    { path: '/clientes',        label: 'Clientes',          icon: Users,           ver: TODOS_OPERATIVOS },
+    { path: '/membresias',      label: 'Membresías',        icon: CreditCard,      ver: TODOS_OPERATIVOS },
+  ]},
+  { grupo: 'Reportes', items: [
+    { path: '/analisis',        label: 'Análisis',          icon: PieChart,        ver: [] },
+    { path: '/reporte-control', label: 'Reporte de control',icon: BarChart2,       ver: TODOS_OPERATIVOS },
+    { path: '/cotejo',          label: 'Cotejo EasyLaundry',icon: Scale,           ver: [] },
+  ]},
+  { grupo: 'Configuración', items: [
+    { path: '/servicios',       label: 'Servicios y precios', icon: Scissors,      ver: TODOS_OPERATIVOS },
+    { path: '/rutas',           label: 'Rutas de reparto',    icon: Truck,         ver: TODOS_OPERATIVOS },
+    { path: '/usuarios',        label: 'Usuarios',            icon: UserCog,       ver: [] },
+    { path: '/config-local',    label: 'Ajustes del local',   icon: Settings,      ver: [] },
+  ]},
 ]
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -61,9 +75,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     if (!user?.perfil) { logout(); navigate('/login') }
   }, [user?.perfil])
 
-  const NavItem = ({ path, label, icon: Icon, ver }: typeof menu[0]) => {
+  const NavItem = ({ path, label, icon: Icon, ver }: any) => {
     if (!isAdmin() && !(ver || []).includes(user?.perfil || '')) return null
-    const active = location.pathname === path || (path !== '/dashboard' && location.pathname.startsWith(path))
+    // /ordenes es prefijo de /ordenes/nueva: sin exigir el corte en '/', las dos
+    // entradas se marcaban activas a la vez.
+    const active = location.pathname === path ||
+      (path !== '/dashboard' && path !== '/ordenes' && location.pathname.startsWith(path + '/')) ||
+      (path === '/ordenes' && /^\/ordenes\/\d+/.test(location.pathname))
     return (
       <Link to={path} onClick={() => setOpen(false)}
         className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
@@ -90,7 +108,22 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
-        {menu.map(item => <NavItem key={item.path} {...item} />)}
+        {menu.map(({ grupo, items }) => {
+          // Un grupo cuyas pantallas no puede ver este perfil no debe dejar el
+          // título flotando solo.
+          const visibles = items.filter(i => isAdmin() || i.ver.includes(user?.perfil || ''))
+          if (!visibles.length) return null
+          return (
+            <div key={grupo || 'inicio'} className={grupo ? 'mt-4' : ''}>
+              {grupo && (
+                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                  {grupo}
+                </p>
+              )}
+              {visibles.map(item => <NavItem key={item.path} {...item} />)}
+            </div>
+          )
+        })}
       </nav>
       <div className="p-4 border-t border-white/10">
         <div className="flex items-center gap-3 mb-3">

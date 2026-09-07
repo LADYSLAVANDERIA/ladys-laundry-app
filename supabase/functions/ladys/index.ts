@@ -236,8 +236,14 @@ Deno.serve(async (req: Request) => {
         (SELECT COALESCE(SUM(saldo_pendiente),0) FROM ordenes o WHERE o.cliente_id=c.id AND o.estado<>'ANULADA') AS saldo_total,
         (SELECT MAX(creado_en) FROM ordenes o WHERE o.cliente_id=c.id) AS ultima_orden,
         EXISTS (SELECT 1 FROM prepagos_cliente pp WHERE pp.cliente_id=c.id AND pp.activo=TRUE) AS tiene_membresia
-        FROM clientes c WHERE c.local_id=${lid} AND c.activo=TRUE AND c.es_ladys2=FALSE
-        ${s ? SQL`AND (c.nombre ILIKE ${"%" + s + "%"} OR c.apellido ILIKE ${"%" + s + "%"} OR c.telefono ILIKE ${"%" + s + "%"} OR c.razon_social ILIKE ${"%" + s + "%"})` : SQL``}
+        FROM clientes c WHERE c.local_id=${lid} AND c.activo=TRUE
+        ${s ? SQL`AND (
+             CONCAT_WS(' ', c.nombre, c.apellido, c.razon_social) ILIKE ${"%" + s.trim().replace(/\s+/g, "%") + "%"}
+             OR ${s.replace(/\D/g, "").length >= 4
+                   ? SQL`regexp_replace(COALESCE(c.telefono,''), '\\D', '', 'g') LIKE ${"%" + s.replace(/\D/g, "") + "%"}`
+                   : SQL`FALSE`}
+             OR c.id_fiscal ILIKE ${"%" + s.trim() + "%"}
+           )` : SQL``}
         ORDER BY c.nombre, c.apellido LIMIT 500`);
     }
     if (seg[0] === "clientes" && seg[1] && seg.length === 2 && m === "GET") {
@@ -321,7 +327,7 @@ Deno.serve(async (req: Request) => {
           (SELECT COUNT(*)::int FROM orden_fotos f WHERE f.orden_id=o.id) AS n_fotos
         FROM ordenes o JOIN clientes c ON o.cliente_id=c.id
         LEFT JOIN rutas rr ON o.ruta_recogida_id=rr.id LEFT JOIN rutas re ON o.ruta_entrega_id=re.id
-        WHERE o.local_id=${lid} AND c.es_ladys2=FALSE
+        WHERE o.local_id=${lid}
         ${est ? SQL`AND o.estado = ANY(${est.split(",")})` : SQL``}
         ${cid ? SQL`AND o.cliente_id=${Number(cid)}` : SQL``}
         ${s ? SQL`AND (c.nombre ILIKE ${"%" + s + "%"} OR c.apellido ILIKE ${"%" + s + "%"} OR c.telefono ILIKE ${"%" + s + "%"} OR CAST(o.id AS TEXT) LIKE ${"%" + s + "%"})` : SQL``}
@@ -482,7 +488,7 @@ Deno.serve(async (req: Request) => {
               de.calle AS de_calle, de.numero AS de_numero, de.otro AS de_otro, de.sector AS de_sector, de.ciudad AS de_ciudad
             FROM ordenes o JOIN clientes c ON o.cliente_id=c.id
             LEFT JOIN direcciones_clientes dr ON dr.id=o.dir_recogida_id LEFT JOIN direcciones_clientes de ON de.id=o.dir_entrega_id
-            WHERE o.local_id=${lid} AND o.estado<>'ANULADA' AND c.es_ladys2=FALSE AND (o.fecha_recogida=${fecha} OR o.fecha_entrega=${fecha}) ORDER BY o.id`,
+            WHERE o.local_id=${lid} AND o.estado<>'ANULADA' AND (o.fecha_recogida=${fecha} OR o.fecha_entrega=${fecha}) ORDER BY o.id`,
         SQL`SELECT motivo FROM dias_inhabiles WHERE local_id=${lid} AND fecha=${fecha}`,
       ]);
       ords.forEach((o: any) => { o.dir_retiro = dirTexto(o, "dr"); o.dir_entrega = dirTexto(o, "de"); });

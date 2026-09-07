@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { etapasApi, cobrosApi, transferenciasApi } from '../services/api'
+import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi} from '../services/api'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
@@ -27,6 +27,14 @@ export default function OrdenDetalle() {
   const [kilos, setKilos] = useState(''); const [express, setExpress] = useState(false); const [prendas, setPrendas] = useState<Item[]>([])
   const [subiendo, setSubiendo] = useState(false); const [aviso, setAviso] = useState<any>(null); const [momento, setMomento] = useState('RECEPCION')
 
+  const guardarNota = async (texto: string) => {
+    try {
+      await itemNotaApi.guardar(nota.id, texto)
+      toast.success(texto ? 'Instrucción guardada' : 'Instrucción borrada')
+      setNota(null); load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar') }
+  }
+
   const load = async () => {
     try {
       const { data } = await ordenesApi.getById(id!)
@@ -47,6 +55,7 @@ export default function OrdenDetalle() {
     etapasApi.orden(o.id).then(r => setTraza(r.data.pasos || [])).catch(() => setTraza([]))
   }, [o])
   const [tipoTicket, setTipoTicket] = useState<'cliente' | 'interno'>('cliente')
+  const [nota, setNota] = useState<any>(null)
   useEffect(() => {
     if (!o) return
     QRCode.toDataURL(String(o.id), { margin: 0, width: 150 })
@@ -276,9 +285,20 @@ export default function OrdenDetalle() {
             <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
               <div className="px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-500">DETALLE</div>
               {o.items.map((i: any) => (
-                <div key={i.id} className="flex justify-between px-4 py-2.5 border-b last:border-0 text-sm">
-                  <span className="text-gray-700">{i.nombre} <span className="text-gray-400">× {Number(i.cantidad)}</span></span>
-                  <span className="font-medium">{fmt(i.subtotal)}</span>
+                <div key={i.id} className="px-4 py-2.5 border-b last:border-0 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-gray-700">{i.nombre} <span className="text-gray-400">× {Number(i.cantidad)}</span></span>
+                    <span className="font-medium shrink-0">{fmt(i.subtotal)}</span>
+                  </div>
+                  {i.nota
+                    ? <button onClick={() => setNota({ id: i.id, nombre: i.nombre, nota: i.nota })}
+                        className="mt-1 text-xs text-left text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 w-full">
+                        {i.nota}
+                      </button>
+                    : <button onClick={() => setNota({ id: i.id, nombre: i.nombre, nota: '' })}
+                        className="mt-1 text-xs text-gray-400 hover:text-pink-600">
+                        + instrucción para este servicio
+                      </button>}
                 </div>
               ))}
               <div className="px-4 py-3 bg-gray-50 space-y-1 text-sm">
@@ -364,38 +384,47 @@ export default function OrdenDetalle() {
 
       {/* Ticket interno: lo que producción necesita ver de un vistazo, nada más */}
       <div className={`print-only text-black ${tipoTicket === 'cliente' ? 'no-imprimir-ahora' : ''}`}
-           style={{ width: '54mm', fontSize: '11px', fontFamily: 'monospace', textAlign: 'center' }}>
-        <p style={{ fontWeight: 'bold', fontSize: 11, letterSpacing: 1 }}>LADYS · INTERNO</p>
+           style={{ width: '54mm', fontSize: '14px', fontFamily: 'monospace', textAlign: 'center' }}>
+        <p style={{ fontWeight: 'bold', fontSize: 13, letterSpacing: 1 }}>LADYS · INTERNO</p>
         <p style={{ border: '2px solid #000', padding: '4px 0', fontWeight: 'bold',
                     fontSize: 20, margin: '4px 0' }}>{ot(o.id)}</p>
         {qr && <img src={qr} alt="" style={{ width: 120, height: 120, margin: '2px auto' }} />}
-        <p style={{ fontSize: 13, fontWeight: 'bold', marginTop: 4 }}>
-          {String(o.cliente_nombre || '').slice(0, 24)}
+        <p style={{ fontSize: 16, fontWeight: 'bold', marginTop: 5, lineHeight: 1.2 }}>
+          {String(o.cliente_nombre || '')}
         </p>
-        <p style={{ fontSize: 11, marginTop: 2 }}>
+        <p style={{ fontSize: 14, marginTop: 3 }}>
           Entrega: {o.fecha_entrega ? fechaCorta(o.fecha_entrega) : 'por definir'}
         </p>
-        <p style={{ border: '1px solid #000', padding: '3px 0', fontWeight: 'bold',
-                    fontSize: 13, marginTop: 5 }}>
+        <p style={{ border: '1px solid #000', padding: '4px 0', fontWeight: 'bold',
+                    fontSize: 14, marginTop: 6 }}>
           {o.entrega_domicilio ? 'DESPACHO A DOMICILIO' : 'ENTREGA EN LOCAL'}
         </p>
         {o.tipo_servicio === 'EXPRESS' && (
-          <p style={{ fontWeight: 'bold', fontSize: 13, marginTop: 4 }}>** EXPRESS **</p>
+          <p style={{ fontWeight: 'bold', fontSize: 16, marginTop: 5 }}>** EXPRESS **</p>
         )}
 
         {/* Qué hay que hacer con esta ropa. Sin precios: al que lava no le
             sirven y ocupan el ancho del ticket. */}
         <div style={{ borderTop: '1px dashed #000', marginTop: 5, paddingTop: 4, textAlign: 'left' }}>
           {o.items.map((i: any) => (
-            <div key={i.id} style={{ display: 'flex', gap: 4, fontSize: 10, marginBottom: 2 }}>
-              <span style={{ fontWeight: 'bold', minWidth: 26 }}>{Number(i.cantidad)}x</span>
-              <span style={{ flex: 1, lineHeight: 1.2 }}>
-                {servicioCorto(i.nombre)}
-              </span>
+            <div key={i.id} style={{ marginBottom: 5 }}>
+              <div style={{ display: 'flex', gap: 5, fontSize: 14 }}>
+                <span style={{ fontWeight: 'bold', minWidth: 30 }}>{Number(i.cantidad)}x</span>
+                <span style={{ flex: 1, lineHeight: 1.25, fontWeight: 'bold' }}>
+                  {servicioCorto(i.nombre)}
+                </span>
+              </div>
+              {/* La instrucción viaja pegada a su prenda, no perdida al final. */}
+              {i.nota && (
+                <p style={{ fontSize: 13, marginLeft: 30, lineHeight: 1.25,
+                            borderLeft: '3px solid #000', paddingLeft: 5, marginTop: 2 }}>
+                  {i.nota}
+                </p>
+              )}
             </div>
           ))}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold',
-                        fontSize: 11, marginTop: 4, borderTop: '1px solid #000', paddingTop: 3 }}>
+                        fontSize: 14, marginTop: 5, borderTop: '1px solid #000', paddingTop: 4 }}>
             <span>{Number(o.kilos) > 0 ? `${Number(o.kilos)} kg` : `${o.items.length} ${o.items.length === 1 ? 'ítem' : 'ítems'}`}</span>
             <span>{o.bultos} {Number(o.bultos) === 1 ? 'bulto' : 'bultos'}</span>
           </div>
@@ -403,8 +432,8 @@ export default function OrdenDetalle() {
 
         {/* Manchas, instrucciones y lo que se recogió: es lo que evita reprocesos. */}
         {o.observaciones && (
-          <p style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4, fontSize: 10,
-                      textAlign: 'left', lineHeight: 1.25 }}>{o.observaciones}</p>
+          <p style={{ borderTop: '1px dashed #000', marginTop: 5, paddingTop: 4, fontSize: 13,
+                      textAlign: 'left', lineHeight: 1.3 }}>{o.observaciones}</p>
         )}
       </div>
 
@@ -636,6 +665,30 @@ export default function OrdenDetalle() {
             <div className="flex gap-2">
               <button onClick={() => cambiar('ANULADA', { motivo_anulacion: (document.getElementById('motivo') as HTMLInputElement)?.value })} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold text-sm">Anular orden</button>
               <button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {nota && (
+        <div className="no-print fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4"
+             onClick={() => setNota(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-5 space-y-3"
+               onClick={e => e.stopPropagation()}>
+            <h2 className="font-bold text-gray-800">Instrucción para operaciones</h2>
+            <p className="text-xs text-gray-500">{nota.nombre}</p>
+            <textarea value={nota.nota} rows={3} autoFocus
+                      onChange={e => setNota({ ...nota, nota: e.target.value })}
+                      placeholder="Mancha de vino en la solapa, no usar secadora, etc."
+                      className="w-full border rounded-xl px-3 py-2 text-sm" />
+            <p className="text-[11px] text-gray-400">Sale impresa en el ticket interno, junto a este servicio.</p>
+            <div className="flex gap-2">
+              {nota.nota && (
+                <button onClick={() => guardarNota('')} className="px-4 py-3 rounded-xl border text-sm text-red-600">
+                  Borrar
+                </button>
+              )}
+              <button onClick={() => guardarNota(nota.nota)} className="flex-1 py-3 rounded-xl text-white font-medium"
+                      style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Guardar</button>
             </div>
           </div>
         </div>

@@ -313,3 +313,12 @@ export const indicadoresApi = {
   get: () => indAx.get(''),
   pendientes: (tipo?: string) => indAx.get('/pendientes', { params: { tipo } }),
 }
+
+const NOTA_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-item-nota')
+const notaAx = axios.create({ baseURL: NOTA_URL })
+notaAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const itemNotaApi = { guardar: (itemId: number, nota: string) => notaAx.put(`/${itemId}`, { nota }) }

@@ -2,23 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { seguimientoApi } from '../services/api'
 import { Truck, MapPin, Clock, CheckCircle2, PackageCheck } from 'lucide-react'
-
-declare global { interface Window { L: any } }
-function cargarLeaflet(): Promise<any> {
-  if (window.L) return Promise.resolve(window.L)
-  return new Promise((res, rej) => {
-    if (!document.getElementById('leaflet-css')) {
-      const css = document.createElement('link')
-      css.id = 'leaflet-css'; css.rel = 'stylesheet'
-      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-      document.head.appendChild(css)
-    }
-    const s = document.createElement('script')
-    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-    s.onload = () => res(window.L); s.onerror = rej
-    document.head.appendChild(s)
-  })
-}
+import { cargarGoogle, ESTILO, pin } from '../lib/google'
 
 function haceCuanto(iso: string) {
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
@@ -51,36 +35,35 @@ export default function SeguirPedido() {
 
   useEffect(() => {
     if (!div.current || !d?.destino) return
-    cargarLeaflet().then(L => {
+    cargarGoogle().then(g => {
+      const destino = { lat: d.destino.lat, lng: d.destino.lng }
       if (!mapa.current) {
-        mapa.current = L.map(div.current!, { zoomControl: false })
-          .setView([d.destino.lat, d.destino.lng], 14)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-          { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(mapa.current)
+        mapa.current = new g.maps.Map(div.current!, {
+          center: destino, zoom: 14, styles: ESTILO,
+          mapTypeControl: false, streetViewControl: false,
+          fullscreenControl: false, zoomControl: false, gestureHandling: 'greedy',
+        })
       }
       if (!pinCasa.current) {
-        pinCasa.current = L.marker([d.destino.lat, d.destino.lng], {
-          icon: L.divIcon({
-            className: '', iconSize: [34, 34], iconAnchor: [17, 17],
-            html: `<div style="width:34px;height:34px;border-radius:50%;background:#E8177A;color:#fff;
-              display:flex;align-items:center;justify-content:center;font-size:16px;
-              border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.3)">🏡</div>`,
-          }),
-        }).addTo(mapa.current)
+        pinCasa.current = new g.maps.Marker({
+          position: destino, map: mapa.current, icon: pin('C', '#E8177A'), title: 'Tu direccion',
+        })
       }
       if (d.conductor) {
-        const pos: [number, number] = [d.conductor.lat, d.conductor.lng]
+        const pos = { lat: d.conductor.lat, lng: d.conductor.lng }
         if (!pinAuto.current) {
-          pinAuto.current = L.marker(pos, {
-            icon: L.divIcon({
-              className: '', iconSize: [38, 38], iconAnchor: [19, 19],
-              html: `<div style="width:38px;height:38px;border-radius:50%;background:#4AAEE0;color:#fff;
-                display:flex;align-items:center;justify-content:center;font-size:18px;
-                border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.35)">🚚</div>`,
-            }),
-          }).addTo(mapa.current)
-        } else pinAuto.current.setLatLng(pos)
-        mapa.current.fitBounds([pos, [d.destino.lat, d.destino.lng]], { padding: [50, 50], maxZoom: 15 })
+          pinAuto.current = new g.maps.Marker({
+            position: pos, map: mapa.current, icon: pin('R', '#4AAEE0'),
+            title: 'Repartidor', zIndex: 90,
+          })
+        } else pinAuto.current.setPosition(pos)
+        const caja = new g.maps.LatLngBounds()
+        caja.extend(pos); caja.extend(destino)
+        mapa.current.fitBounds(caja, 50)
+        // con los dos puntos casi encima, fitBounds acerca de mas
+        g.maps.event.addListenerOnce(mapa.current, 'idle', () => {
+          if (mapa.current.getZoom() > 15) mapa.current.setZoom(15)
+        })
       }
     })
   }, [d])

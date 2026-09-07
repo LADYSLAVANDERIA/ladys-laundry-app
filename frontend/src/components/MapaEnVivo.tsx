@@ -1,26 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { Truck, Clock, MapPin } from 'lucide-react'
+import { cargarGoogle, ESTILO, pin } from '../lib/google'
 
 const SEG = (import.meta.env.VITE_API_URL || 'https://vhjsizkbmabznupkfzji.supabase.co/functions/v1/ladys/api')
   .replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-seguimiento')
-
-declare global { interface Window { L: any } }
-function cargarLeaflet(): Promise<any> {
-  if (window.L) return Promise.resolve(window.L)
-  return new Promise((res, rej) => {
-    if (!document.getElementById('leaflet-css')) {
-      const css = document.createElement('link')
-      css.id = 'leaflet-css'; css.rel = 'stylesheet'
-      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-      document.head.appendChild(css)
-    }
-    const s = document.createElement('script')
-    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-    s.onload = () => res(window.L); s.onerror = rej
-    document.head.appendChild(s)
-  })
-}
 
 function haceCuanto(iso: string) {
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
@@ -55,36 +39,32 @@ export default function MapaEnVivo({ datos }: { datos: any }) {
 
   useEffect(() => {
     if (!div.current || !datos?.destino) return
-    cargarLeaflet().then(L => {
+    cargarGoogle().then(g => {
+      const destino = { lat: datos.destino.lat, lng: datos.destino.lng }
       if (!mapa.current) {
-        mapa.current = L.map(div.current!, { zoomControl: false, attributionControl: false })
-          .setView([datos.destino.lat, datos.destino.lng], 14)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapa.current)
-        L.marker([datos.destino.lat, datos.destino.lng], {
-          icon: L.divIcon({
-            className: '', iconSize: [30, 30], iconAnchor: [15, 15],
-            html: `<div style="width:30px;height:30px;border-radius:50%;background:#E8177A;
-              display:flex;align-items:center;justify-content:center;font-size:14px;
-              border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)">🏡</div>`,
-          }),
-        }).addTo(mapa.current)
+        mapa.current = new g.maps.Map(div.current!, {
+          center: destino, zoom: 14, styles: ESTILO,
+          mapTypeControl: false, streetViewControl: false,
+          fullscreenControl: false, zoomControl: false,
+          gestureHandling: 'greedy',
+        })
+        new g.maps.Marker({ position: destino, map: mapa.current,
+          icon: pin('C', '#E8177A'), title: 'Tu direccion' })
       }
       if (datos.conductor) {
-        const pos: [number, number] = [datos.conductor.lat, datos.conductor.lng]
+        const pos = { lat: datos.conductor.lat, lng: datos.conductor.lng }
         if (!auto.current) {
-          auto.current = L.marker(pos, {
-            icon: L.divIcon({
-              className: '', iconSize: [34, 34], iconAnchor: [17, 17],
-              html: `<div style="width:34px;height:34px;border-radius:50%;background:#4AAEE0;
-                display:flex;align-items:center;justify-content:center;font-size:16px;
-                border:3px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,.35)">🚚</div>`,
-            }),
-          }).addTo(mapa.current)
-        } else auto.current.setLatLng(pos)
-        mapa.current.fitBounds([pos, [datos.destino.lat, datos.destino.lng]],
-          { padding: [40, 40], maxZoom: 15 })
+          auto.current = new g.maps.Marker({ position: pos, map: mapa.current,
+            icon: pin('R', '#4AAEE0'), title: 'Repartidor', zIndex: 90 })
+        } else auto.current.setPosition(pos)
+        const caja = new g.maps.LatLngBounds()
+        caja.extend(pos); caja.extend(destino)
+        mapa.current.fitBounds(caja, 45)
+        // fitBounds acerca demasiado cuando los dos puntos estan casi juntos
+        g.maps.event.addListenerOnce(mapa.current, 'idle', () => {
+          if (mapa.current.getZoom() > 15) mapa.current.setZoom(15)
+        })
       }
-      setTimeout(() => mapa.current?.invalidateSize(), 120)
     })
   }, [datos])
 

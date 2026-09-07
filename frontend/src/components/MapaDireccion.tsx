@@ -2,29 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Search, MapPin, Crosshair, Loader2, Check } from 'lucide-react'
 import { dirApi } from '../services/api'
 import toast from 'react-hot-toast'
+import { cargarGoogle, ESTILO } from '../lib/google'
 
 const CONCON: [number, number] = [-32.9280, -71.5280]
 const COMUNAS = ['Concón', 'Reñaca', 'Viña del Mar', 'Valparaíso', 'Quintero']
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
-
-declare global { interface Window { L: any } }
-
-// Carga Leaflet una sola vez desde CDN
-function cargarLeaflet(): Promise<any> {
-  if (window.L) return Promise.resolve(window.L)
-  return new Promise((res, rej) => {
-    if (!document.getElementById('leaflet-css')) {
-      const css = document.createElement('link')
-      css.id = 'leaflet-css'; css.rel = 'stylesheet'
-      css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-      document.head.appendChild(css)
-    }
-    const s = document.createElement('script')
-    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-    s.onload = () => res(window.L); s.onerror = rej
-    document.head.appendChild(s)
-  })
-}
 
 type Props = {
   valor: any
@@ -44,36 +26,47 @@ export default function MapaDireccion({ valor, onChange, alto = 220 }: Props) {
   // inicializar el mapa
   useEffect(() => {
     let vivo = true
-    cargarLeaflet().then(L => {
+    cargarGoogle().then(g => {
       if (!vivo || !div.current || mapa.current) return
-      const centro: [number, number] = valor?.lat && valor?.lng ? [Number(valor.lat), Number(valor.lng)] : CONCON
-      const m = L.map(div.current, { attributionControl: false }).setView(centro, valor?.lat ? 17 : 13)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(m)
-      const p = L.marker(centro, { draggable: true }).addTo(m)
-      p.on('dragend', async () => {
-        const { lat, lng } = p.getLatLng()
+      const centro = valor?.lat && valor?.lng
+        ? { lat: Number(valor.lat), lng: Number(valor.lng) }
+        : { lat: CONCON[0], lng: CONCON[1] }
+      const m = new g.maps.Map(div.current, {
+        center: centro, zoom: valor?.lat ? 18 : 13, styles: ESTILO,
+        mapTypeControl: false, streetViewControl: false,
+        fullscreenControl: false, gestureHandling: 'greedy',
+      })
+      const p = new g.maps.Marker({ position: centro, map: m, draggable: true })
+
+      // Al soltar el pin se guarda la coordenada y, si la ficha aun no tiene
+      // calle, se completa con la que Google reconoce en ese punto.
+      p.addListener('dragend', async () => {
+        const lat = p.getPosition().lat(), lng = p.getPosition().lng()
         onChange({ ...valor, lat: Number(lat.toFixed(7)), lng: Number(lng.toFixed(7)) })
         try {
           const { data } = await dirApi.desdePunto({ lat, lng })
-          if (data.calle && !valor?.calle) onChange({ ...valor, lat, lng, calle: data.calle, numero: data.numero || valor?.numero })
+          if (data.calle && !valor?.calle) {
+            onChange({ ...valor, lat, lng, calle: data.calle, numero: data.numero || valor?.numero })
+          }
         } catch { /* opcional */ }
       })
-      m.on('click', (e: any) => {
-        p.setLatLng(e.latlng)
-        onChange({ ...valor, lat: Number(e.latlng.lat.toFixed(7)), lng: Number(e.latlng.lng.toFixed(7)) })
+      m.addListener('click', (e: any) => {
+        const lat = e.latLng.lat(), lng = e.latLng.lng()
+        p.setPosition(e.latLng)
+        onChange({ ...valor, lat: Number(lat.toFixed(7)), lng: Number(lng.toFixed(7)) })
       })
       mapa.current = m; pin.current = p; setListo(true)
-      setTimeout(() => m.invalidateSize(), 250)
     }).catch(() => toast.error('No se pudo cargar el mapa'))
-    return () => { vivo = false; if (mapa.current) { mapa.current.remove(); mapa.current = null } }
+    return () => { vivo = false; mapa.current = null; pin.current = null }
   }, [])
 
   // mover el pin si cambian las coordenadas desde fuera
   useEffect(() => {
     if (!listo || !valor?.lat || !valor?.lng) return
-    const ll: [number, number] = [Number(valor.lat), Number(valor.lng)]
-    pin.current?.setLatLng(ll)
-    mapa.current?.setView(ll, Math.max(mapa.current.getZoom(), 17))
+    const ll = { lat: Number(valor.lat), lng: Number(valor.lng) }
+    pin.current?.setPosition(ll)
+    mapa.current?.panTo(ll)
+    if (mapa.current && mapa.current.getZoom() < 18) mapa.current.setZoom(18)
   }, [valor?.lat, valor?.lng, listo])
 
   const buscar = async () => {

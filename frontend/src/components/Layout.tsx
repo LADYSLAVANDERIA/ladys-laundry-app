@@ -38,7 +38,6 @@ const menu = [
   ]},
   { grupo: 'Reportes', items: [
     { path: '/analisis',        label: 'Análisis',          icon: PieChart,        ver: [] },
-    { path: '/reporte-control', label: 'Reporte de control',icon: BarChart2,       ver: TODOS_OPERATIVOS },
     { path: '/cotejo',          label: 'Cotejo EasyLaundry',icon: Scale,           ver: [] },
   ]},
   { grupo: 'Configuración', items: [

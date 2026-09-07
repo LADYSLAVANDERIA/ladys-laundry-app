@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { dashboardApi, ordenesApi } from '../services/api'
+import { dashboardApi, ordenesApi, cierreApi } from '../services/api'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 import { Users, Package, Clock, CheckCircle, TrendingUp, AlertCircle } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
@@ -24,6 +24,21 @@ export default function Dashboard() {
       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" />
     </div>
   )
+
+  // El cierre por período era una pantalla aparte (Reporte de Control). Vive acá
+  // porque se mira junto con lo del día, no como un reporte separado.
+  const hoyStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
+  const [desde, setDesde] = useState(hoyStr)
+  const [hasta, setHasta] = useState(hoyStr)
+  const [cierre, setCierre] = useState<any>(null)
+  const [cargandoCierre, setCargandoCierre] = useState(false)
+  const verCierre = async (d = desde, h = hasta) => {
+    setCargandoCierre(true)
+    try { const r = await cierreApi.get(d, h); setCierre(r.data) }
+    catch { setCierre(null) }
+    finally { setCargandoCierre(false) }
+  }
+  useEffect(() => { verCierre() }, [])
 
   const kpis = [
     { label: 'Clientes', value: data?.kpis?.total_clientes, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -138,6 +153,79 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Cierre por período — antes era la pantalla "Reporte de Control" */}
+      <div className="bg-white rounded-xl p-5 shadow-sm border space-y-4">
+        <div className="flex items-end justify-between gap-3 flex-wrap">
+          <h2 className="font-semibold text-gray-700">Cierre por período</h2>
+          <div className="flex items-end gap-2 flex-wrap">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Desde</label>
+              <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
+                     className="border rounded-xl px-3 py-2 text-sm outline-none" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Hasta</label>
+              <input type="date" value={hasta} onChange={e => setHasta(e.target.value)}
+                     className="border rounded-xl px-3 py-2 text-sm outline-none" />
+            </div>
+            <button onClick={() => verCierre()} className="px-5 py-2 rounded-xl text-white text-sm font-medium"
+                    style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Ver</button>
+          </div>
+        </div>
+
+        <div className="flex gap-2 flex-wrap text-xs">
+          {[['Hoy', hoyStr, hoyStr],
+            ['Ayer', new Date(Date.now() - 86400000).toLocaleDateString('sv-SE'), new Date(Date.now() - 86400000).toLocaleDateString('sv-SE')],
+            ['Este mes', hoyStr.slice(0, 8) + '01', hoyStr]].map(([l, d, h]) => (
+            <button key={l} onClick={() => { setDesde(d); setHasta(h); verCierre(d, h) }}
+                    className="px-3 py-1.5 rounded-lg border text-gray-600">{l}</button>
+          ))}
+        </div>
+
+        {cargandoCierre ? (
+          <p className="text-center text-sm text-gray-400 py-6">Cargando…</p>
+        ) : !cierre ? (
+          <p className="text-center text-sm text-gray-400 py-6">Sin movimientos en el período.</p>
+        ) : (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[['Órdenes', cierre.ordenes, 'text-gray-800'],
+                ['Kilos', cierre.kilos, 'text-gray-800'],
+                ['Ventas', fmt(cierre.ventas), 'text-pink-600'],
+                ['Por cobrar', fmt(cierre.por_cobrar), 'text-red-600']].map(([l, v, col]) => (
+                <div key={l as string} className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400">{l as string}</p>
+                  <p className={`font-bold ${col as string}`}>{v as any}</p>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <p className="text-xs text-gray-400 mb-1.5">
+                Plata que entró en el período · {fmt(cierre.ingresos)}
+              </p>
+              {cierre.medios.length === 0 ? (
+                <p className="text-xs text-gray-400">No hay pagos registrados en estas fechas.</p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {cierre.medios.map((m: any) => (
+                    <div key={m.medio} className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-400">{m.medio}</p>
+                      <p className="font-bold text-sm text-gray-700">{fmt(m.total)}</p>
+                      <p className="text-[11px] text-gray-400">{m.pagos} {m.pagos === 1 ? 'pago' : 'pagos'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-gray-400 mt-2">
+                Los ingresos se cuentan por la fecha del pago; las ventas, por la fecha de retiro
+                de la orden. Por eso no tienen por qué coincidir.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -292,3 +292,12 @@ export const facturacionApi = {
   crearDoc:     (datos: any) => factAx.post('/documento', datos),
   borrarDoc:    (id: number) => factAx.delete(`/documento/${id}`),
 }
+
+const CIERRE_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-cierre')
+const cierreAx = axios.create({ baseURL: CIERRE_URL })
+cierreAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const cierreApi = { get: (desde: string, hasta: string) => cierreAx.get('', { params: { desde, hasta } }) }

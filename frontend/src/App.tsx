@@ -79,7 +79,7 @@ export default function App() {
         <Route path="/cotejo"          element={<PrivateRoute><Cotejo /></PrivateRoute>} />
         <Route path="/usuarios"        element={<PrivateRoute><Usuarios /></PrivateRoute>} />
         <Route path="/agenda"          element={<PrivateRoute><Agenda /></PrivateRoute>} />
-        <Route path="/reporte-control" element={<PrivateRoute><ReporteControl /></PrivateRoute>} />
+        <Route path="/reporte-control" element={<Navigate to="/dashboard" replace />} />
         <Route path="/config-local"    element={<PrivateRoute><Configuracion /></PrivateRoute>} />
         <Route path="/facturacion" element={<PrivateRoute><Facturacion /></PrivateRoute>} />
         <Route path="/analisis" element={<PrivateRoute><Tablero /></PrivateRoute>} />

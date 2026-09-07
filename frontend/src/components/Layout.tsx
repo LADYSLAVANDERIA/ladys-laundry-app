@@ -198,7 +198,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <header className="bg-white border-b px-4 py-3 flex items-center gap-3">
           <button onClick={() => setOpen(true)} className="text-gray-600 md:hidden"><Menu size={22} /></button>
           <span className="font-bold text-pink-600 md:hidden">Ladys</span>
-          <div className="flex-1 overflow-x-auto">
+          {/* scrollbar-hide para que en el celular se deslice sin barra a la vista */}
+          <div className="flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <BarraIndicadores />
           </div>
         </header>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ordenesApi, indicadoresApi } from '../services/api'
+import { ordenesApi, indicadoresApi, rutasApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { MessageCircle, ChevronRight, AlertTriangle, Wallet, Search, Loader2 } from 'lucide-react'
 import { fmt, ot, fechaCorta, telWa, linkOT, ESTADO_LABEL, ESTADO_COLOR, hoy } from '../utils'
@@ -16,6 +16,8 @@ export default function PorCobrar() {
   const [ordenes, setOrdenes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
+  const [rutas, setRutas] = useState<any[]>([])
+  const [reagendar, setReagendar] = useState<any>(null)
 
   const load = async () => {
     setLoading(true)
@@ -32,6 +34,24 @@ export default function PorCobrar() {
     } catch { toast.error('No se pudo cargar') } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [tipo])
+  useEffect(() => {
+    if (tipo === 'despacho') rutasApi.getAll().then(r => setRutas(r.data.filter((x: any) => x.activo !== false))).catch(() => {})
+  }, [tipo])
+
+  const DIAS = ['DOMINGO','LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO']
+  const rutasDelDia = (f: string) =>
+    rutas.filter(r => r.dia_semana === DIAS[new Date(f + 'T12:00:00').getDay()] && r.tipo !== 'SOLO_RETIROS')
+
+  const guardarReagenda = async () => {
+    try {
+      await ordenesApi.update(reagendar.id, {
+        fecha_entrega: reagendar.fecha_entrega,
+        ruta_entrega_id: reagendar.ruta_entrega_id || null,
+      })
+      toast.success(`Pedido ${ot(reagendar.id)} reagendado`)
+      setReagendar(null); load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo reagendar') }
+  }
 
   const clientes = useMemo(() => {
     const filtradas = q ? ordenes.filter(o => (o.cliente_nombre || '').toLowerCase().includes(q.toLowerCase()) || String(o.id).includes(q)) : ordenes
@@ -93,6 +113,34 @@ export default function PorCobrar() {
         </div>
       )}
 
+      {tipo === 'despacho' ? (
+        <div className="space-y-2">
+          {ordenes.map((o: any) => (
+            <div key={o.id} className="bg-white rounded-xl border p-4 space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <button onClick={() => navigate(`/ordenes/${o.id}`)} className="font-semibold text-gray-800 hover:underline">
+                    {ot(o.id)} · {o.cliente_nombre}
+                  </button>
+                  <p className="text-xs text-gray-500">{o.direccion_entrega || 'sin dirección'}</p>
+                  <p className="text-xs text-gray-400">
+                    Era para el {fechaCorta(o.fecha_entrega)}{o.ruta_entrega ? ` · ${o.ruta_entrega}` : ''}
+                  </p>
+                </div>
+                <span className="text-xs font-bold text-orange-700 bg-orange-50 border border-orange-200 rounded-full px-2.5 py-1 shrink-0">
+                  {o.dias_atraso} {o.dias_atraso === 1 ? 'día' : 'días'}
+                </span>
+              </div>
+              <button
+                onClick={() => setReagendar({ id: o.id, fecha_entrega: hoy(), ruta_entrega_id: '' })}
+                className="w-full py-2.5 rounded-xl text-white text-sm font-medium"
+                style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                Reagendar entrega
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (<>
       <div className="relative">
         <Search size={16} className="absolute left-3 top-3 text-gray-400" />
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar cliente u OT…"
@@ -145,6 +193,39 @@ export default function PorCobrar() {
           </div>
         )}
       <p className="text-xs text-gray-400 text-center pb-4">Actualizado {fechaCorta(hoy())}</p>
+      </>)}
+
+      {reagendar && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center sm:p-4"
+             onClick={() => setReagendar(null)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-sm p-5 space-y-3"
+               onClick={e => e.stopPropagation()}>
+            <h2 className="font-bold text-gray-800">Reagendar {ot(reagendar.id)}</h2>
+            <div>
+              <label className="text-xs text-gray-500">Nueva fecha de entrega</label>
+              <input type="date" value={reagendar.fecha_entrega}
+                     onChange={e => setReagendar({ ...reagendar, fecha_entrega: e.target.value, ruta_entrega_id: '' })}
+                     className="w-full border rounded-xl px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500">Ruta</label>
+              <select value={reagendar.ruta_entrega_id}
+                      onChange={e => setReagendar({ ...reagendar, ruta_entrega_id: e.target.value })}
+                      className="w-full border rounded-xl px-3 py-2 text-sm">
+                <option value="">Sin ruta asignada</option>
+                {rutasDelDia(reagendar.fecha_entrega).map(r => (
+                  <option key={r.id} value={r.id}>{r.nombre}</option>
+                ))}
+              </select>
+              {rutasDelDia(reagendar.fecha_entrega).length === 0 && (
+                <p className="text-[11px] text-amber-700 mt-1">Ese día no hay ruta. Elige otra fecha.</p>
+              )}
+            </div>
+            <button onClick={guardarReagenda} className="w-full py-3 rounded-xl text-white font-medium"
+                    style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Guardar</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

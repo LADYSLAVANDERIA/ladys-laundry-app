@@ -301,3 +301,12 @@ cierreAx.interceptors.request.use(config => {
   return config
 })
 export const cierreApi = { get: (desde: string, hasta: string) => cierreAx.get('', { params: { desde, hasta } }) }
+
+const IND_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-indicadores')
+const indAx = axios.create({ baseURL: IND_URL })
+indAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const indicadoresApi = { get: () => indAx.get('') }

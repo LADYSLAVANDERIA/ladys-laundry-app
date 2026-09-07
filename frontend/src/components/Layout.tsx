@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { usuariosApi } from '../services/api'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import BarraIndicadores from './BarraIndicadores'
 import {
   Home, LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
   DollarSign, ArrowLeftRight, PieChart, FileText, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
@@ -192,9 +193,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="md:hidden bg-white border-b px-4 py-3 flex items-center gap-3">
-          <button onClick={() => setOpen(true)} className="text-gray-600"><Menu size={22} /></button>
-          <span className="font-bold text-pink-600">Ladys Lavandería</span>
+        {/* La barra de indicadores va en el escritorio y en el celular: son los
+            números que el equipo mira varias veces al día. */}
+        <header className="bg-white border-b px-4 py-3 flex items-center gap-3">
+          <button onClick={() => setOpen(true)} className="text-gray-600 md:hidden"><Menu size={22} /></button>
+          <span className="font-bold text-pink-600 md:hidden">Ladys</span>
+          <div className="flex-1 overflow-x-auto">
+            <BarraIndicadores />
+          </div>
         </header>
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {children}

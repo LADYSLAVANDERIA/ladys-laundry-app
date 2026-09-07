@@ -309,4 +309,7 @@ indAx.interceptors.request.use(config => {
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
-export const indicadoresApi = { get: () => indAx.get('') }
+export const indicadoresApi = {
+  get: () => indAx.get(''),
+  pendientes: (tipo?: string) => indAx.get('/pendientes', { params: { tipo } }),
+}

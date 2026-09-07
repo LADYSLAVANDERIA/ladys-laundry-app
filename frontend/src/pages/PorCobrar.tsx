@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ordenesApi } from '../services/api'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ordenesApi, indicadoresApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { MessageCircle, ChevronRight, AlertTriangle, Wallet, Search, Loader2 } from 'lucide-react'
 import { fmt, ot, fechaCorta, telWa, linkOT, ESTADO_LABEL, ESTADO_COLOR, hoy } from '../utils'
@@ -9,6 +9,10 @@ const dias = (f: string) => Math.floor((Date.now() - new Date(f).getTime()) / 86
 
 export default function PorCobrar() {
   const navigate = useNavigate()
+  // El tipo viene de los indicadores de arriba: el reloj manda particulares y
+  // el museo empresas en mora. Sin tipo, se muestra todo lo que tenga saldo.
+  const [params] = useSearchParams()
+  const tipo = params.get('tipo') || ''
   const [ordenes, setOrdenes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [q, setQ] = useState('')
@@ -16,11 +20,18 @@ export default function PorCobrar() {
   const load = async () => {
     setLoading(true)
     try {
-      const { data } = await ordenesApi.getAll({})
-      setOrdenes(data.filter((o: any) => Number(o.saldo_pendiente) > 0 && o.estado !== 'ANULADA'))
+      if (tipo) {
+        // El listado general no trae el tipo de cliente ni el plazo de pago,
+        // así que la clasificación la hace el servidor.
+        const { data } = await indicadoresApi.pendientes(tipo)
+        setOrdenes(data.ordenes)
+      } else {
+        const { data } = await ordenesApi.getAll({})
+        setOrdenes(data.filter((o: any) => Number(o.saldo_pendiente) > 0 && o.estado !== 'ANULADA'))
+      }
     } catch { toast.error('No se pudo cargar') } finally { setLoading(false) }
   }
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [tipo])
 
   const clientes = useMemo(() => {
     const filtradas = q ? ordenes.filter(o => (o.cliente_nombre || '').toLowerCase().includes(q.toLowerCase()) || String(o.id).includes(q)) : ordenes
@@ -51,7 +62,20 @@ export default function PorCobrar() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Por cobrar</h1>
+          <h1 className="text-2xl font-bold text-gray-800">
+            {tipo === 'particular' ? 'Se lo llevaron sin pagar'
+             : tipo === 'empresa'  ? 'Empresas en mora'
+             : 'Por cobrar'}
+          </h1>
+          {tipo && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              {tipo === 'particular'
+                ? 'Particulares sin crédito que ya recibieron su pedido.'
+                : 'Con crédito vencido, o sin crédito y ya entregadas.'}
+              {' '}
+              <button onClick={() => navigate('/por-cobrar')} className="underline">ver todo</button>
+            </p>
+          )}
           <p className="text-gray-500 text-sm">{clientes.length} clientes · {ordenes.length} órdenes con saldo</p>
         </div>
         <div className="text-right">

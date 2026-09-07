@@ -42,6 +42,7 @@ async function sincronizar(fecha: string) {
       LIMIT 1
     ) d ON TRUE
     WHERE o.fecha_recogida = ${fecha}::date AND o.retiro_domicilio AND o.estado <> 'ANULADA'
+      AND o.recibida_el IS NULL
     ON CONFLICT (fecha, orden_id, tipo) DO UPDATE
       SET direccion_id = EXCLUDED.direccion_id, lat = EXCLUDED.lat, lng = EXCLUDED.lng
       WHERE reparto_paradas.estado = 'PENDIENTE'`;
@@ -59,6 +60,7 @@ async function sincronizar(fecha: string) {
       LIMIT 1
     ) d ON TRUE
     WHERE o.fecha_entrega = ${fecha}::date AND o.entrega_domicilio AND o.estado <> 'ANULADA'
+      AND o.entregada_el IS NULL
     ON CONFLICT (fecha, orden_id, tipo) DO UPDATE
       SET direccion_id = EXCLUDED.direccion_id, lat = EXCLUDED.lat, lng = EXCLUDED.lng
       WHERE reparto_paradas.estado = 'PENDIENTE'`;
@@ -69,8 +71,10 @@ async function sincronizar(fecha: string) {
     WHERE p.fecha = ${fecha}::date AND p.estado = 'PENDIENTE'
       AND NOT EXISTS (
         SELECT 1 FROM ordenes o WHERE o.id = p.orden_id AND o.estado <> 'ANULADA'
-          AND ((p.tipo = 'RETIRO'  AND o.fecha_recogida = ${fecha}::date AND o.retiro_domicilio)
-            OR (p.tipo = 'ENTREGA' AND o.fecha_entrega  = ${fecha}::date AND o.entrega_domicilio)))`;
+          AND ((p.tipo = 'RETIRO'  AND o.fecha_recogida = ${fecha}::date AND o.retiro_domicilio
+                                    AND o.recibida_el IS NULL)
+            OR (p.tipo = 'ENTREGA' AND o.fecha_entrega  = ${fecha}::date AND o.entrega_domicilio
+                                    AND o.entregada_el IS NULL)))`;
 }
 
 // ── paradas del día con todo lo que el conductor necesita ver ──

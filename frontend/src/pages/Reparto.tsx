@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { repartoApi } from '../services/api'
 import toast from 'react-hot-toast'
 import {
-  Wand2, ChevronUp, ChevronDown, Navigation, Route, Clock,
+  Wand2, ChevronUp, ChevronDown, Navigation, Route, Clock, GripVertical,
   AlertTriangle, Check, X, Smartphone, RefreshCw,
 } from 'lucide-react'
 import { rutaCompletaMaps } from '../utils'
@@ -18,7 +18,9 @@ const dirDe = (p: any) => [p.calle, p.depto, p.sector, p.ciudad].filter(Boolean)
 
 export default function Reparto() {
   const [fecha, setFecha] = useState(hoy())
-  const [inicio, setInicio] = useState('16:00')
+  const [inicio, setInicio] = useState('19:00')
+  const [arrastrando, setArrastrando] = useState<number | null>(null)
+  const [encima, setEncima] = useState<number | null>(null)
   const [data, setData] = useState<any>(null)
   const [paradas, setParadas] = useState<any[]>([])
   const [cargando, setCargando] = useState(true)
@@ -111,15 +113,33 @@ export default function Reparto() {
     finally { setOptimizando(false) }
   }
 
-  const mover = async (i: number, dir: number) => {
-    const j = i + dir
-    if (j < 0 || j >= paradas.length) return
-    const copia = [...paradas]
-    ;[copia[i], copia[j]] = [copia[j], copia[i]]
+  const guardarOrden = async (copia: any[]) => {
     copia.forEach((p, k) => (p.secuencia = k + 1))
     setParadas(copia)
     try { await repartoApi.reordenar(copia.map(p => p.id)) }
     catch { toast.error('No se pudo guardar el orden'); cargar() }
+  }
+
+  const mover = (i: number, dir: number) => {
+    const j = i + dir
+    if (j < 0 || j >= paradas.length) return
+    const copia = [...paradas]
+    ;[copia[i], copia[j]] = [copia[j], copia[i]]
+    guardarOrden(copia)
+  }
+
+  // Arrastrar y soltar para reordenar la ruta.
+  // La parada se saca de su posicion y se inserta en la nueva, en vez de
+  // intercambiarla con la de destino: mover la parada 5 al primer lugar debe
+  // empujar al resto hacia abajo, no cambiarla de puesto con la que estaba ahi.
+  const soltarEn = (destino: number) => {
+    const origen = arrastrando
+    setArrastrando(null); setEncima(null)
+    if (origen === null || origen === destino) return
+    const copia = [...paradas]
+    const [p] = copia.splice(origen, 1)
+    copia.splice(destino, 0, p)
+    guardarOrden(copia)
   }
 
   // toda la ruta abierta de una vez en el navegador del teléfono
@@ -184,6 +204,11 @@ export default function Reparto() {
         <div className="px-4 py-3 border-b flex items-center justify-between">
           <span className="font-semibold text-gray-700">
             {paradas.length} parada(s){data ? ` · ${data.completadas} listas` : ''}
+            {paradas.length > 1 && (
+              <span className="ml-2 font-normal text-xs text-gray-400">
+                arrastra para cambiar el orden
+              </span>
+            )}
           </span>
           <a href="#/conductor" className="text-xs flex items-center gap-1.5 text-gray-500 hover:text-gray-700">
             <Smartphone size={14} /> Vista del conductor
@@ -197,12 +222,25 @@ export default function Reparto() {
         ) : (
           <div className="divide-y">
             {paradas.map((p, i) => (
-              <div key={p.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="flex flex-col">
-                  <button onClick={() => mover(i, -1)} disabled={i === 0}
-                          className="text-gray-300 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={16} /></button>
-                  <button onClick={() => mover(i, 1)} disabled={i === paradas.length - 1}
-                          className="text-gray-300 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={16} /></button>
+              <div key={p.id}
+                   draggable
+                   onDragStart={() => setArrastrando(i)}
+                   onDragEnd={() => { setArrastrando(null); setEncima(null) }}
+                   onDragOver={e => { e.preventDefault(); if (encima !== i) setEncima(i) }}
+                   onDrop={e => { e.preventDefault(); soltarEn(i) }}
+                   className={`flex items-center gap-3 px-4 py-3 transition-colors ${
+                     arrastrando === i ? 'opacity-40' : ''} ${
+                     encima === i && arrastrando !== null && arrastrando !== i
+                       ? 'bg-pink-50 border-t-2 border-pink-400' : ''}`}>
+                <div className="flex items-center gap-1 shrink-0">
+                  <GripVertical size={18} className="text-gray-300 cursor-grab active:cursor-grabbing" />
+                  {/* las flechas quedan para el telefono, donde arrastrar es incomodo */}
+                  <div className="flex flex-col sm:hidden">
+                    <button onClick={() => mover(i, -1)} disabled={i === 0}
+                            className="text-gray-300 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={16} /></button>
+                    <button onClick={() => mover(i, 1)} disabled={i === paradas.length - 1}
+                            className="text-gray-300 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={16} /></button>
+                  </div>
                 </div>
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
                      style={{ background: p.estado === 'COMPLETADA' ? '#16a34a'

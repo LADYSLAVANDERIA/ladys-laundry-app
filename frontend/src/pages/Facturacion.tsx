@@ -156,7 +156,7 @@ export default function Facturacion() {
               <thead className="bg-gray-50 text-gray-600">
                 <tr>
                   <th className="p-2"><input type="checkbox" checked={sel.length === filas.length} onChange={todo} /></th>
-                  <th className="p-2 text-left">Cliente</th><th className="p-2">Fecha</th><th className="p-2">OT</th>
+                  <th className="p-2 text-left">Cliente</th><th className="p-2">Retiro</th><th className="p-2">OT</th>
                   <th className="p-2 text-right">Neto</th><th className="p-2 text-right">IVA</th>
                   <th className="p-2 text-right">Total</th><th className="p-2 text-right">Abono</th>
                   <th className="p-2 text-right">Pendiente</th>
@@ -201,7 +201,7 @@ export default function Facturacion() {
           {vista === 'cobrar' && (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600"><tr>
-                <th className="p-2 text-left">Cliente</th><th className="p-2">Fecha</th><th className="p-2">OT</th>
+                <th className="p-2 text-left">Cliente</th><th className="p-2">Retiro</th><th className="p-2">OT</th>
                 <th className="p-2 text-right">Total</th><th className="p-2 text-right">Abono</th>
                 <th className="p-2 text-right">Pendiente</th><th className="p-2">Días</th>
               </tr></thead>

@@ -110,3 +110,12 @@ export const servicioCorto = (nombre: string) =>
     .replace(/^LAVADO Y SECADO\s*[-–]?\s*/i, '')
     .replace(/\s*[-–]\s*/g, ' ')
     .trim()
+
+// El número de operación de Mercado Pago es el mismo que la máquina imprime en
+// el ticket ("Operación #..."). Con ese número se ubica la boleta en el portal
+// de Mercado Pago, que es quien la emite: el folio del SII no viaja por la API,
+// así que este es el único puente que tenemos hacia el documento.
+export const opMercadoPago = (referencia?: string | null) => {
+  const m = String(referencia || '').match(/^MP(?:POS)?-(\d+)$/)
+  return m ? m[1] : ''
+}

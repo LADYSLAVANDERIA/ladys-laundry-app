@@ -7,7 +7,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto} from '../utils'
+import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -352,7 +352,7 @@ export default function OrdenDetalle() {
                 <div className="px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-500">PAGOS</div>
                 {o.pagos.map((p: any) => (
                   <div key={p.id} className="flex justify-between px-4 py-2.5 border-b last:border-0 text-sm">
-                    <span className="text-gray-600">{p.forma_nombre || 'Pago'} <span className="text-gray-400 text-xs">· {fechaHora(p.creado_en)}</span></span>
+                    <span className="text-gray-600">{p.forma_nombre || 'Pago'} <span className="text-gray-400 text-xs">· {fechaHora(p.creado_en)}{opMercadoPago(p.referencia) ? ` · Operación ${opMercadoPago(p.referencia)}` : ''}</span></span>
                     <span className="font-medium text-green-600">{fmt(p.monto)}</span>
                   </div>
                 ))}

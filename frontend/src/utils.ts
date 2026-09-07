@@ -190,3 +190,14 @@ export const mensajeSegunEtapa = (o: any, link: string) => {
   }
   return `Hola ${n}, ${cuerpo}\n\nSíguelo acá: ${link}`
 }
+
+// Con qué nombre queda el aviso en el historial de la OT. Sale de la misma
+// etapa que decide el texto, así el registro nunca dice algo distinto de lo
+// que realmente se le mandó al cliente.
+export const tipoAviso = (o: any) => {
+  if (o?.estado === 'ANULADA') return 'ANULACION'
+  const etapa = String(o?.etapa || (o?.estado === 'PRE_ORDEN' ? 'AGENDADO' : 'RECEPCIONADO'))
+  if (etapa === 'AGENDADO') return 'AGENDADO'
+  if (etapa === 'ENTREGADO') return 'ENTREGA'
+  return ETAPAS_LISTAS.includes(etapa) ? 'PEDIDO LISTO' : 'RECEPCION'
+}

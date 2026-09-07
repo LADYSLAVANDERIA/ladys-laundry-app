@@ -7,7 +7,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa} from '../utils'
+import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa, tipoAviso} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -211,6 +211,15 @@ export default function OrdenDetalle() {
   // la pantalla: se veía en blanco al abrir cualquier pedido.
   if (!o) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
 
+  const avisarWhatsapp = () => {
+    // La ventana se abre ANTES del await: si se abre después, el navegador la
+    // toma como popup y la bloquea. Primero WhatsApp, después el registro.
+    window.open(waLink(o.cliente_telefono, msgWa), '_blank')
+    ordenesApi.aviso(o.id, { tipo: tipoAviso(o), mensaje: msgWa })
+      .then(() => load())
+      .catch(() => toast.error('Se abrió WhatsApp, pero no se pudo dejar el registro en la OT'))
+  }
+
   const msgWa = mensajeSegunEtapa(o, linkOT(o.id, o.token_publico))
 
   return (
@@ -272,7 +281,7 @@ export default function OrdenDetalle() {
           <button onClick={() => imprimir('interno')} title="Ticket interno de producción"
                   className="px-3 py-2.5 border rounded-xl text-xs font-medium"
                   style={{ borderColor: '#E8177A', color: '#E8177A' }}>Ticket interno</button>
-          {o.cliente_telefono && <a href={waLink(o.cliente_telefono, msgWa)} target="_blank" rel="noreferrer" className="p-2.5 border rounded-xl text-green-600 hover:bg-green-50"><MessageCircle size={16} /></a>}
+          {o.cliente_telefono && <button onClick={avisarWhatsapp} title="Avisar por WhatsApp y dejarlo en el historial" className="p-2.5 border rounded-xl text-green-600 hover:bg-green-50"><MessageCircle size={16} /></button>}
         </div>
 
         {/* Acciones de estado */}
@@ -377,12 +386,31 @@ export default function OrdenDetalle() {
             <div className="bg-white rounded-2xl shadow-sm border p-4">
               <p className="text-xs font-semibold text-gray-500 mb-3">HISTORIAL</p>
               <div className="space-y-3">
-                {o.historial.map((h: any) => (
+                {[
+                  // El backend deja DOS filas por aviso: una en historial y otra
+                  // en orden_avisos con el texto completo. Se muestra la segunda
+                  // y se descarta la primera, si no el aviso aparece duplicado.
+                  ...o.historial.filter((h: any) => !/^Aviso al cliente:/i.test(String(h.nota || ''))),
+                  ...(o.avisos || []).map((a: any) => ({ ...a, es_aviso: true, id: 'av' + a.id })),
+                ]
+                  .sort((a: any, b: any) => String(b.creado_en).localeCompare(String(a.creado_en)))
+                  .map((h: any) => (
                   <div key={h.id} className="flex gap-2.5 text-xs">
-                    <div className="w-2 h-2 rounded-full bg-pink-400 mt-1 flex-shrink-0" />
+                    <div className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${h.es_aviso ? 'bg-green-500' : 'bg-pink-400'}`} />
                     <div className="flex-1 min-w-0">
-                      {h.estado && <p className="font-medium text-gray-700">{ESTADO_LABEL[h.estado] || h.estado}</p>}
-                      {h.nota && <p className="text-gray-500">{h.nota}</p>}
+                      {h.es_aviso ? (
+                        <>
+                          <p className="font-medium text-green-700 flex items-center gap-1">
+                            <MessageCircle size={10} /> WhatsApp enviado · {String(h.tipo || '').toLowerCase()}
+                          </p>
+                          <p className="text-gray-500 whitespace-pre-line border-l-2 border-gray-100 pl-2 my-1">{h.mensaje}</p>
+                        </>
+                      ) : (
+                        <>
+                          {h.estado && <p className="font-medium text-gray-700">{ESTADO_LABEL[h.estado] || h.estado}</p>}
+                          {h.nota && <p className="text-gray-500">{h.nota}</p>}
+                        </>
+                      )}
                       <p className="text-gray-400 flex items-center gap-1"><Clock size={9} />{fechaHora(h.creado_en)}{h.usuario_nombre ? ` · ${h.usuario_nombre}` : ''}</p>
                     </div>
                   </div>

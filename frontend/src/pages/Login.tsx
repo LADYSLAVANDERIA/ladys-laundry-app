@@ -18,7 +18,7 @@ export default function Login() {
     try {
       const { data } = await authApi.login({ email, password })
       setAuth(data.usuario || data.user, data.token)
-      navigate('/dashboard')
+      navigate(data.usuario?.perfil === 'CONDUCTOR' ? '/reparto' : '/inicio')
     } catch {
       toast.error('Credenciales incorrectas')
     } finally {

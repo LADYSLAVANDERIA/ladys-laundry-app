@@ -17,6 +17,7 @@ import Usuarios from './pages/Usuarios'
 import Agenda from './pages/Agenda'
 import ReporteControl from './pages/ReporteControl'
 import Transferencias from './pages/Transferencias'
+import Inicio from './pages/Inicio'
 import Tablero from './pages/Tablero'
 import Facturacion from './pages/Facturacion'
 import Prepagos from './pages/Prepagos'
@@ -57,7 +58,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/conductor" element={<SoloToken><Conductor /></SoloToken>} />
         <Route path="/estacion" element={<SoloToken><Estacion /></SoloToken>} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/" element={<Navigate to="/inicio" replace />} />
+        <Route path="/inicio" element={<PrivateRoute><Inicio /></PrivateRoute>} />
         <Route path="/dashboard"       element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/clientes"        element={<PrivateRoute><Clientes /></PrivateRoute>} />
         <Route path="/clientes/nuevo"  element={<PrivateRoute><NuevoCliente /></PrivateRoute>} />

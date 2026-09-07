@@ -4,7 +4,7 @@ import { usuariosApi } from '../services/api'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import {
-  LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
+  Home, LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
   DollarSign, ArrowLeftRight, PieChart, FileText, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
   LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet, KeyRound
 } from 'lucide-react'
@@ -15,6 +15,7 @@ const TODOS_OPERATIVOS = ['JEFE_LOCAL']
 // primero el día a día, después el dinero, y al final lo que casi nunca se toca.
 const menu = [
   { grupo: null, items: [
+    { path: '/inicio',          label: 'Inicio',            icon: Home,            ver: [...TODOS_OPERATIVOS, 'ASISTENTE', 'CONDUCTOR'] },
     { path: '/dashboard',       label: 'Dashboard',         icon: LayoutDashboard, ver: TODOS_OPERATIVOS },
   ]},
   { grupo: 'El día', items: [

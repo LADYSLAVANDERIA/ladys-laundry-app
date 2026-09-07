@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import { ArrowLeft, Search, Save, UserPlus, MapPin, Truck, Store, Percent, AlertTriangle, CreditCard, Plus, X, Phone } from 'lucide-react'
 import { fmt, hoy, addDiasHabiles, diaSemana, ot, hora } from '../utils'
 
+const SERVICIO_AJUSTE = 78
 const RUTA_RET = ['RETIROS_Y_ENTREGAS', 'SOLO_RETIROS'], RUTA_ENT = ['RETIROS_Y_ENTREGAS', 'SOLO_ENTREGAS']
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 
@@ -113,14 +114,27 @@ export default function NuevaOrden() {
     setF((p: any) => ({ ...p, fecha_entrega: addDiasHabiles(p.fecha_recogida || hoy(), plazo) }))
   }, [plazo, f.fecha_recogida, fechaTocada])
 
-  const subtotal = items.reduce((s, i) => s + i.subtotal, 0)
   const pct = Number(config.descuento_continuidad || 10)
-  const descuento = f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0
-  const total = subtotal - descuento + Number(f.monto_delivery || 0)
   const minimo = Number(config.minimo_retiro || 20000)
   // Mínimo de venta en el mesón. Aplica a cualquier pedido, con kilos o prendas.
   const minimoLocal = Number(config.minimo_venta_local || 14500)
   const domicilio = f.retiro_domicilio || f.entrega_domicilio
+  const minimoAplica = domicilio ? minimo : minimoLocal
+
+  // Si el pedido no llega al mínimo, se agrega una línea por la diferencia.
+  // Va como ítem y no como un ajuste suelto para que quede en el ticket, en la
+  // factura y en los reportes: es venta, no un descuadre.
+  const baseItems = items.reduce((s, i) => s + i.subtotal, 0)
+  const descBase = f.aplicar_descuento ? Math.round(baseItems * pct / 100) : 0
+  const faltante = Math.max(0, minimoAplica - (baseItems - descBase + Number(f.monto_delivery || 0)))
+  const itemsConAjuste = (baseItems > 0 && faltante > 0 && !f.sin_minimo)
+    ? [...items, { servicio_id: SERVICIO_AJUSTE, nombre: 'AJUSTE POR PEDIDO MÍNIMO',
+                   cantidad: 1, precio_unit: faltante, subtotal: faltante, tipo: 'AJUSTE' }]
+    : items
+
+  const subtotal = itemsConAjuste.reduce((s, i) => s + i.subtotal, 0)
+  const descuento = f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0
+  const total = subtotal - descuento + Number(f.monto_delivery || 0)
   const rutasRet = rutas.filter(r => r.dia_semana === diaSemana(f.fecha_recogida) && RUTA_RET.includes(r.tipo))
   const rutasEnt = rutas.filter(r => r.dia_semana === diaSemana(f.fecha_entrega) && RUTA_ENT.includes(r.tipo))
   const memb = cliente?.membresia
@@ -150,7 +164,7 @@ export default function NuevaOrden() {
       // Una orden por plazo cuando corresponde dividir; si no, una sola con todo.
       const partes = (hayVariosPlazos && dividir)
         ? gruposPorPlazo
-        : [{ dias: plazo, items }]
+        : [{ dias: plazo, items: itemsConAjuste }]
       const creadas: number[] = []
 
       for (let n = 0; n < partes.length; n++) {
@@ -372,7 +386,11 @@ export default function NuevaOrden() {
           <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-3">
             <p className="font-semibold text-gray-700">4 · Total y pago</p>
             <div className="space-y-1.5 text-sm">
-              {items.map((i, n) => <div key={n} className="flex justify-between text-gray-600"><span className="truncate pr-2">{i.nombre} × {i.cantidad}</span><span>{fmt(i.subtotal)}</span></div>)}
+              {itemsConAjuste.map((i: any, n: number) => (
+                <div key={n} className={`flex justify-between ${i.tipo === 'AJUSTE' ? 'text-amber-700' : 'text-gray-600'}`}>
+                  <span className="truncate pr-2">{i.nombre} × {i.cantidad}</span><span>{fmt(i.subtotal)}</span>
+                </div>
+              ))}
               {!items.length && <p className="text-gray-400 text-xs">Agrega kilos o prendas…</p>}
               <div className="flex justify-between border-t pt-2"><span>Subtotal</span><span className="font-medium">{fmt(subtotal)}</span></div>
               <label className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 cursor-pointer ${f.aplicar_descuento ? 'bg-green-50 text-green-700' : 'text-gray-500'}`}>
@@ -382,11 +400,26 @@ export default function NuevaOrden() {
               {Number(f.monto_delivery) > 0 && <div className="flex justify-between"><span>Delivery</span><span>{fmt(f.monto_delivery)}</span></div>}
               <div className="flex justify-between text-xl font-bold border-t pt-2"><span>Total</span><span className="text-pink-600">{fmt(total)}</span></div>
             </div>
-            {domicilio && total > 0 && total < minimo && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2 flex items-center gap-1"><AlertTriangle size={12} /> Bajo el mínimo a domicilio ({fmt(minimo)})</p>}
-            {!domicilio && total > 0 && total < minimoLocal && (
-              <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2 flex items-center gap-1">
-                <AlertTriangle size={12} /> Bajo el mínimo del local ({fmt(minimoLocal)}), faltan {fmt(minimoLocal - total)}
-              </p>
+            {faltante > 0 && !f.sin_minimo && (
+              <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2 space-y-1.5">
+                <p className="flex items-center gap-1">
+                  <AlertTriangle size={12} />
+                  No llega al mínimo {domicilio ? 'a domicilio' : 'del local'} ({fmt(minimoAplica)}).
+                  Se agregó {fmt(faltante)} para completarlo.
+                </p>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" checked={!!f.sin_minimo}
+                         onChange={e => setF({ ...f, sin_minimo: e.target.checked })} />
+                  <span>Cobrar sin el mínimo</span>
+                </label>
+              </div>
+            )}
+            {f.sin_minimo && total > 0 && total < minimoAplica && (
+              <label className="text-xs text-gray-500 flex items-center gap-1.5 cursor-pointer bg-gray-50 rounded-lg p-2">
+                <input type="checkbox" checked={!!f.sin_minimo}
+                       onChange={e => setF({ ...f, sin_minimo: e.target.checked })} />
+                <span>Sin cobrar el mínimo ({fmt(minimoAplica)})</span>
+              </label>
             )}
 
             {memb ? (

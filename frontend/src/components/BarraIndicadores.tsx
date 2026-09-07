@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { indicadoresApi } from '../services/api'
-import { DollarSign, Bell, Flag, Hourglass, Landmark } from 'lucide-react'
+import { DollarSign, Bell, Flag, Truck, Hourglass, Landmark } from 'lucide-react'
 
 const plata = (v: any) => '$' + Math.round(Number(v) || 0).toLocaleString('es-CL')
 
@@ -39,6 +39,12 @@ export default function BarraIndicadores() {
       icono: Flag, a: '/ordenes?estado=LISTA', valor: d.por_entregar,
       clase: 'bg-blue-50 text-blue-700 border-blue-200',
       titulo: `${d.por_entregar} pedidos listos esperando entrega`,
+    },
+    {
+      // Se quedaron en el camión: su fecha de entrega pasó y siguen sin salir.
+      icono: Truck, a: '/por-cobrar?tipo=despacho', valor: d.despachos_vencidos,
+      clase: 'bg-orange-50 text-orange-700 border-orange-200',
+      titulo: `${d.despachos_vencidos} despachos quedaron pendientes de entrega`,
     },
     {
       // Particulares sin crédito que se llevaron la ropa sin pagar.

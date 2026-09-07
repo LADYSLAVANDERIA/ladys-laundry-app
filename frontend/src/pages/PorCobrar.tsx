@@ -65,12 +65,15 @@ export default function PorCobrar() {
           <h1 className="text-2xl font-bold text-gray-800">
             {tipo === 'particular' ? 'Se lo llevaron sin pagar'
              : tipo === 'empresa'  ? 'Empresas en mora'
+             : tipo === 'despacho' ? 'Despachos que quedaron pendientes'
              : 'Por cobrar'}
           </h1>
           {tipo && (
             <p className="text-xs text-gray-400 mt-0.5">
               {tipo === 'particular'
                 ? 'Particulares sin crédito que ya recibieron su pedido.'
+                : tipo === 'despacho'
+                ? 'Iban a domicilio, su fecha de entrega ya pasó y siguen sin salir. Hay que reprogramarlos.'
                 : 'Con crédito vencido, o sin crédito y ya entregadas.'}
               {' '}
               <button onClick={() => navigate('/por-cobrar')} className="underline">ver todo</button>

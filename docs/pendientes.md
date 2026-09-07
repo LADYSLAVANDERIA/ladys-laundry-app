@@ -96,6 +96,18 @@ Para lograrlo, las 5.999 órdenes históricas se corrieron de 10001–15999 a **
 
 **RUT que faltan:** de 30 empresas solo 6 tienen RUT. Ninguna tiene giro, que no está en el Registro de Ventas ni en nuestra base — se saca del PDF de una factura ya emitida.
 
+## Club Total — plan ilimitado
+
+Servicio **ilimitado** por $200.000 los 30 días. No descuenta kilos ni saldo. Lo que sí se registra es el **valor de lista de todo lo consumido**, para mostrarle al cliente cuánto habría pagado sin el plan: ese número es el argumento de venta, porque casi siempre consume más de lo que paga.
+
+El valor de lista se recupera de `orden_items`, que conserva el precio aunque la orden se cobre en cero. Función `ladys.consumo_membresia(prepago_id)` y endpoint `ladys-membresias`, que además devuelve la **frase lista para leerle al cliente**.
+
+**Cargadas el 6-sep**, ambas pagadas con POS de Mercado Pago:
+- Alejandra Mora (cliente 1) — ciclo 1-sep a 1-oct — OT 115967, consumo $39.585
+- Joanna Cella (cliente 884) — ciclo 2-sep a 2-oct — OT 115980, consumo $182.020 en **una sola orden**
+
+Joanna llegó al 91% del plan con un solo pedido. Vale la pena mirar la rentabilidad real del Club Total con un par de meses de datos antes de venderlo más.
+
 ## Otros
 
 - **Resuelto (6-sep):** el detalle por servicio de las OT históricas quedó importado. 5.988 de 5.996 órdenes con detalle, 9.112 líneas, kilos recalculados. Quedan 10 sin detalle (no existen en el reporte de EasyLaundry).

@@ -201,3 +201,37 @@ export const tipoAviso = (o: any) => {
   if (etapa === 'ENTREGADO') return 'ENTREGA'
   return ETAPAS_LISTAS.includes(etapa) ? 'PEDIDO LISTO' : 'RECEPCION'
 }
+
+// ── Bitácora de ediciones ───────────────────────────────────────────────────
+// Editar una OT dejaba en el historial una línea muda: "Orden editada · total
+// $X". No se sabía qué se había tocado. Acá se arma el detalle campo por campo
+// comparando lo que había con lo que se manda, y el backend lo guarda tal cual
+// porque su ruta PUT ya respeta `nota` cuando viene.
+export const describirCambios = (
+  antes: any,
+  despues: Record<string, any>,
+  etiquetas: Record<string, string>,
+  formato: Record<string, (v: any) => string> = {},
+) => {
+  const muestra = (campo: string, v: any) => {
+    if (formato[campo]) return formato[campo](v) || '—'
+    if (v === null || v === undefined || v === '') return '—'
+    return String(v)
+  }
+  const partes: string[] = []
+  for (const [campo, label] of Object.entries(etiquetas)) {
+    if (!(campo in despues)) continue
+    const a = muestra(campo, antes?.[campo] ?? null)
+    const b = muestra(campo, despues[campo] ?? null)
+    if (a === b) continue
+    partes.push(`${label}: ${a} → ${b}`)
+  }
+  return partes
+}
+
+// Resumen corto de los ítems, para poder comparar antes y después sin escribir
+// media pantalla en el historial.
+export const resumenItems = (items: any[]) =>
+  (items || [])
+    .map((i: any) => `${String(i.nombre || '').replace(/^SERVICIO /i, '')} x${Number(i.cantidad)}`)
+    .join(', ') || '—'

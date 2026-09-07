@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ordenesApi, indicadoresApi, rutasApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { MessageCircle, ChevronRight, AlertTriangle, Wallet, Search, Loader2 } from 'lucide-react'
-import { fmt, ot, fechaCorta, telWa, linkOT, ESTADO_LABEL, ESTADO_COLOR, hoy } from '../utils'
+import { fmt, ot, fechaCorta, telWa, linkOT, ESTADO_LABEL, ESTADO_COLOR, hoy, describirCambios} from '../utils'
 
 const dias = (f: string) => Math.floor((Date.now() - new Date(f).getTime()) / 86400000)
 
@@ -66,9 +66,17 @@ export default function PorCobrar() {
 
   const guardarReagenda = async () => {
     try {
-      await ordenesApi.update(reagendar.id, {
+      const datos = {
         fecha_entrega: reagendar.fecha_entrega,
         ruta_entrega_id: reagendar.ruta_entrega_id || null,
+      }
+      const nombreRuta = (id: any) => rutas.find((r: any) => String(r.id) === String(id))?.nombre || '—'
+      const cambios = describirCambios(reagendar, datos,
+        { fecha_entrega: 'Entrega', ruta_entrega_id: 'Ruta de entrega' },
+        { fecha_entrega: (v: any) => (v ? fechaCorta(v) : '—'), ruta_entrega_id: nombreRuta })
+      await ordenesApi.update(reagendar.id, {
+        ...datos,
+        nota: cambios.length ? 'Reagendado · ' + cambios.join(' · ') : 'Reagendado',
       })
       toast.success(`Pedido ${ot(reagendar.id)} reagendado`)
       setReagendar(null); load()

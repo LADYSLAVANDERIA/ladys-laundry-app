@@ -7,7 +7,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa, tipoAviso} from '../utils'
+import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa, tipoAviso, describirCambios, resumenItems} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -100,12 +100,36 @@ export default function OrdenDetalle() {
     const { buildItems } = await import('../components/ItemsPicker')
     const items = buildItems(servicios, kilos, express, prendas)
     if (!items.length) return toast.error('La orden debe tener al menos un ítem')
-    try { await ordenesApi.update(o.id, { items, kilos: Number(String(kilos).replace(',', '.') || 0), tipo_servicio: express ? 'EXPRESS' : 'NORMAL' }); toast.success('Ítems actualizados'); setModal(null); load() }
+    const datos = { items, kilos: Number(String(kilos).replace(',', '.') || 0), tipo_servicio: express ? 'EXPRESS' : 'NORMAL' }
+    const cambios = [
+      ...describirCambios(o, datos, { kilos: 'Kilos', tipo_servicio: 'Servicio' }),
+      ...(resumenItems(o.items) !== resumenItems(items) ? [`Detalle: ${resumenItems(o.items)} → ${resumenItems(items)}`] : []),
+    ]
+    if (!cambios.length) { toast('No cambiaste nada'); setModal(null); return }
+    try { await ordenesApi.update(o.id, { ...datos, nota: 'Ítems editados · ' + cambios.join(' · ') }); toast.success('Ítems actualizados'); setModal(null); load() }
     catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
   }
   const guardarLogistica = async () => {
     try {
-      await ordenesApi.update(o.id, { fecha_recogida: edit.fecha_recogida || null, ruta_recogida_id: edit.ruta_recogida_id || null, fecha_entrega: edit.fecha_entrega || null, ruta_entrega_id: edit.ruta_entrega_id || null, observaciones: edit.observaciones, bultos: Number(edit.bultos || 1) })
+      // ot_easylaundry se editaba en el formulario pero nunca se enviaba
+      const datos = {
+        fecha_recogida: edit.fecha_recogida || null, ruta_recogida_id: edit.ruta_recogida_id || null,
+        fecha_entrega: edit.fecha_entrega || null, ruta_entrega_id: edit.ruta_entrega_id || null,
+        observaciones: edit.observaciones || null, bultos: Number(edit.bultos || 1),
+        ot_easylaundry: edit.ot_easylaundry || null,
+      }
+      const nombreRuta = (id: any) => rutas.find((r: any) => String(r.id) === String(id))?.nombre || '—'
+      const cambios = describirCambios(o, datos, {
+        fecha_recogida: 'Retiro', fecha_entrega: 'Entrega',
+        ruta_recogida_id: 'Ruta de retiro', ruta_entrega_id: 'Ruta de entrega',
+        bultos: 'Bultos', observaciones: 'Observaciones', ot_easylaundry: 'OT EasyLaundry',
+      }, {
+        fecha_recogida: (v: any) => (v ? fechaCorta(v) : '—'),
+        fecha_entrega: (v: any) => (v ? fechaCorta(v) : '—'),
+        ruta_recogida_id: nombreRuta, ruta_entrega_id: nombreRuta,
+      })
+      if (!cambios.length) { toast('No cambiaste nada'); setModal(null); setEdit(null); return }
+      await ordenesApi.update(o.id, { ...datos, nota: 'Editada · ' + cambios.join(' · ') })
       toast.success('Orden actualizada'); setModal(null); setEdit(null); load()
     } catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
   }

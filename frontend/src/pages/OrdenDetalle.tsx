@@ -435,6 +435,12 @@ export default function OrdenDetalle() {
           <p style={{ borderTop: '1px dashed #000', marginTop: 5, paddingTop: 4, fontSize: 13,
                       textAlign: 'left', lineHeight: 1.3 }}>{o.observaciones}</p>
         )}
+
+        {/* Aire al final para poder cortar entre un ticket y el siguiente cuando
+            se imprimen varios seguidos. La línea marca dónde va la tijera. */}
+        <p style={{ borderTop: '1px dashed #000', marginTop: 10, paddingTop: 4,
+                    fontSize: 10, letterSpacing: 2 }}>· · · · · · · · · ·</p>
+        <div style={{ height: '10mm' }} />
       </div>
 
       <div className={`print-only text-black ${tipoTicket === 'interno' ? 'no-imprimir-ahora' : ''}`}

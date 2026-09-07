@@ -41,14 +41,16 @@ export default function BarraIndicadores() {
       titulo: `${d.por_entregar} pedidos listos esperando entrega`,
     },
     {
-      icono: Hourglass, a: '/por-cobrar', valor: d.sin_pago,
+      // Particulares sin crédito que se llevaron la ropa sin pagar.
+      icono: Hourglass, a: '/por-cobrar?tipo=particular', valor: d.sin_pago,
       clase: 'bg-red-50 text-red-700 border-red-200',
-      titulo: `${d.sin_pago} entregados sin pago · ${plata(d.monto_sin_pago)}`,
+      titulo: `${d.sin_pago} particulares se llevaron el pedido sin pagar · ${plata(d.monto_sin_pago)}`,
     },
     {
-      icono: Landmark, a: '/por-cobrar', valor: d.credito_vencido,
+      // Empresas en mora: con crédito vencido, o sin crédito ya entregadas.
+      icono: Landmark, a: '/por-cobrar?tipo=empresa', valor: d.empresas_mora,
       clase: 'bg-red-50 text-red-700 border-red-200',
-      titulo: `${d.credito_vencido} facturas con el plazo vencido · ${plata(d.monto_credito_vencido)}`,
+      titulo: `${d.empresas_mora} pedidos de empresas en mora · ${plata(d.monto_empresas_mora)}`,
     },
   ].filter(i => i.siempre || Number(i.valor) > 0)
 

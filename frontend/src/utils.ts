@@ -140,7 +140,16 @@ export const refDesdeOperacion = (formaPagoId?: string | number | null, valor?: 
 // ── Mensaje de WhatsApp según la etapa real del pedido ──────────────────────
 // El botón de WhatsApp de la OT sirve en cualquier momento del proceso, así que
 // el texto NO puede ser fijo: mandaba "tu pedido ya está listo" incluso con la
-// ropa recién recepcionada. Manda la etapa, no el botón.
+// ropa recién recepcionada.
+//
+// Son DOS mensajes, no uno por etapa. Lavado y secado no le sirven de nada al
+// cliente: mientras no esté listo, el mensaje útil es el de recepción, porque
+// lo que necesita guardar es su número de OT.
+//   1) Recepción  → hasta EN_SECADO. Número de OT + fecha estimada de entrega.
+//   2) Listo      → desde EMBOLSADO. Dónde retirar o cuándo se lo llevamos,
+//                   pidiendo que confirme.
+// Las etapas AGENDADO y ENTREGADO tienen su propia línea sólo para no mentir:
+// en una la ropa todavía no está en el local, en la otra ya se entregó.
 export const ETAPA_LABEL: Record<string, string> = {
   AGENDADO: 'Agendado', RECEPCIONADO: 'Recepcionado', EN_LAVADO: 'En lavado',
   EN_SECADO: 'En secado', EMBOLSADO: 'Embolsado', LISTO_RETIRO: 'Listo para retiro',
@@ -149,6 +158,7 @@ export const ETAPA_LABEL: Record<string, string> = {
 
 // Sólo desde EMBOLSADO en adelante se puede afirmar que está listo.
 const ETAPAS_LISTAS = ['EMBOLSADO', 'LISTO_RETIRO', 'ASIGNADO_RUTA', 'EN_CAMINO']
+const HORARIO_LOCAL = 'de lunes a viernes de 10:00 a 13:30 y de 14:30 a 18:30, y sábados de 10:00 a 13:30'
 
 export const mensajeSegunEtapa = (o: any, link: string) => {
   const n = String(o?.cliente_nombre || o?.cliente || '').split(' ')[0]
@@ -163,10 +173,6 @@ export const mensajeSegunEtapa = (o: any, link: string) => {
   const ventana = o?.ruta_entrega_hora
     ? ` entre las ${hora(o.ruta_entrega_hora)} y las ${hora(o.ruta_entrega_fin) || '18:00'}`
     : ''
-  const entrega = o?.entrega_domicilio
-    ? (cuando ? `Te lo llevamos el ${cuando}${ventana}.` : 'Coordinamos contigo la entrega a domicilio.')
-    : 'Puedes pasar a retirarlo al local, Av. Concón Reñaca 102, locales 5 y 6.'
-  const estimada = cuando ? ` La entrega está estimada para el ${cuando}.` : ''
 
   let cuerpo: string
   if (o?.estado === 'ANULADA') {
@@ -175,19 +181,12 @@ export const mensajeSegunEtapa = (o: any, link: string) => {
     cuerpo = `tenemos agendado el retiro de tu ropa${cuando ? ` para el ${cuando}` : ''}. Te avisamos cuando vayamos en camino.`
   } else if (etapa === 'ENTREGADO') {
     cuerpo = `tu pedido ${num} fue entregado. ¡Gracias por preferirnos!`
-  } else if (etapa === 'EN_CAMINO') {
-    cuerpo = `vamos en camino con tu pedido ${num}.${conSaldo}`
   } else if (ETAPAS_LISTAS.includes(etapa)) {
-    // "quedó en la ruta" sólo tiene sentido si va a domicilio: si el cliente
-    // retira en el local, decírselo lo manda a esperar un despacho que no existe
-    const enRuta = etapa === 'ASIGNADO_RUTA' && o?.entrega_domicilio
-    cuerpo = `tu pedido ${num} ya está listo${enRuta ? ' y quedó en la ruta' : ''}. ${entrega}${conSaldo}`
-  } else if (etapa === 'EN_SECADO') {
-    cuerpo = `tu pedido ${num} ya salió del lavado y está en secado.${estimada} Te avisamos apenas esté listo.`
-  } else if (etapa === 'EN_LAVADO') {
-    cuerpo = `tu pedido ${num} ya está en lavado.${estimada} Te avisamos apenas esté listo.`
+    cuerpo = o?.entrega_domicilio
+      ? `tu pedido ${num} ya está listo. Te lo llevamos${cuando ? ` el ${cuando}` : ''}${ventana}.${conSaldo} ¿Nos confirmas si puedes recibirlo?`
+      : `tu pedido ${num} ya está listo. Puedes pasar a retirarlo a Av. Concón Reñaca 102, locales 5 y 6, ${HORARIO_LOCAL}.${conSaldo}`
   } else {
-    cuerpo = `recibimos tu pedido ${num} en Ladys Lavandería.${estimada} Te avisamos apenas esté listo.${conSaldo}`
+    cuerpo = `recepcionamos tu pedido con la orden de trabajo ${num}.${cuando ? ` Fecha estimada de entrega: ${cuando}.` : ''} Te confirmamos apenas esté listo.${conSaldo}`
   }
   return `Hola ${n}, ${cuerpo}\n\nSíguelo acá: ${link}`
 }

@@ -20,5 +20,9 @@ body {
   /* Va despues de .print-only para poder ocultar el ticket que no se esta imprimiendo */
   .no-imprimir-ahora { display: none !important; }
   main, .print-only { margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+  /* El navegador recorta el espacio en blanco del final de la hoja. Sin esto,
+     las líneas de corte del ticket interno no salen impresas. */
+  .print-only > :last-child { page-break-after: avoid; }
+  .espacio-corte { display: block !important; visibility: visible !important; }
   @page { margin: 3mm; size: 58mm auto; }
 }

@@ -440,7 +440,11 @@ export default function OrdenDetalle() {
             se imprimen varios seguidos. La línea marca dónde va la tijera. */}
         <p style={{ borderTop: '1px dashed #000', marginTop: 10, paddingTop: 4,
                     fontSize: 10, letterSpacing: 2 }}>· · · · · · · · · ·</p>
-        <div style={{ height: '36mm' }} />
+        {/* Líneas con contenido de verdad: un div vacío no avanza el papel,
+            porque la hoja termina en el último contenido y la impresora corta ahí. */}
+        {Array.from({ length: 7 }).map((_, k) => (
+          <p key={k} style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>&nbsp;</p>
+        ))}
       </div>
 
       <div className={`print-only text-black ${tipoTicket === 'interno' ? 'no-imprimir-ahora' : ''}`}

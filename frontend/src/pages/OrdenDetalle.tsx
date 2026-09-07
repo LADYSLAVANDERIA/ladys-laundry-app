@@ -382,7 +382,30 @@ export default function OrdenDetalle() {
         {o.tipo_servicio === 'EXPRESS' && (
           <p style={{ fontWeight: 'bold', fontSize: 13, marginTop: 4 }}>** EXPRESS **</p>
         )}
-        {Number(o.kilos) > 0 && <p style={{ fontSize: 10, marginTop: 3 }}>{Number(o.kilos)} kg</p>}
+
+        {/* Qué hay que hacer con esta ropa. Sin precios: al que lava no le
+            sirven y ocupan el ancho del ticket. */}
+        <div style={{ borderTop: '1px dashed #000', marginTop: 5, paddingTop: 4, textAlign: 'left' }}>
+          {o.items.map((i: any) => (
+            <div key={i.id} style={{ display: 'flex', gap: 4, fontSize: 10, marginBottom: 2 }}>
+              <span style={{ fontWeight: 'bold', minWidth: 26 }}>{Number(i.cantidad)}x</span>
+              <span style={{ flex: 1, lineHeight: 1.2 }}>
+                {String(i.nombre).replace(/^SERVICIO /i, '').replace(/^LAVADO Y /i, '')}
+              </span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold',
+                        fontSize: 11, marginTop: 4, borderTop: '1px solid #000', paddingTop: 3 }}>
+            <span>{Number(o.kilos) > 0 ? `${Number(o.kilos)} kg` : `${o.items.length} ${o.items.length === 1 ? 'ítem' : 'ítems'}`}</span>
+            <span>{o.bultos} {Number(o.bultos) === 1 ? 'bulto' : 'bultos'}</span>
+          </div>
+        </div>
+
+        {/* Manchas, instrucciones y lo que se recogió: es lo que evita reprocesos. */}
+        {o.observaciones && (
+          <p style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4, fontSize: 10,
+                      textAlign: 'left', lineHeight: 1.25 }}>{o.observaciones}</p>
+        )}
       </div>
 
       <div className={`print-only text-black ${tipoTicket === 'interno' ? 'no-imprimir-ahora' : ''}`}

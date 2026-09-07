@@ -7,7 +7,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT } from '../utils'
+import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -390,7 +390,7 @@ export default function OrdenDetalle() {
             <div key={i.id} style={{ display: 'flex', gap: 4, fontSize: 10, marginBottom: 2 }}>
               <span style={{ fontWeight: 'bold', minWidth: 26 }}>{Number(i.cantidad)}x</span>
               <span style={{ flex: 1, lineHeight: 1.2 }}>
-                {String(i.nombre).replace(/^SERVICIO /i, '').replace(/^LAVADO Y /i, '')}
+                {servicioCorto(i.nombre)}
               </span>
             </div>
           ))}

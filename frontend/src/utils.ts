@@ -98,3 +98,15 @@ export const rutaCompletaMaps = (dirs: string[]) => {
          (medio.length ? `&waypoints=${medio.join('%7C')}` : '') +
          '&travelmode=driving'
 }
+
+// Nombre del servicio para el ticket interno y las listas de producción.
+// "Lavado y secado" es el servicio por defecto (4.892 de 9.134 líneas), así que
+// se sobreentiende y solo ocupa el ancho del ticket. En cambio "lavado y
+// planchado" y "solo planchado" o "solo secado" SÍ se conservan: son servicios
+// distintos y confundirlos significa devolver la prenda mal.
+export const servicioCorto = (nombre: string) =>
+  String(nombre || '')
+    .replace(/^SERVICIO\s+/i, '')
+    .replace(/^LAVADO Y SECADO\s*[-–]?\s*/i, '')
+    .replace(/\s*[-–]\s*/g, ' ')
+    .trim()

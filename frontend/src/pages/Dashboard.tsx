@@ -194,7 +194,7 @@ export default function Dashboard() {
               {[['Órdenes', cierre.ordenes, 'text-gray-800'],
                 ['Kilos', cierre.kilos, 'text-gray-800'],
                 ['Ventas', fmt(cierre.ventas), 'text-pink-600'],
-                ['Por cobrar', fmt(cierre.por_cobrar), 'text-red-600']].map(([l, v, col]) => (
+                ['Pagado', fmt(cierre.pagado), 'text-green-600']].map(([l, v, col]) => (
                 <div key={l as string} className="bg-gray-50 rounded-xl p-3">
                   <p className="text-xs text-gray-400">{l as string}</p>
                   <p className={`font-bold ${col as string}`}>{v as any}</p>
@@ -204,7 +204,7 @@ export default function Dashboard() {
 
             <div>
               <p className="text-xs text-gray-400 mb-1.5">
-                Plata que entró en el período · {fmt(cierre.ingresos)}
+                Cómo pagaron estas órdenes · queda por cobrar {fmt(cierre.por_cobrar)}
               </p>
               {cierre.medios.length === 0 ? (
                 <p className="text-xs text-gray-400">No hay pagos registrados en estas fechas.</p>
@@ -219,10 +219,11 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
-              <p className="text-[11px] text-gray-400 mt-2">
-                Los ingresos se cuentan por la fecha del pago; las ventas, por la fecha de retiro
-                de la orden. Por eso no tienen por qué coincidir.
-              </p>
+              {cierre.sin_desglosar > 0 && (
+                <p className="text-[11px] text-amber-700 mt-2">
+                  {fmt(cierre.sin_desglosar)} cobrados sin forma de pago registrada.
+                </p>
+              )}
             </div>
           </div>
         )}

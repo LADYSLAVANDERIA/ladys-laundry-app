@@ -12,6 +12,7 @@ import OrdenDetalle from './pages/OrdenDetalle'
 import Servicios from './pages/Servicios'
 import Caja from './pages/Caja'
 import Compras from './pages/Compras'
+import GastosMp from './pages/GastosMp'
 import Rutas from './pages/Rutas'
 import Usuarios from './pages/Usuarios'
 import Agenda from './pages/Agenda'
@@ -73,6 +74,7 @@ export default function App() {
         <Route path="/servicios"       element={<PrivateRoute><Servicios /></PrivateRoute>} />
         <Route path="/caja"            element={<PrivateRoute><Caja /></PrivateRoute>} />
         <Route path="/compras"         element={<PrivateRoute><Compras /></PrivateRoute>} />
+        <Route path="/gastos-mp"       element={<PrivateRoute><GastosMp /></PrivateRoute>} />
         <Route path="/rutas"           element={<PrivateRoute><Rutas /></PrivateRoute>} />
         <Route path="/reparto"         element={<PrivateRoute><Reparto /></PrivateRoute>} />
         <Route path="/produccion"      element={<PrivateRoute><Produccion /></PrivateRoute>} />

@@ -32,6 +32,7 @@ const menu = [
     { path: '/por-cobrar',      label: 'Por cobrar',        icon: Wallet,          ver: TODOS_OPERATIVOS },
     { path: '/facturacion',     label: 'Facturación',       icon: FileText,        ver: [] },
     { path: '/compras',         label: 'Compras y gastos',  icon: ShoppingCart,    ver: TODOS_OPERATIVOS },
+    { path: '/gastos-mp',       label: 'Gastos Mercado Pago', icon: CreditCard,    ver: TODOS_OPERATIVOS },
   ]},
   { grupo: 'Clientes', items: [
     { path: '/clientes',        label: 'Clientes',          icon: Users,           ver: TODOS_OPERATIVOS },

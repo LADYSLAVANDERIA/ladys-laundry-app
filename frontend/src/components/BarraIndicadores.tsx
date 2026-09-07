@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { indicadoresApi } from '../services/api'
-import { DollarSign, Bell, Flag, Truck, Hourglass, Landmark } from 'lucide-react'
+import { DollarSign, Bell, Flag, Truck, Hourglass, Landmark, CreditCard } from 'lucide-react'
 
 const plata = (v: any) => '$' + Math.round(Number(v) || 0).toLocaleString('es-CL')
 
@@ -57,6 +57,12 @@ export default function BarraIndicadores() {
       icono: Landmark, a: '/por-cobrar?tipo=empresa', valor: d.empresas_mora,
       clase: 'bg-red-50 text-red-700 border-red-200',
       titulo: `${d.empresas_mora} pedidos de empresas en mora · ${plata(d.monto_empresas_mora)}`,
+    },
+    {
+      // Cargos a la tarjeta de Mercado Pago que nadie ha explicado todavía.
+      icono: CreditCard, a: '/gastos-mp', valor: d.gastos_por_conciliar,
+      clase: 'bg-purple-50 text-purple-700 border-purple-200',
+      titulo: `${d.gastos_por_conciliar} gastos de Mercado Pago sin conciliar · ${plata(d.monto_gastos_por_conciliar)}`,
     },
   ].filter(i => i.siempre || Number(i.valor) > 0)
 

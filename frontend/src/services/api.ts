@@ -322,3 +322,17 @@ notaAx.interceptors.request.use(config => {
   return config
 })
 export const itemNotaApi = { guardar: (itemId: number, nota: string) => notaAx.put(`/${itemId}`, { nota }) }
+
+const GASTOS_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-gastos')
+const gastosAx = axios.create({ baseURL: GASTOS_URL })
+gastosAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const gastosMpApi = {
+  listar:    (desde?: string, hasta?: string) => gastosAx.get('', { params: { desde, hasta } }),
+  conciliar: (d: object) => gastosAx.post('/conciliar', d),
+  descartar: (mp_payment_id: string, motivo: string) => gastosAx.post('/descartar', { mp_payment_id, motivo }),
+  reabrir:   (mp_payment_id: string) => gastosAx.post('/reabrir', { mp_payment_id }),
+}

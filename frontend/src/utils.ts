@@ -116,7 +116,9 @@ export const servicioCorto = (nombre: string) =>
 // de Mercado Pago, que es quien la emite: el folio del SII no viaja por la API,
 // así que este es el único puente que tenemos hacia el documento.
 export const opMercadoPago = (referencia?: string | null) => {
-  const m = String(referencia || '').match(/^MP(?:POS)?-(\d+)$/)
+  // sin anclar al final: la referencia puede traer una nota detrás del número
+  // (por ejemplo cuando el cobro se hizo en la máquina de respaldo)
+  const m = String(referencia || '').match(/^MP(?:POS)?-(\d+)/)
   return m ? m[1] : ''
 }
 

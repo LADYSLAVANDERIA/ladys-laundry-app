@@ -136,3 +136,58 @@ export const refDesdeOperacion = (formaPagoId?: string | number | null, valor?: 
   if (!esPagoMercadoPago(formaPagoId) || !/^\d+$/.test(v)) return v
   return (String(formaPagoId) === '6' ? 'MP-' : 'MPPOS-') + v
 }
+
+// ── Mensaje de WhatsApp según la etapa real del pedido ──────────────────────
+// El botón de WhatsApp de la OT sirve en cualquier momento del proceso, así que
+// el texto NO puede ser fijo: mandaba "tu pedido ya está listo" incluso con la
+// ropa recién recepcionada. Manda la etapa, no el botón.
+export const ETAPA_LABEL: Record<string, string> = {
+  AGENDADO: 'Agendado', RECEPCIONADO: 'Recepcionado', EN_LAVADO: 'En lavado',
+  EN_SECADO: 'En secado', EMBOLSADO: 'Embolsado', LISTO_RETIRO: 'Listo para retiro',
+  ASIGNADO_RUTA: 'En ruta', EN_CAMINO: 'En camino', ENTREGADO: 'Entregado',
+}
+
+// Sólo desde EMBOLSADO en adelante se puede afirmar que está listo.
+const ETAPAS_LISTAS = ['EMBOLSADO', 'LISTO_RETIRO', 'ASIGNADO_RUTA', 'EN_CAMINO']
+
+export const mensajeSegunEtapa = (o: any, link: string) => {
+  const n = String(o?.cliente_nombre || o?.cliente || '').split(' ')[0]
+  const num = ot(o?.id)
+  const etapa = String(o?.etapa || (o?.estado === 'PRE_ORDEN' ? 'AGENDADO' : 'RECEPCIONADO'))
+  const saldo = Number(o?.saldo_pendiente || 0)
+  const conSaldo = saldo > 0 ? ` Saldo a pagar: ${fmt(saldo)}.` : ''
+
+  // en un pedido agendado la fecha que le importa al cliente es la del retiro
+  const fRef = etapa === 'AGENDADO' ? (o?.fecha_recogida || o?.fecha_entrega) : o?.fecha_entrega
+  const cuando = fRef ? fechaLarga(fRef) : null
+  const ventana = o?.ruta_entrega_hora
+    ? ` entre las ${hora(o.ruta_entrega_hora)} y las ${hora(o.ruta_entrega_fin) || '18:00'}`
+    : ''
+  const entrega = o?.entrega_domicilio
+    ? (cuando ? `Te lo llevamos el ${cuando}${ventana}.` : 'Coordinamos contigo la entrega a domicilio.')
+    : 'Puedes pasar a retirarlo al local, Av. Concón Reñaca 102, locales 5 y 6.'
+  const estimada = cuando ? ` La entrega está estimada para el ${cuando}.` : ''
+
+  let cuerpo: string
+  if (o?.estado === 'ANULADA') {
+    cuerpo = `tu pedido ${num} quedó anulado. Si necesitas ayuda, respóndenos por acá.`
+  } else if (etapa === 'AGENDADO') {
+    cuerpo = `tenemos agendado el retiro de tu ropa${cuando ? ` para el ${cuando}` : ''}. Te avisamos cuando vayamos en camino.`
+  } else if (etapa === 'ENTREGADO') {
+    cuerpo = `tu pedido ${num} fue entregado. ¡Gracias por preferirnos!`
+  } else if (etapa === 'EN_CAMINO') {
+    cuerpo = `vamos en camino con tu pedido ${num}.${conSaldo}`
+  } else if (ETAPAS_LISTAS.includes(etapa)) {
+    // "quedó en la ruta" sólo tiene sentido si va a domicilio: si el cliente
+    // retira en el local, decírselo lo manda a esperar un despacho que no existe
+    const enRuta = etapa === 'ASIGNADO_RUTA' && o?.entrega_domicilio
+    cuerpo = `tu pedido ${num} ya está listo${enRuta ? ' y quedó en la ruta' : ''}. ${entrega}${conSaldo}`
+  } else if (etapa === 'EN_SECADO') {
+    cuerpo = `tu pedido ${num} ya salió del lavado y está en secado.${estimada} Te avisamos apenas esté listo.`
+  } else if (etapa === 'EN_LAVADO') {
+    cuerpo = `tu pedido ${num} ya está en lavado.${estimada} Te avisamos apenas esté listo.`
+  } else {
+    cuerpo = `recibimos tu pedido ${num} en Ladys Lavandería.${estimada} Te avisamos apenas esté listo.${conSaldo}`
+  }
+  return `Hola ${n}, ${cuerpo}\n\nSíguelo acá: ${link}`
+}

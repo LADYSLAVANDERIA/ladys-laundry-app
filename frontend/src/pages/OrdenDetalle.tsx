@@ -7,7 +7,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion} from '../utils'
+import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -211,7 +211,7 @@ export default function OrdenDetalle() {
   // la pantalla: se veía en blanco al abrir cualquier pedido.
   if (!o) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
 
-  const msgWa = `Hola ${o.cliente_nombre?.split(' ')[0]}, tu pedido ${ot(o.id)} de Ladys Lavandería ya está listo. ${o.entrega_domicilio ? `Te lo llevamos el ${fechaCorta(o.fecha_entrega)}${o.ruta_entrega ? ` entre las ${hora(o.ruta_entrega_hora)}` : ''}.` : 'Puedes pasar a retirarlo al local.'}${Number(o.saldo_pendiente) > 0 ? ` Saldo pendiente: ${fmt(o.saldo_pendiente)}.` : ''}`
+  const msgWa = mensajeSegunEtapa(o, linkOT(o.id, o.token_publico))
 
   return (
     <div className="max-w-4xl mx-auto space-y-4">

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi, dirApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check } from 'lucide-react'
-import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, pesoSector } from '../utils'
+import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, TOPE_PARADAS_MAPS, pesoSector } from '../utils'
 
 export default function Programacion() {
   const [solicitud, setSolicitud] = useState(false)
@@ -181,10 +181,26 @@ export default function Programacion() {
               </div>
               {(r.retiros.length + r.entregas.length) > 0 && (
                 <div className="px-4 py-2 border-b bg-gray-50 flex gap-2">
-                  <a href={rutaCompletaMaps([...ordenar(r.retiros, 'dir_retiro').map((o: any) => o.lat_retiro ? `${o.lat_retiro},${o.lng_retiro}` : o.dir_retiro), ...ordenar(r.entregas, 'dir_entrega').map((o: any) => o.lat_entrega ? `${o.lat_entrega},${o.lng_entrega}` : o.dir_entrega)])}
-                    target="_blank" rel="noreferrer" className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-100 text-purple-700 text-xs font-medium">
-                    <Route size={13} /> Ruta completa en Maps
-                  </a>
+                  {(() => {
+                    const paradas = [
+                      ...ordenar(r.retiros, 'dir_retiro').map((o: any) => o.lat_retiro ? `${o.lat_retiro},${o.lng_retiro}` : o.dir_retiro),
+                      ...ordenar(r.entregas, 'dir_entrega').map((o: any) => o.lat_entrega ? `${o.lat_entrega},${o.lng_entrega}` : o.dir_entrega),
+                    ].filter(Boolean)
+                    const link = rutaCompletaMaps(paradas)
+                    if (!link) return (
+                      <span className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-gray-100 text-gray-400 text-xs">
+                        Sin direcciones para el mapa
+                      </span>
+                    )
+                    const cortada = paradas.length > TOPE_PARADAS_MAPS + 1
+                    return (
+                      <a href={link} target="_blank" rel="noreferrer"
+                         title={cortada ? `Maps acepta ${TOPE_PARADAS_MAPS + 1} paradas: se abren las primeras` : ''}
+                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-purple-100 text-purple-700 text-xs font-medium">
+                        <Route size={13} /> Ruta en Maps{cortada ? ` (${TOPE_PARADAS_MAPS + 1} de ${paradas.length})` : ''}
+                      </a>
+                    )
+                  })()}
                   <button onClick={() => setLote({ ruta: r.nombre, paradas: [...ordenar(r.retiros, 'dir_retiro').map((o: any) => ({ ...o, _tipo: 'retiro' })), ...ordenar(r.entregas, 'dir_entrega').map((o: any) => ({ ...o, _tipo: 'entrega' }))].filter((o: any) => o.telefono) })}
                     className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg bg-green-100 text-green-700 text-xs font-medium">
                     <Send size={13} /> Avisar a todos

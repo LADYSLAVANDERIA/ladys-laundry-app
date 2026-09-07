@@ -5,6 +5,7 @@ import {
   Wand2, ChevronUp, ChevronDown, Navigation, Route, Clock,
   AlertTriangle, Check, X, Smartphone, RefreshCw,
 } from 'lucide-react'
+import { rutaCompletaMaps } from '../utils'
 
 const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
 const plata = (n: any) => '$' + Number(n || 0).toLocaleString('es-CL')
@@ -130,14 +131,14 @@ export default function Reparto() {
 
   // toda la ruta abierta de una vez en el navegador del teléfono
   const linkRutaCompleta = () => {
-    const base = data?.base
-    const enRuta = paradas.filter(p => p.lat && p.lng && p.estado === 'PENDIENTE')
+    // Las paradas sin coordenadas también van: se mandan por dirección escrita.
+    // Antes se descartaban y la ruta salía incompleta sin avisar.
+    const enRuta = paradas.filter(p => p.estado === 'PENDIENTE')
       .sort((a, b) => a.secuencia - b.secuencia)
-    if (!enRuta.length || !base) return '#'
-    const wp = enRuta.slice(0, -1).map(p => `${p.lat},${p.lng}`).join('|')
-    const fin = enRuta[enRuta.length - 1]
-    return `https://www.google.com/maps/dir/?api=1&origin=${base.lat},${base.lng}` +
-      `&destination=${fin.lat},${fin.lng}${wp ? `&waypoints=${wp}` : ''}&travelmode=driving`
+      .map(p => (p.lat && p.lng) ? `${p.lat},${p.lng}` : dirDe(p))
+      .filter(Boolean)
+    if (!enRuta.length) return ''
+    return rutaCompletaMaps(enRuta)
   }
 
   const sinUbicar = paradas.filter(p => !p.lat).length

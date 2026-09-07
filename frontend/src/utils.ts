@@ -73,9 +73,28 @@ export const pesoSector = (dir?: string | null) => {
 export const ordenarParadas = (lista: any[], campo: 'dir_retiro' | 'dir_entrega') =>
   [...lista].sort((a, b) => pesoSector(a[campo]) - pesoSector(b[campo]) || a.id - b.id)
 
+// Punto de partida y de regreso de la ruta.
+export const BASE_LADYS = 'Av. Concón Reñaca 102, Concón'
+
+// Una parada puede venir como coordenadas ("-32.93,-71.53") o como texto.
+// A las coordenadas NO se les puede pegar ", Chile": Google deja de leerlas
+// como punto y el mapa no abre. Ese era el motivo de que el botón no hiciera nada.
+const esCoordenada = (s: string) => /^-?\d+\.\d+\s*,\s*-?\d+\.\d+$/.test(String(s).trim())
+const punto = (s: string) => encodeURIComponent(esCoordenada(s) ? String(s).trim() : String(s).trim() + ', Chile')
+
+// Google Maps acepta hasta 9 paradas intermedias en un enlace. Con más, el
+// enlace se ignora entero, así que se corta y se avisa por separado.
+export const TOPE_PARADAS_MAPS = 9
+
 export const rutaCompletaMaps = (dirs: string[]) => {
-  const v = dirs.filter(Boolean).map(d => encodeURIComponent(d + ', Chile'))
+  const v = dirs.filter(Boolean).map(String).map(s => s.trim()).filter(s => s.length > 3)
   if (!v.length) return ''
-  const destino = v[v.length - 1], medio = v.slice(0, -1)
-  return `https://www.google.com/maps/dir/?api=1&destination=${destino}` + (medio.length ? `&waypoints=${medio.join('%7C')}` : '') + '&travelmode=driving'
+  const paradas = v.slice(0, TOPE_PARADAS_MAPS + 1)
+  const destino = punto(paradas[paradas.length - 1])
+  const medio = paradas.slice(0, -1).map(punto)
+  // Sale y vuelve del local: así el recorrido que muestra Maps es el real.
+  return `https://www.google.com/maps/dir/?api=1&origin=${punto(BASE_LADYS)}` +
+         `&destination=${destino}` +
+         (medio.length ? `&waypoints=${medio.join('%7C')}` : '') +
+         '&travelmode=driving'
 }

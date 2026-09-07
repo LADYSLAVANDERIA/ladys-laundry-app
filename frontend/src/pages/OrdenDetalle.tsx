@@ -440,7 +440,7 @@ export default function OrdenDetalle() {
             se imprimen varios seguidos. La línea marca dónde va la tijera. */}
         <p style={{ borderTop: '1px dashed #000', marginTop: 10, paddingTop: 4,
                     fontSize: 10, letterSpacing: 2 }}>· · · · · · · · · ·</p>
-        <div style={{ height: '10mm' }} />
+        <div style={{ height: '16mm' }} />
       </div>
 
       <div className={`print-only text-black ${tipoTicket === 'interno' ? 'no-imprimir-ahora' : ''}`}

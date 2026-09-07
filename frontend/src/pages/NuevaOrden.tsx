@@ -118,6 +118,8 @@ export default function NuevaOrden() {
   const descuento = f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0
   const total = subtotal - descuento + Number(f.monto_delivery || 0)
   const minimo = Number(config.minimo_retiro || 20000)
+  // Mínimo de venta en el mesón. Aplica a cualquier pedido, con kilos o prendas.
+  const minimoLocal = Number(config.minimo_venta_local || 14500)
   const domicilio = f.retiro_domicilio || f.entrega_domicilio
   const rutasRet = rutas.filter(r => r.dia_semana === diaSemana(f.fecha_recogida) && RUTA_RET.includes(r.tipo))
   const rutasEnt = rutas.filter(r => r.dia_semana === diaSemana(f.fecha_entrega) && RUTA_ENT.includes(r.tipo))
@@ -381,6 +383,11 @@ export default function NuevaOrden() {
               <div className="flex justify-between text-xl font-bold border-t pt-2"><span>Total</span><span className="text-pink-600">{fmt(total)}</span></div>
             </div>
             {domicilio && total > 0 && total < minimo && <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2 flex items-center gap-1"><AlertTriangle size={12} /> Bajo el mínimo a domicilio ({fmt(minimo)})</p>}
+            {!domicilio && total > 0 && total < minimoLocal && (
+              <p className="text-xs text-amber-700 bg-amber-50 rounded-lg p-2 flex items-center gap-1">
+                <AlertTriangle size={12} /> Bajo el mínimo del local ({fmt(minimoLocal)}), faltan {fmt(minimoLocal - total)}
+              </p>
+            )}
 
             {memb ? (
               <label className={`flex items-center gap-2 p-3 rounded-xl border text-sm cursor-pointer ${usarMemb ? 'bg-purple-50 border-purple-300 text-purple-700' : 'text-gray-600'}`}>

@@ -4,10 +4,14 @@
 // muchas calles no están o están mal trazadas, así que el pin nunca calzaba con
 // la puerta y el conductor terminaba adivinando.
 //
-// La clave del navegador NO es un secreto (Google Maps JS la expone siempre);
-// lo que la protege es la restricción por dominio en la consola de Google.
-// Hay que dejarla limitada a ladyslavanderia.cl y a localhost.
-const CLAVE = import.meta.env.VITE_GOOGLE_MAPS_KEY || 'AIzaSyBt9ITvPAoF2EtNcYFWceRsI9lnCE7k_zQ'
+// Esta es la clave LADYS NAVEGADOR, restringida en la consola de Google a
+// ladyslavanderia.cl y sólo a Maps JavaScript API. Queda visible en el bundle,
+// que es inevitable con Maps JS: lo que la protege es la restricción, no el
+// ocultarla.
+// NO confundir con LADYS SERVIDOR, que sólo tiene Geocoding API y vive en la
+// base (configuracion.google_maps_api_key). Esa nunca debe llegar al navegador:
+// no tiene restricción de dominio porque las llamadas salen desde Supabase.
+const CLAVE = import.meta.env.VITE_GOOGLE_MAPS_KEY || 'AIzaSyBXWmkkrAT4WKG3k2l40Y5S7CMfZY8Ujr0'
 
 let promesa: Promise<any> | null = null
 

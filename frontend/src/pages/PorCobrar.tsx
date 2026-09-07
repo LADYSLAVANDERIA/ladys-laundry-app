@@ -42,6 +42,28 @@ export default function PorCobrar() {
   const rutasDelDia = (f: string) =>
     rutas.filter(r => r.dia_semana === DIAS[new Date(f + 'T12:00:00').getDay()] && r.tipo !== 'SOLO_RETIROS')
 
+  // Recordatorio al cliente de que su pedido lleva días esperando.
+  const recordar = (o: any) => {
+    const tel = telWa(o.cliente_telefono)
+    if (!tel) return toast.error('Ese cliente no tiene teléfono registrado')
+    const nombre = String(o.cliente_nombre || '').split(' ')[0]
+    const donde = o.entrega_domicilio
+      ? `Te lo llevamos cuando nos digas: la ruta pasa de 13:30 a 14:30 y de 19:00 a 21:00.`
+      : `Puedes pasar a retirarlo al local, de lunes a viernes de 10:00 a 13:30 y de 14:30 a 18:30, y el sábado hasta las 13:40.`
+    const saldo = Number(o.saldo_pendiente) > 0 ? ` Queda un saldo de ${fmt(o.saldo_pendiente)}.` : ''
+    const msg = `Hola ${nombre}, tu pedido ${ot(o.id)} de Ladys Lavandería está listo desde hace ${o.dias_atraso} ${o.dias_atraso === 1 ? 'día' : 'días'}. ${donde}${saldo}`
+    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank')
+  }
+
+  const marcarEntregada = async (o: any) => {
+    if (!confirm(`¿Confirmas que ${ot(o.id)} de ${o.cliente_nombre} ya fue entregada?`)) return
+    try {
+      await ordenesApi.cambiarEstado(o.id, { estado: 'ENTREGADA' })
+      toast.success(`${ot(o.id)} marcada como entregada`)
+      load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo marcar') }
+  }
+
   const guardarReagenda = async () => {
     try {
       await ordenesApi.update(reagendar.id, {
@@ -86,6 +108,7 @@ export default function PorCobrar() {
             {tipo === 'particular' ? 'Se lo llevaron sin pagar'
              : tipo === 'empresa'  ? 'Empresas en mora'
              : tipo === 'despacho' ? 'Despachos que quedaron pendientes'
+             : tipo === 'listos'   ? 'Listos esperando entrega'
              : 'Por cobrar'}
           </h1>
           {tipo && (
@@ -94,6 +117,8 @@ export default function PorCobrar() {
                 ? 'Particulares sin crédito que ya recibieron su pedido.'
                 : tipo === 'despacho'
                 ? 'Iban a domicilio, su fecha de entrega ya pasó y siguen sin salir. Hay que reprogramarlos.'
+                : tipo === 'listos'
+                ? 'Ropa terminada esperando que el cliente la retire o que salga en ruta. Los más antiguos primero.'
                 : 'Con crédito vencido, o sin crédito y ya entregadas.'}
               {' '}
               <button onClick={() => navigate('/por-cobrar')} className="underline">ver todo</button>
@@ -113,7 +138,7 @@ export default function PorCobrar() {
         </div>
       )}
 
-      {tipo === 'despacho' ? (
+      {(tipo === 'despacho' || tipo === 'listos') ? (
         <div className="space-y-2">
           {ordenes.map((o: any) => (
             <div key={o.id} className="bg-white rounded-xl border p-4 space-y-2">
@@ -131,12 +156,27 @@ export default function PorCobrar() {
                   {o.dias_atraso} {o.dias_atraso === 1 ? 'día' : 'días'}
                 </span>
               </div>
-              <button
-                onClick={() => setReagendar({ id: o.id, fecha_entrega: hoy(), ruta_entrega_id: '' })}
-                className="w-full py-2.5 rounded-xl text-white text-sm font-medium"
-                style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-                Reagendar entrega
-              </button>
+              {o.detalle && <p className="text-xs text-gray-500">{o.detalle}</p>}
+              {tipo === 'despacho' ? (
+                <button
+                  onClick={() => setReagendar({ id: o.id, fecha_entrega: hoy(), ruta_entrega_id: '' })}
+                  className="w-full py-2.5 rounded-xl text-white text-sm font-medium"
+                  style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                  Reagendar entrega
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button onClick={() => recordar(o)}
+                    className="flex-1 py-2.5 rounded-xl border text-sm font-medium text-green-700 border-green-300 flex items-center justify-center gap-1.5">
+                    <MessageCircle size={15} /> Recordar
+                  </button>
+                  <button onClick={() => marcarEntregada(o)}
+                    className="flex-1 py-2.5 rounded-xl text-white text-sm font-medium"
+                    style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                    Marcar entregada
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

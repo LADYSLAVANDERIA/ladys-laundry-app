@@ -36,7 +36,7 @@ export default function BarraIndicadores() {
       titulo: `${d.agendadas} retiros agendados sin orden creada`,
     },
     {
-      icono: Flag, a: '/ordenes?estado=LISTA', valor: d.por_entregar,
+      icono: Flag, a: '/por-cobrar?tipo=listos', valor: d.por_entregar,
       clase: 'bg-blue-50 text-blue-700 border-blue-200',
       titulo: `${d.por_entregar} pedidos listos esperando entrega`,
     },

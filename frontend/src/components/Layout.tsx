@@ -6,7 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import {
   Home, LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
   DollarSign, ArrowLeftRight, PieChart, FileText, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
-  LogOut, Menu, X, ChevronRight, CreditCard, Shirt, Wallet, KeyRound
+  LogOut, Menu, X, ChevronRight, ChevronDown, CreditCard, Shirt, Wallet, KeyRound
 } from 'lucide-react'
 
 // Quien ve cada pantalla. ADMINISTRADOR ve todo sin necesidad de listarse.
@@ -50,11 +50,20 @@ const menu = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [abiertos, setAbiertos] = useState<string[]>([])
   const [clave, setClave] = useState<any>(null)   // { actual, nueva, repetir } cuando el modal está abierto
   const [guardandoClave, setGuardandoClave] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, isAdmin } = useAuthStore()
+
+  // Al cambiar de pantalla se despliega el grupo donde está, sin cerrar los que
+  // el usuario haya abierto a mano.
+  useEffect(() => {
+    const suyo = menu.find(g => g.grupo && g.items.some(i =>
+      location.pathname === i.path || location.pathname.startsWith(i.path + '/')))
+    if (suyo?.grupo) setAbiertos(a => a.includes(suyo.grupo!) ? a : [...a, suyo.grupo!])
+  }, [location.pathname])
 
   const handleLogout = () => { logout(); navigate('/login') }
 
@@ -113,14 +122,28 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           // título flotando solo.
           const visibles = items.filter(i => isAdmin() || i.ver.includes(user?.perfil || ''))
           if (!visibles.length) return null
+
+          // El bloque sin título (Inicio, Dashboard) va siempre a la vista.
+          if (!grupo) return <div key="inicio">{visibles.map(i => <NavItem key={i.path} {...i} />)}</div>
+
+          const desplegado = abiertos.includes(grupo)
+          const aqui = visibles.some(i => location.pathname === i.path || location.pathname.startsWith(i.path + '/'))
           return (
-            <div key={grupo || 'inicio'} className={grupo ? 'mt-4' : ''}>
-              {grupo && (
-                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
-                  {grupo}
-                </p>
+            <div key={grupo} className="mt-1">
+              <button
+                onClick={() => setAbiertos(a => a.includes(grupo) ? a.filter(x => x !== grupo) : [...a, grupo])}
+                className={`w-full flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                  aqui && !desplegado ? 'text-white bg-white/10' : 'text-white/70 hover:text-white hover:bg-white/5'}`}>
+                <span className="flex-1 text-left">{grupo}</span>
+                {/* Un punto avisa que la pantalla actual está adentro de un grupo cerrado. */}
+                {aqui && !desplegado && <span className="w-1.5 h-1.5 rounded-full bg-pink-400" />}
+                <ChevronDown size={15} className={`transition-transform ${desplegado ? 'rotate-180' : ''}`} />
+              </button>
+              {desplegado && (
+                <div className="mt-0.5 ml-2 pl-2 border-l border-white/10 space-y-0.5">
+                  {visibles.map(i => <NavItem key={i.path} {...i} />)}
+                </div>
               )}
-              {visibles.map(item => <NavItem key={item.path} {...item} />)}
             </div>
           )
         })}

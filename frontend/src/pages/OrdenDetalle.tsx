@@ -58,7 +58,6 @@ export default function OrdenDetalle() {
   }
   useEffect(() => { if (o && params.get('print') === '1' && qr) setTimeout(() => window.print(), 600) }, [o, qr])
 
-  if (!o) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
 
   const cambiar = async (estado: string, extra: object = {}) => {
     try { await ordenesApi.cambiarEstado(o.id, { estado, ...extra }); toast.success(`Orden ${ESTADO_LABEL[estado].toLowerCase()}`); setModal(null); load() }
@@ -132,7 +131,7 @@ export default function OrdenDetalle() {
     } catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
   }
 
-  const idx = FLUJO.indexOf(o.estado)
+  const idx = FLUJO.indexOf(o?.estado)
   const sig = idx >= 0 && idx < 3 ? FLUJO[idx + 1] : null
   const generarLink = async () => {
     setGenerando(true)
@@ -184,6 +183,11 @@ export default function OrdenDetalle() {
     }, 3000)
     return () => clearInterval(t)
   }, [modal, pos?.mp_order_id, pos?.estado])
+
+  // Esta salida va después de TODOS los hooks. Si se pone antes, al llegar la
+  // orden aparecen hooks que en el render anterior no existían y React tumba
+  // la pantalla: se veía en blanco al abrir cualquier pedido.
+  if (!o) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
 
   const msgWa = `Hola ${o.cliente_nombre?.split(' ')[0]}, tu pedido ${ot(o.id)} de Ladys Lavandería ya está listo. ${o.entrega_domicilio ? `Te lo llevamos el ${fechaCorta(o.fecha_entrega)}${o.ruta_entrega ? ` entre las ${hora(o.ruta_entrega_hora)}` : ''}.` : 'Puedes pasar a retirarlo al local.'}${Number(o.saldo_pendiente) > 0 ? ` Saldo pendiente: ${fmt(o.saldo_pendiente)}.` : ''}`
 

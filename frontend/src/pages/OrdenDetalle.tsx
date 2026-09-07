@@ -436,15 +436,16 @@ export default function OrdenDetalle() {
                       textAlign: 'left', lineHeight: 1.3 }}>{o.observaciones}</p>
         )}
 
-        {/* Aire al final para poder cortar entre un ticket y el siguiente cuando
-            se imprimen varios seguidos. La línea marca dónde va la tijera. */}
-        <p style={{ borderTop: '1px dashed #000', marginTop: 10, paddingTop: 4,
-                    fontSize: 10, letterSpacing: 2 }}>· · · · · · · · · ·</p>
-        {/* Líneas con contenido de verdad: un div vacío no avanza el papel,
-            porque la hoja termina en el último contenido y la impresora corta ahí. */}
-        {Array.from({ length: 7 }).map((_, k) => (
-          <p key={k} style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>&nbsp;</p>
+        {/* Zona de corte entre un ticket y el siguiente.
+            La impresora térmica avanza hasta el último punto de TINTA: las líneas
+            en blanco no la mueven y el papel salía cortado al ras. Por eso acá van
+            líneas visibles y separadas, que además sirven de guía para la tijera. */}
+        {Array.from({ length: 4 }).map((_, k) => (
+          <p key={k} style={{ borderTop: '1px dashed #000', marginTop: k === 0 ? 10 : 0,
+                              height: '9mm', fontSize: 1, lineHeight: '9mm' }}>&nbsp;</p>
         ))}
+        <p style={{ borderTop: '2px solid #000', fontSize: 9, paddingTop: 2,
+                    letterSpacing: 1 }}>CORTAR AQUÍ</p>
       </div>
 
       <div className={`print-only text-black ${tipoTicket === 'interno' ? 'no-imprimir-ahora' : ''}`}

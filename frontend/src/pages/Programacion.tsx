@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi, dirApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check } from 'lucide-react'
-import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, TOPE_PARADAS_MAPS, pesoSector } from '../utils'
+import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, TOPE_PARADAS_MAPS, pesoSector, esPagoMercadoPago, refDesdeOperacion} from '../utils'
 
 export default function Programacion() {
   const [solicitud, setSolicitud] = useState(false)
@@ -41,8 +41,11 @@ export default function Programacion() {
 
   const cobrar = async () => {
     if (!cobro.forma_pago_id || !Number(cobro.monto)) return toast.error('Elige forma de pago y monto')
+    if (esPagoMercadoPago(cobro.forma_pago_id) && !String(cobro.referencia || '').trim())
+      return toast.error('Anota el N.° de operación de Mercado Pago')
     try {
-      await ordenesApi.pagar(cobro.id, { forma_pago_id: Number(cobro.forma_pago_id), monto: Number(cobro.monto) })
+      await ordenesApi.pagar(cobro.id, { forma_pago_id: Number(cobro.forma_pago_id), monto: Number(cobro.monto),
+                                         referencia: refDesdeOperacion(cobro.forma_pago_id, cobro.referencia) })
       toast.success(`Cobrado ${fmt(cobro.monto)} en ${ot(cobro.id)}`)
       setCobro(null); load()
     } catch (e: any) { toast.error(e.response?.data?.error || 'Error al registrar el pago') }
@@ -333,6 +336,11 @@ export default function Programacion() {
                 </button>
               ))}
             </div>
+            {esPagoMercadoPago(cobro.forma_pago_id) && (
+              <input inputMode="numeric" value={cobro.referencia || ''} onChange={e => setCobro({ ...cobro, referencia: e.target.value })}
+                placeholder="N.° de operación de Mercado Pago"
+                className="w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300" />
+            )}
             <button onClick={cobrar} className="w-full py-3.5 rounded-xl text-white font-semibold" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
               Registrar pago
             </button>

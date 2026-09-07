@@ -7,7 +7,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago} from '../utils'
+import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -85,7 +85,9 @@ export default function OrdenDetalle() {
   }
   const pagar = async () => {
     if (!pago.forma_pago_id || !Number(pago.monto)) return toast.error('Elige forma de pago y monto')
-    try { await ordenesApi.pagar(o.id, { forma_pago_id: Number(pago.forma_pago_id), monto: Number(pago.monto), referencia: pago.referencia }); toast.success('Pago registrado'); setModal(null); load() }
+    if (esPagoMercadoPago(pago.forma_pago_id) && !String(pago.referencia || '').trim())
+      return toast.error('Anota el N.° de operación de Mercado Pago: sin él no se puede reimprimir el comprobante')
+    try { await ordenesApi.pagar(o.id, { forma_pago_id: Number(pago.forma_pago_id), monto: Number(pago.monto), referencia: refDesdeOperacion(pago.forma_pago_id, pago.referencia) }); toast.success('Pago registrado'); setModal(null); load() }
     catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
   }
   const abrirEdicionItems = () => {
@@ -610,7 +612,11 @@ export default function OrdenDetalle() {
               <option value="">Forma de pago…</option>{formas.map(f => <option key={f.id} value={f.id}>{f.nombre}</option>)}
             </select>
             <input type="number" value={pago.monto} onChange={e => setPago({ ...pago, monto: e.target.value })} placeholder="Monto" className={inp} />
-            <input value={pago.referencia || ''} onChange={e => setPago({ ...pago, referencia: e.target.value })} placeholder="Referencia (opcional)" className={inp} />
+            <input value={pago.referencia || ''} onChange={e => setPago({ ...pago, referencia: e.target.value })}
+              placeholder={esPagoMercadoPago(pago.forma_pago_id) ? 'N.° de operación de Mercado Pago' : 'Referencia (opcional)'} className={inp} />
+            {esPagoMercadoPago(pago.forma_pago_id) && (
+              <p className="text-xs text-gray-500 -mt-1">Está en la pantalla de la máquina y en el ticket. Con ese número se reimprime el comprobante y se ubica la boleta.</p>
+            )}
             <div className="flex gap-2"><button onClick={pagar} className="flex-1 py-3 rounded-xl bg-green-500 text-white font-semibold text-sm">Confirmar pago</button><button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button></div>
           </div>
         </div>

@@ -119,3 +119,18 @@ export const opMercadoPago = (referencia?: string | null) => {
   const m = String(referencia || '').match(/^MP(?:POS)?-(\d+)$/)
   return m ? m[1] : ''
 }
+
+// Formas de pago de Mercado Pago: 3 = POS, 6 = Link de pago. Cuando el cobro se
+// registra a mano (venta hecha en la maquina de respaldo, o cobro en ruta) hay
+// que anotar el numero de operacion: es lo unico que permite reimprimir el
+// comprobante desde la maquina o ubicar la boleta en el portal.
+export const esPagoMercadoPago = (formaPagoId?: string | number | null) =>
+  ['3', '6'].includes(String(formaPagoId || ''))
+
+export const refDesdeOperacion = (formaPagoId?: string | number | null, valor?: string | null) => {
+  const v = String(valor || '').trim()
+  if (!v) return null
+  if (/^MP(POS)?-/.test(v)) return v
+  if (!esPagoMercadoPago(formaPagoId) || !/^\d+$/.test(v)) return v
+  return (String(formaPagoId) === '6' ? 'MP-' : 'MPPOS-') + v
+}

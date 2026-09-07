@@ -67,6 +67,17 @@ export default function OrdenDetalle() {
   }
   useEffect(() => { if (o && params.get('print') === '1' && qr) setTimeout(() => window.print(), 600) }, [o, qr])
 
+  // Viene de Nueva Orden con la máquina elegida: se abre el cobro solo, así el
+  // terminal recibe el monto sin que nadie tenga que buscar el botón.
+  const [posAuto, setPosAuto] = useState(false)
+  useEffect(() => {
+    if (o && !posAuto && params.get('cobrar') === 'pos' && Number(o.saldo_pendiente) > 0) {
+      setPosAuto(true)
+      setModal('maquina')
+      setTimeout(() => cobrarEnMaquina(), 400)
+    }
+  }, [o, posAuto])
+
 
   const cambiar = async (estado: string, extra: object = {}) => {
     try { await ordenesApi.cambiarEstado(o.id, { estado, ...extra }); toast.success(`Orden ${ESTADO_LABEL[estado].toLowerCase()}`); setModal(null); load() }

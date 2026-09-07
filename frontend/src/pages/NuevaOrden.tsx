@@ -21,6 +21,11 @@ export default function NuevaOrden() {
   const [kilos, setKilos] = useState(''); const [express, setExpress] = useState(false); const [prendas, setPrendas] = useState<Item[]>([])
   const [f, setF] = useState<any>({ retiro_domicilio: false, entrega_domicilio: false, ropa_en_local: true, fecha_recogida: hoy(), ruta_recogida_id: '', fecha_entrega: addDiasHabiles(hoy(), 2), ruta_entrega_id: '', dir_id: '', tipo_doc: 'BOLETA', bultos: 1, monto_delivery: 0, aplicar_descuento: false, observaciones: '' })
   const [pago, setPago] = useState<any>({ ahora: true, forma_pago_id: '', monto: '' })
+  // El POS no se puede dar por cobrado al crear la orden: la plata entra cuando
+  // el cliente pasa la tarjeta en la máquina. Registrarlo antes deja pedidos
+  // marcados como pagados que nadie pagó.
+  const esPos = (id: any) => /pos|mercado\s*pago|tarjeta|transbank/i.test(
+    String(formas.find((x: any) => String(x.id) === String(id))?.nombre || ''))
   const [usarMemb, setUsarMemb] = useState(false); const [loading, setLoading] = useState(false)
   const [convenio, setConvenio] = useState<any[]>([])
   const [cupos, setCupos] = useState<Record<string, Record<number, number>>>({})
@@ -159,7 +164,8 @@ export default function NuevaOrden() {
         fecha_recogida: f.retiro_domicilio ? f.fecha_recogida : null, ruta_recogida_id: f.retiro_domicilio ? Number(f.ruta_recogida_id) : null,
         fecha_entrega: f.fecha_entrega || null, ruta_entrega_id: f.entrega_domicilio ? Number(f.ruta_entrega_id) : null,
         origen: f.retiro_domicilio ? 'DOMICILIO' : 'LOCAL', es_membresia: usarMemb && !!memb, forzar,
-        pago: (!usarMemb && pago.ahora && pago.forma_pago_id && total > 0) ? { forma_pago_id: Number(pago.forma_pago_id), monto: Number(pago.monto || total) } : null,
+        pago: (!usarMemb && pago.ahora && pago.forma_pago_id && total > 0 && !esPos(pago.forma_pago_id))
+          ? { forma_pago_id: Number(pago.forma_pago_id), monto: Number(pago.monto || total) } : null,
       }
       // Una orden por plazo cuando corresponde dividir; si no, una sola con todo.
       const partes = (hayVariosPlazos && dividir)
@@ -202,7 +208,9 @@ export default function NuevaOrden() {
       toast.success(creadas.length > 1
         ? `${creadas.length} órdenes creadas: ${creadas.map(ot).join(', ')}`
         : `OT ${ot(creadas[0])} creada`)
-      navigate(`/ordenes/${creadas[0]}?print=1`)
+      // Con POS se abre el pedido y se manda el cobro a la máquina desde ahí,
+      // que es el flujo que espera el terminal ("inicia el cobro desde el sistema").
+      navigate(`/ordenes/${creadas[0]}?print=1${(!usarMemb && pago.ahora && esPos(pago.forma_pago_id)) ? '&cobrar=pos' : ''}`)
     } catch (e: any) {
       const d = e.response?.data
       if (d?.codigo === 'MINIMO' && confirm(`${d.error}\n\n¿Crear la orden de todas formas?`)) return crear(true)

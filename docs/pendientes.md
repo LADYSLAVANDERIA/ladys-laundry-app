@@ -80,6 +80,22 @@ Para lograrlo, las 5.999 órdenes históricas se corrieron de 10001–15999 a **
 
 **Trampa cazada:** nuestros precios son con IVA incluido y el DTE los quiere netos. La función ya divide por 1,19. Sin eso, una factura de $274.000 se habría emitido por $326.000.
 
+## Facturación — estado al 6-sep
+
+**La fecha de la OT es la de RETIRO** (`fecha_recogida`), no la de ingreso. Una orden retirada el 31 de agosto y digitada el 1 de septiembre pertenece a agosto. Todo el módulo agrupa así. Confirmado por Lufi y validado contra la factura 398: con fecha de ingreso daba 65.120 y con fecha de retiro da 91.945, que es lo que dice el SII.
+
+**Emisión:** por ahora la hace Lufi a mano en el Portal MiPyme del SII (gratis). El módulo arma los borradores con neto e IVA, y después se registra el folio y la fecha para amarrar las órdenes. BaseAPI quedó descartado (cierra el 11-dic-2026); las alternativas con API son Facto Micro (435.000/año) y LibreDTE Plus (480.000/año).
+
+**Folios cargados:** 387 (AFIM, julio), 396 (Gudfud), 398 (MD Cars), 399 (Quinta Costa), 400 (Restaurante Karla).
+
+**Falta de agosto:** Ultratug 2 órdenes por 484.505 (van por pedido, con orden de compra) y Ladys 2 con 51 órdenes por 803.670.
+
+**Ladys 2 pasa a ser cliente el 1-oct-2026.** Se agregó `clientes.interno_hasta` (= 2026-09-30) y la función `ladys.es_interna(cliente, fecha)`. El corte es por fecha, no por la marca `es_ladys2`: si se quitara la marca, todos los meses anteriores pasarían a contar como venta externa y los reportes históricos cambiarían solos. **Falta la nueva razón social y RUT**, y decidir si va en ficha nueva (recomendado si cambia el RUT) o se reusa la 1925.
+
+**Pendiente de revisar con el contador:** los folios **390 y 397** no aparecen ni usados ni anulados en el informe del SII.
+
+**RUT que faltan:** de 30 empresas solo 6 tienen RUT. Ninguna tiene giro, que no está en el Registro de Ventas ni en nuestra base — se saca del PDF de una factura ya emitida.
+
 ## Otros
 
 - **Resuelto (6-sep):** el detalle por servicio de las OT históricas quedó importado. 5.988 de 5.996 órdenes con detalle, 9.112 líneas, kilos recalculados. Quedan 10 sin detalle (no existen en el reporte de EasyLaundry).

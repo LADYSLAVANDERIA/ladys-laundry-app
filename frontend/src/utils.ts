@@ -50,7 +50,7 @@ export const mensajeAviso = (tipo: string, o: any, link: string) => {
   if (tipo === 'RETIRADO') return `Hola ${n}, ya retiramos tu ropa. Quedó registrada como la orden ${num} y te avisamos apenas esté lista.\n\n${link}`
   if (tipo === 'ENTREGADA') return `Hola ${n}, tu pedido ${num} fue entregado. ¡Gracias por preferirnos!\n\n${link}`
   const donde = o.entrega_domicilio
-    ? `Te lo llevamos el ${fechaLarga(o.fecha_entrega)}${o.ruta_entrega ? `, entre las ${hora(o.ruta_entrega_hora) || '14:00'} y las ${hora(o.ruta_entrega_fin) || '15:00'}` : ''}.`
+    ? `Te lo llevamos el ${fechaLarga(o.fecha_entrega)}${ventanaDe(o)}.`
     : 'Puedes pasar a retirarlo al local, Av. Concón Reñaca 102, locales 5 y 6.'
   return `Hola ${n}, tu pedido ${num} ya está listo. ${donde}${saldo}\n\nDetalle: ${link}`
 }
@@ -157,6 +157,18 @@ export const ETAPA_LABEL: Record<string, string> = {
 }
 
 // Sólo desde EMBOLSADO en adelante se puede afirmar que está listo.
+// La franja de la ruta, sin inventar horas.
+// Antes, si faltaba la hora de termino se rellenaba con un valor fijo y salian
+// mensajes como "entre las 19:00 y las 18:00". Una hora inventada al cliente
+// es un compromiso que nadie puede cumplir.
+function ventanaDe(o: any) {
+  const ini = hora(o?.ruta_entrega_hora)
+  const fin = hora(o?.ruta_entrega_fin)
+  if (ini && fin) return ` entre las ${ini} y las ${fin}`
+  if (ini) return ` a partir de las ${ini}`
+  return ''
+}
+
 const ETAPAS_LISTAS = ['EMBOLSADO', 'LISTO_RETIRO', 'ASIGNADO_RUTA', 'EN_CAMINO']
 const HORARIO_LOCAL = 'de lunes a viernes de 10:00 a 13:30 y de 14:30 a 18:30, y sábados de 10:00 a 13:30'
 
@@ -170,9 +182,7 @@ export const mensajeSegunEtapa = (o: any, link: string) => {
   // en un pedido agendado la fecha que le importa al cliente es la del retiro
   const fRef = etapa === 'AGENDADO' ? (o?.fecha_recogida || o?.fecha_entrega) : o?.fecha_entrega
   const cuando = fRef ? fechaLarga(fRef) : null
-  const ventana = o?.ruta_entrega_hora
-    ? ` entre las ${hora(o.ruta_entrega_hora)} y las ${hora(o.ruta_entrega_fin) || '18:00'}`
-    : ''
+  const ventana = ventanaDe(o)
 
   let cuerpo: string
   if (o?.estado === 'ANULADA') {

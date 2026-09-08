@@ -9,8 +9,23 @@
   "theme_color": "#E8177A",
   "lang": "es-CL",
   "icons": [
-    { "src": "/app/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/app/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/app/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/app/icono-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/icono-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/icono-mask-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ]
 }

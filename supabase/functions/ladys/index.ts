@@ -481,7 +481,7 @@ Deno.serve(async (req: Request) => {
       const fecha = q.get("fecha") || hoyChile(), dia = diaSemana(fecha);
       const [rutas, ords, fer] = await Promise.all([
         SQL`SELECT * FROM rutas WHERE local_id=${lid} AND activo=TRUE AND dia_semana=${dia} ORDER BY hora_inicio`,
-        SQL`SELECT o.id,o.estado,o.estado_pago,o.saldo_pendiente,o.monto_total,o.kilos,o.bultos,o.fecha_recogida,o.fecha_entrega,o.ruta_recogida_id,o.ruta_entrega_id,
+        SQL`SELECT o.id,o.estado,o.etapa,o.retirada_el,o.recibida_el,o.estado_pago,o.saldo_pendiente,o.monto_total,o.kilos,o.bultos,o.fecha_recogida,o.fecha_entrega,o.ruta_recogida_id,o.ruta_entrega_id,
               o.observaciones,o.origen,o.tipo_servicio,o.retiro_domicilio,o.entrega_domicilio,o.token_publico,
               c.nombre||' '||COALESCE(c.apellido,'') AS cliente, c.telefono,
               dr.calle AS dr_calle, dr.numero AS dr_numero, dr.otro AS dr_otro, dr.sector AS dr_sector, dr.ciudad AS dr_ciudad,

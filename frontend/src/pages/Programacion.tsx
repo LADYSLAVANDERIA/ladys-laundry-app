@@ -104,7 +104,8 @@ export default function Programacion() {
 
   const Parada = ({ o, tipo, n }: { o: any; tipo: 'retiro' | 'entrega'; n?: number }) => {
     const dir = tipo === 'retiro' ? o.dir_retiro : o.dir_entrega
-    const listoRetiro = tipo === 'retiro' && o.estado === 'PRE_ORDEN'
+    const enTransito = o.etapa === 'RETIRADO' || !!o.retirada_el
+    const listoRetiro = tipo === 'retiro' && o.estado === 'PRE_ORDEN' && !enTransito
     const listoEntrega = tipo === 'entrega' && ['EN_PROCESO', 'LISTA'].includes(o.estado)
     return (
       <div className="border rounded-xl p-3 hover:bg-gray-50">
@@ -137,6 +138,11 @@ export default function Programacion() {
                       className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold whitespace-nowrap shadow-sm active:scale-95 transition">
                 <Check size={12} /> Marcar entregada
               </button>
+            )}
+            {tipo === 'retiro' && enTransito && o.estado === 'PRE_ORDEN' && (
+              <span className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 whitespace-nowrap">
+                <Truck size={12} /> En camino al local
+              </span>
             )}
             {o.estado === 'ENTREGADA' && <CheckCircle2 size={16} className="text-green-500" />}
           </div>

@@ -238,6 +238,26 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      // Al ordenar UNA sola ruta el contador parte de cero y chocaba con los
+      // numeros de la otra: dos paradas "1" en el mismo dia. Se renumera todo
+      // el dia respetando el orden de salida de cada ruta, sin tocar el orden
+      // interno de las que no se optimizaron.
+      await SQL`
+        WITH ord AS (
+          SELECT p.id, ROW_NUMBER() OVER (
+                   ORDER BY r.hora_inicio NULLS LAST, (p.secuencia = 0), p.secuencia, p.id) AS n
+          FROM reparto_paradas p
+          LEFT JOIN rutas r ON r.id = p.ruta_id
+          WHERE p.fecha = ${fecha}::date
+        )
+        UPDATE reparto_paradas s SET secuencia = ord.n
+        FROM ord WHERE ord.id = s.id AND s.secuencia IS DISTINCT FROM ord.n`;
+      await SQL`
+        UPDATE ordenes o SET orden_ruta = p.secuencia
+        FROM reparto_paradas p
+        WHERE p.orden_id = o.id AND p.fecha = ${fecha}::date
+          AND o.orden_ruta IS DISTINCT FROM p.secuencia`;
+
       return json({
         ok: true, ordenadas: n, rutas: detalle,
         km_total: Number(kmDia.toFixed(1)), min_total: minDia,

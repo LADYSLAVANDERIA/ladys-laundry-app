@@ -3,7 +3,7 @@ import SolicitudRecogida from '../components/SolicitudRecogida'
 import { useNavigate } from 'react-router-dom'
 import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi, dirApi, etapasApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check, RotateCcw } from 'lucide-react'
 import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, TOPE_PARADAS_MAPS, pesoSector, esPagoMercadoPago, refDesdeOperacion} from '../utils'
 
 export default function Programacion() {
@@ -64,6 +64,19 @@ export default function Programacion() {
   // Recepcionar es otra cosa, y ocurre en el local cuando se le cargan los
   // servicios. Antes ambas cosas se marcaban igual y el pedido aparecía en
   // producción mientras iba en la camioneta.
+  // Deshacer una entrega marcada por error: borra la hora, devuelve el pedido a
+  // la ruta y deja el motivo en el historial.
+  const deshacer = async (id: number) => {
+    const motivo = window.prompt(`Deshacer la entrega de ${ot(id)}.\n\n¿Por qué? Queda en el historial.`)
+    if (motivo === null) return
+    if (!motivo.trim()) return toast.error('Escribe el motivo')
+    try {
+      await ordenesApi.cambiarEstado(id, { estado: 'LISTA', nota: motivo.trim() })
+      toast.success(`${ot(id)} vuelve a quedar lista`, { duration: 4000 })
+      load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo deshacer') }
+  }
+
   const marcar = async (id: number, accion: 'RETIRADO' | 'ENTREGADA') => {
     try {
       if (accion === 'RETIRADO') {
@@ -144,7 +157,17 @@ export default function Programacion() {
                 <Truck size={12} /> En camino al local
               </span>
             )}
-            {o.estado === 'ENTREGADA' && <CheckCircle2 size={16} className="text-green-500" />}
+            {o.estado === 'ENTREGADA' && (
+              <>
+                <CheckCircle2 size={16} className="text-green-500" />
+                {/* Un clic equivocado aquí saca el pedido de la ruta del día.
+                    Tiene que poder deshacerse en el mismo lugar donde se hizo. */}
+                <button onClick={() => deshacer(o.id)}
+                        className="flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 whitespace-nowrap">
+                  <RotateCcw size={12} /> Deshacer
+                </button>
+              </>
+            )}
           </div>
         </div>
 

@@ -6,7 +6,7 @@ import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi } from '../
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard } from 'lucide-react'
+import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard, RotateCcw } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa, tipoAviso, describirCambios, resumenItems} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
@@ -18,6 +18,7 @@ export default function OrdenDetalle() {
   const [formas, setFormas] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([]); const [rutas, setRutas] = useState<any[]>([])
   const [pago, setPago] = useState<any>({ forma_pago_id: '', monto: '' })
   const [cobro, setCobro] = useState<any>(null)
+  const [motivoVuelta, setMotivoVuelta] = useState('')
   const [generando, setGenerando] = useState(false)
   const [comp, setComp] = useState<any>({ monto: '', nombre_origen: '', nota: '' })
   const [pos, setPos] = useState<any>(null)          // { mp_order_id, monto, estado }
@@ -83,6 +84,15 @@ export default function OrdenDetalle() {
     try { await ordenesApi.cambiarEstado(o.id, { estado, ...extra }); toast.success(`Orden ${ESTADO_LABEL[estado].toLowerCase()}`); setModal(null); load() }
     catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
   }
+  const deshacerEntrega = async () => {
+    if (!motivoVuelta.trim()) return toast.error('Escribe el motivo: queda en el historial de la orden')
+    try {
+      await ordenesApi.cambiarEstado(o.id, { estado: 'LISTA', nota: motivoVuelta.trim() })
+      toast.success('Entrega deshecha. La orden vuelve a quedar lista.')
+      setModal(null); setMotivoVuelta(''); load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo deshacer') }
+  }
+
   const pagar = async () => {
     if (!pago.forma_pago_id || !Number(pago.monto)) return toast.error('Elige forma de pago y monto')
     if (esPagoMercadoPago(pago.forma_pago_id) && !String(pago.referencia || '').trim())
@@ -316,6 +326,12 @@ export default function OrdenDetalle() {
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setPos(null); setPosError(''); setModal('maquina') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold"><CreditCard size={14} /> Cobrar en la máquina {fmt(o.saldo_pendiente)}</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setCobro(null); setModal('cobrar') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Link2 size={14} /> Cobrar con link</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setComp({ monto: String(Math.round(Number(o.saldo_pendiente))), nombre_origen: '', nota: '' }); setModal('comprobante') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Send size={14} /> Comprobante de transferencia</button>}
+            {o.estado === 'ENTREGADA' && (
+              <button onClick={() => { setMotivoVuelta(''); setModal('deshacer') }}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 text-sm font-medium">
+                <RotateCcw size={14} /> Deshacer entrega
+              </button>
+            )}
             {o.estado !== 'ENTREGADA' && <button onClick={abrirEdicionItems} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Package size={14} /> Editar ítems</button>}
             <button onClick={() => { setEdit({ ot_easylaundry: o.ot_easylaundry || '', fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos }); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
             <button onClick={() => prepararAviso(o.estado === 'LISTA' ? 'LISTA' : o.estado === 'PRE_ORDEN' ? 'INGRESO' : o.estado === 'ENTREGADA' ? 'ENTREGADA' : 'INGRESO')}
@@ -680,6 +696,41 @@ export default function OrdenDetalle() {
             <div className="flex items-center justify-between"><h2 className="font-bold">Editar ítems de {ot(o.id)}</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
             <ItemsPicker servicios={servicios} kilos={kilos} setKilos={setKilos} express={express} setExpress={setExpress} prendas={prendas} setPrendas={setPrendas} />
             <div className="flex gap-2"><button onClick={guardarItems} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold text-sm" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}><Save size={15} /> Guardar y recalcular</button><button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button></div>
+          </div>
+        </div>
+      )}
+
+      {modal === 'deshacer' && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold">Deshacer la entrega</h2>
+              <button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <p className="text-sm text-gray-600">
+              La orden vuelve a quedar <b>lista</b>, se borra la hora de entrega y, si estaba
+              programada para hoy, reaparece en el recorrido del conductor.
+            </p>
+            {Number(o.monto_abonado) > 0 && (
+              <p className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-3 py-2">
+                Ojo: esta orden tiene {fmt(o.monto_abonado)} pagados. El dinero no se toca —
+                si hay que devolverlo, se hace aparte.
+              </p>
+            )}
+            <div>
+              <label className="text-sm font-medium text-gray-700">¿Por qué se deshace?</label>
+              <textarea value={motivoVuelta} onChange={e => setMotivoVuelta(e.target.value)} rows={2} autoFocus
+                        placeholder="Ej: se marcó por error, el pedido nunca salió del local"
+                        className={inp + ' mt-1'} />
+              <p className="text-[11px] text-gray-400 mt-1">Queda en el historial con tu nombre y la hora.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button onClick={() => setModal(null)} className="py-2.5 rounded-xl border text-gray-600 text-sm">Cancelar</button>
+              <button onClick={deshacerEntrega}
+                      className="py-2.5 rounded-xl text-white text-sm font-semibold" style={{ background: '#d97706' }}>
+                Deshacer entrega
+              </button>
+            </div>
           </div>
         </div>
       )}

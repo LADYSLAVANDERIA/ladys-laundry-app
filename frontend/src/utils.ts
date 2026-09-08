@@ -151,7 +151,8 @@ export const refDesdeOperacion = (formaPagoId?: string | number | null, valor?: 
 // Las etapas AGENDADO y ENTREGADO tienen su propia línea sólo para no mentir:
 // en una la ropa todavía no está en el local, en la otra ya se entregó.
 export const ETAPA_LABEL: Record<string, string> = {
-  AGENDADO: 'Agendado', RECEPCIONADO: 'Recepcionado', EN_LAVADO: 'En lavado',
+  AGENDADO: 'Agendado', RETIRADO: 'Retirado, en camino al local',
+  RECEPCIONADO: 'Recepcionado', EN_LAVADO: 'En lavado',
   EN_SECADO: 'En secado', EMBOLSADO: 'Embolsado', LISTO_RETIRO: 'Listo para retiro',
   ASIGNADO_RUTA: 'En ruta', EN_CAMINO: 'En camino', ENTREGADO: 'Entregado',
 }
@@ -189,6 +190,8 @@ export const mensajeSegunEtapa = (o: any, link: string) => {
     cuerpo = `tu pedido ${num} quedó anulado. Si necesitas ayuda, respóndenos por acá.`
   } else if (etapa === 'AGENDADO') {
     cuerpo = `tenemos agendado el retiro de tu ropa${cuando ? ` para el ${cuando}` : ''}. Te avisamos cuando vayamos en camino.`
+  } else if (etapa === 'RETIRADO') {
+    cuerpo = `ya retiramos tu ropa y va en camino al local. Te avisamos el número de tu orden apenas la ingresemos.`
   } else if (etapa === 'ENTREGADO') {
     cuerpo = `tu pedido ${num} fue entregado. ¡Gracias por preferirnos!`
   } else if (ETAPAS_LISTAS.includes(etapa)) {
@@ -208,6 +211,7 @@ export const tipoAviso = (o: any) => {
   if (o?.estado === 'ANULADA') return 'ANULACION'
   const etapa = String(o?.etapa || (o?.estado === 'PRE_ORDEN' ? 'AGENDADO' : 'RECEPCIONADO'))
   if (etapa === 'AGENDADO') return 'AGENDADO'
+  if (etapa === 'RETIRADO') return 'RETIRO'
   if (etapa === 'ENTREGADO') return 'ENTREGA'
   return ETAPAS_LISTAS.includes(etapa) ? 'PEDIDO LISTO' : 'RECEPCION'
 }

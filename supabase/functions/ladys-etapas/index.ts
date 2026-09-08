@@ -16,11 +16,14 @@ const json = (d: unknown, s = 200) =>
   new Response(JSON.stringify(d), { status: s, headers: { "content-type": "application/json", ...CORS } });
 
 // El recorrido normal de un pedido. El orden importa: nunca se retrocede solo.
-const ETAPAS = ["RECEPCIONADO", "EN_LAVADO", "EN_SECADO", "EMBOLSADO",
+const ETAPAS = ["RETIRADO", "RECEPCIONADO", "EN_LAVADO", "EN_SECADO", "EMBOLSADO",
                 "LISTO_RETIRO", "ASIGNADO_RUTA", "EN_CAMINO", "ENTREGADO"];
 
 // Cómo se refleja cada etapa en el estado que ya usaba el sistema
 const ESTADO_DE: Record<string, string> = {
+  // RETIRADO sigue siendo una pre-orden: la ropa va en la camioneta, todavia no
+  // tiene servicios cargados ni monto. Recien al recepcionarla entra a proceso.
+  RETIRADO: "PRE_ORDEN",
   RECEPCIONADO: "EN_PROCESO", EN_LAVADO: "EN_PROCESO", EN_SECADO: "EN_PROCESO",
   EMBOLSADO: "LISTA", LISTO_RETIRO: "LISTA", ASIGNADO_RUTA: "LISTA",
   EN_CAMINO: "LISTA", ENTREGADO: "ENTREGADA",
@@ -68,7 +71,7 @@ Deno.serve(async (req: Request) => {
       if (!o) return json({ error: `No existe el pedido ${id}` }, 404);
       if (o.estado === "ANULADA") return json({ error: `El pedido ${id} está anulado` }, 409);
 
-      const antes = ETAPAS.indexOf(o.etapa || "RECEPCIONADO");
+      const antes = ETAPAS.indexOf(o.etapa || (o.estado === "PRE_ORDEN" ? "RETIRADO" : "RECEPCIONADO"));
       const ahora = ETAPAS.indexOf(etapa);
       const retrocede = ahora < antes;
       const repetida = ahora === antes;
@@ -77,6 +80,8 @@ Deno.serve(async (req: Request) => {
         await SQL`UPDATE ordenes SET etapa = ${etapa}, etapa_en = NOW(),
                     estado = ${ESTADO_DE[etapa]},
                     bultos = COALESCE(${b.bultos ?? null}, bultos),
+                    retirada_el = CASE WHEN ${etapa} = 'RETIRADO' THEN COALESCE(retirada_el, NOW()) ELSE retirada_el END,
+                    recibida_el = CASE WHEN ${etapa} = 'RECEPCIONADO' THEN COALESCE(recibida_el, NOW()) ELSE recibida_el END,
                     entregada_el = CASE WHEN ${etapa} = 'ENTREGADO' THEN NOW() ELSE entregada_el END
                   WHERE id = ${id}`;
         await SQL`INSERT INTO orden_etapas (orden_id, etapa, usuario_id, bultos, nota)

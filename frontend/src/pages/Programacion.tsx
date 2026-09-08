@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import SolicitudRecogida from '../components/SolicitudRecogida'
 import { useNavigate } from 'react-router-dom'
-import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi, dirApi } from '../services/api'
+import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi, dirApi, etapasApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check } from 'lucide-react'
 import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, TOPE_PARADAS_MAPS, pesoSector, esPagoMercadoPago, refDesdeOperacion} from '../utils'
@@ -59,10 +59,20 @@ export default function Programacion() {
     ordenesApi.aviso(o.id, { tipo, mensaje: msg }).catch(() => {})
   }
 
-  const marcar = async (id: number, estado: string) => {
+  // Retirar y entregar son cosas distintas y se registran distinto.
+  // Al retirar, la ropa recién sale del domicilio: NO está recepcionada.
+  // Recepcionar es otra cosa, y ocurre en el local cuando se le cargan los
+  // servicios. Antes ambas cosas se marcaban igual y el pedido aparecía en
+  // producción mientras iba en la camioneta.
+  const marcar = async (id: number, accion: 'RETIRADO' | 'ENTREGADA') => {
     try {
-      await ordenesApi.cambiarEstado(id, { estado })
-      toast.success(`${ot(id)} ${estado === 'EN_PROCESO' ? 'marcada como retirada' : 'entregada'} · avisa al cliente con el botón de WhatsApp`, { duration: 4000 })
+      if (accion === 'RETIRADO') {
+        await etapasApi.marcar({ orden_id: id, etapa: 'RETIRADO' })
+        toast.success(`${ot(id)} retirada · va en camino al local`, { duration: 4000 })
+      } else {
+        await ordenesApi.cambiarEstado(id, { estado: 'ENTREGADA' })
+        toast.success(`${ot(id)} entregada · avisa al cliente con el botón de WhatsApp`, { duration: 4000 })
+      }
       load()
     }
     catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
@@ -117,7 +127,7 @@ export default function Programacion() {
           </div>
           <div className="flex flex-col gap-1.5 items-end flex-shrink-0">
             {listoRetiro && (
-              <button onClick={() => marcar(o.id, 'EN_PROCESO')}
+              <button onClick={() => marcar(o.id, 'RETIRADO')}
                       className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg bg-orange-500 text-white font-semibold whitespace-nowrap shadow-sm active:scale-95 transition">
                 <Check size={12} /> Marcar retirado
               </button>

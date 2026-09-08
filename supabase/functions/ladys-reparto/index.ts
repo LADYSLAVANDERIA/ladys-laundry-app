@@ -42,7 +42,7 @@ async function sincronizar(fecha: string) {
       LIMIT 1
     ) d ON TRUE
     WHERE o.fecha_recogida = ${fecha}::date AND o.retiro_domicilio AND o.estado <> 'ANULADA'
-      AND o.recibida_el IS NULL
+      AND o.recibida_el IS NULL AND o.retirada_el IS NULL
     ON CONFLICT (fecha, orden_id, tipo) DO UPDATE
       SET direccion_id = EXCLUDED.direccion_id, lat = EXCLUDED.lat, lng = EXCLUDED.lng
       WHERE reparto_paradas.estado = 'PENDIENTE'`;
@@ -72,7 +72,7 @@ async function sincronizar(fecha: string) {
       AND NOT EXISTS (
         SELECT 1 FROM ordenes o WHERE o.id = p.orden_id AND o.estado <> 'ANULADA'
           AND ((p.tipo = 'RETIRO'  AND o.fecha_recogida = ${fecha}::date AND o.retiro_domicilio
-                                    AND o.recibida_el IS NULL)
+                                    AND o.recibida_el IS NULL AND o.retirada_el IS NULL)
             OR (p.tipo = 'ENTREGA' AND o.fecha_entrega  = ${fecha}::date AND o.entrega_domicilio
                                     AND o.entregada_el IS NULL)))`;
 }
@@ -211,10 +211,21 @@ Deno.serve(async (req: Request) => {
             llegada_real=${b.estado === "COMPLETADA" ? SQL`NOW()` : null}
         WHERE id=${b.id} RETURNING *`;
       if (!p) return json({ error: "Parada no encontrada" }, 404);
-      // al completar la entrega, la orden queda entregada
-      if (b.estado === "COMPLETADA" && p.tipo === "ENTREGA") {
-        await SQL`UPDATE ordenes SET estado='ENTREGADA', entregada_el=NOW()
-                  WHERE id=${p.orden_id} AND estado <> 'ANULADA'`;
+      if (b.estado === "COMPLETADA") {
+        if (p.tipo === "ENTREGA") {
+          await SQL`UPDATE ordenes SET estado='ENTREGADA', etapa='ENTREGADO', entregada_el=NOW()
+                    WHERE id=${p.orden_id} AND estado <> 'ANULADA'`;
+        } else {
+          // Retiro cumplido: la ropa salio de la casa del cliente y va en la
+          // camioneta. NO esta recepcionada: recepcionar significa que entro por
+          // mostrador, se le cargaron los servicios y paso a produccion. Eso lo
+          // hace despues el trigger, cuando alguien le carga los items.
+          await SQL`UPDATE ordenes
+                       SET etapa = CASE WHEN etapa = 'AGENDADO' THEN 'RETIRADO' ELSE etapa END,
+                           retirada_el = COALESCE(retirada_el, NOW()),
+                           actualizado_en = NOW()
+                     WHERE id=${p.orden_id} AND estado <> 'ANULADA'`;
+        }
       }
       return json({ ok: true, parada: p });
     }

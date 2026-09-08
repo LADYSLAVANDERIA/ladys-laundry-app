@@ -266,11 +266,34 @@ Deno.serve(async (req: Request) => {
           // camioneta. NO esta recepcionada: recepcionar significa que entro por
           // mostrador, se le cargaron los servicios y paso a produccion. Eso lo
           // hace despues el trigger, cuando alguien le carga los items.
+          //
+          // Se guarda ademas lo que el conductor anota en la puerta: los bultos
+          // que recibio y lo que pidio el cliente. Eso se pierde si no queda
+          // escrito en el momento, y es justo lo que el taller necesita saber
+          // antes de tocar la ropa.
+          const nb = Number(b.bultos);
+          const bultos = Number.isFinite(nb) && nb > 0 ? Math.round(nb) : null;
+          const dicho = String(b.nota_cliente || "").trim();
+          const linea = dicho ? `Al retiro: ${dicho}` : null;
+
           await SQL`UPDATE ordenes
                        SET etapa = CASE WHEN etapa = 'AGENDADO' THEN 'RETIRADO' ELSE etapa END,
                            retirada_el = COALESCE(retirada_el, NOW()),
+                           bultos = COALESCE(${bultos}, bultos),
+                           observaciones = CASE
+                             WHEN ${linea}::text IS NULL THEN observaciones
+                             ELSE TRIM(BOTH E'\n' FROM COALESCE(observaciones,'') || E'\n' || ${linea})
+                           END,
                            actualizado_en = NOW()
                      WHERE id=${p.orden_id} AND estado <> 'ANULADA'`;
+
+          const resumen = [
+            bultos ? `${bultos} bulto${bultos > 1 ? "s" : ""}` : null,
+            dicho || null,
+          ].filter(Boolean).join(" \u00b7 ");
+          await SQL`INSERT INTO ordenes_historial (orden_id, estado, nota)
+                    VALUES (${p.orden_id}, 'RETIRADO',
+                            ${resumen ? `Retirada en el domicilio. ${resumen}` : "Retirada en el domicilio."})`;
         }
       }
       return json({ ok: true, parada: p });

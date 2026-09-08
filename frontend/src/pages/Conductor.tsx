@@ -34,6 +34,7 @@ export default function Conductor() {
   const [abierta, setAbierta] = useState<number | null>(null)
   const [verTodas, setVerTodas] = useState(false)
   const [vista, setVista] = useState<'lista' | 'mapa'>('lista')
+  const [cerrando, setCerrando] = useState<any>(null)
   const [miPos, setMiPos] = useState<{ lat: number; lng: number } | null>(null)
   const [enVivo, setEnVivo] = useState(false)
   const [ultimoEnvio, setUltimoEnvio] = useState<Date | null>(null)
@@ -121,7 +122,7 @@ export default function Conductor() {
     } catch { toast.error('No se pudo iniciar el trayecto') }
   }
 
-  const marcar = async (p: any, estado: string) => {
+  const marcar = async (p: any, estado: string, extra?: { bultos?: number; nota_cliente?: string }) => {
     let nota: string | undefined
     if (estado === 'FALLIDA') {
       const n = window.prompt('¿Qué pasó? (no había nadie, dirección equivocada, etc.)')
@@ -129,11 +130,63 @@ export default function Conductor() {
       nota = n
     }
     try {
-      await repartoApi.parada(p.id, estado, nota)
+      await repartoApi.parada(p.id, estado, nota, extra)
       toast.success(estado === 'COMPLETADA' ? 'Parada lista' : 'Marcada como no lograda')
       setAbierta(null)
+      setCerrando(null)
       cargar()
     } catch { toast.error('No se pudo guardar') }
+  }
+
+  // Al retirar se abre esta ventana ANTES de cerrar la parada. Lo que el cliente
+  // dice en la puerta -"desmanchar la sábana gris"- no vuelve a preguntarse
+  // nunca: si no se anota aquí, se pierde y el taller trabaja a ciegas.
+  const VentanaRetiro = ({ p }: { p: any }) => {
+    const [bultos, setBultos] = useState<number>(Number(p.bultos) > 0 ? Number(p.bultos) : 1)
+    const [nota, setNota] = useState('')
+    const [guardando, setGuardando] = useState(false)
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+           onClick={() => !guardando && setCerrando(null)}>
+        <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4"
+             onClick={e => e.stopPropagation()}>
+          <div>
+            <p className="text-lg font-bold text-gray-800">Retiro de {nombreDe(p)}</p>
+            <p className="text-sm text-gray-500">Anota lo que recibes y lo que te pidió.</p>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700">¿Cuántos bultos retiraste?</label>
+            <div className="flex items-center gap-4 mt-2">
+              <button onClick={() => setBultos(b => Math.max(1, b - 1))}
+                      className="w-14 h-14 rounded-2xl border text-2xl font-bold text-gray-600 active:scale-95">−</button>
+              <span className="flex-1 text-center text-4xl font-bold" style={{ color: '#E8177A' }}>{bultos}</span>
+              <button onClick={() => setBultos(b => Math.min(99, b + 1))}
+                      className="w-14 h-14 rounded-2xl border text-2xl font-bold text-gray-600 active:scale-95">+</button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700">¿Te dijo algo la clienta?</label>
+            <textarea value={nota} onChange={e => setNota(e.target.value)} rows={3} autoFocus={false}
+                      placeholder="Ej: desmanchar una sábana gris · 2 cobertores king · entregar el viernes"
+                      className="mt-2 w-full border rounded-xl px-3 py-2.5 text-base" />
+            <p className="text-[11px] text-gray-400 mt-1">Queda en el pedido, a la vista del taller.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button onClick={() => setCerrando(null)} disabled={guardando}
+                    className="py-3 rounded-xl border text-gray-600 font-medium">Cancelar</button>
+            <button disabled={guardando}
+                    onClick={() => { setGuardando(true); marcar(p, 'COMPLETADA', { bultos, nota_cliente: nota }) }}
+                    className="py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+                    style={{ background: '#16a34a' }}>
+              <Check size={18} /> {guardando ? 'Guardando…' : 'Confirmar retiro'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const Tarjeta = ({ p, principal = false }: { p: any; principal?: boolean }) => {
@@ -216,7 +269,7 @@ export default function Conductor() {
 
             {p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO' ? (
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => marcar(p, 'COMPLETADA')}
+                <button onClick={() => p.tipo === 'RETIRO' ? setCerrando(p) : marcar(p, 'COMPLETADA')}
                         className="py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2"
                         style={{ background: '#16a34a' }}>
                   <Check size={18} /> {p.tipo === 'RETIRO' ? 'Retirado' : 'Entregado'}
@@ -363,6 +416,8 @@ export default function Conductor() {
           </>
         )}
       </div>
+
+      {cerrando && <VentanaRetiro p={cerrando} />}
     </div>
   )
 }

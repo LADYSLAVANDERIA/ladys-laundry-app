@@ -183,7 +183,8 @@ repartoAx.interceptors.request.use(config => {
 export const repartoApi = {
   dia: (fecha: string) => repartoAx.get('/dia', { params: { fecha } }),
   optimizar: (fecha: string, inicio?: string) => repartoAx.post('/optimizar', { fecha, inicio }),
-  parada: (id: number, estado: string, nota?: string) => repartoAx.post('/parada', { id, estado, nota }),
+  parada: (id: number, estado: string, nota?: string, extra?: { bultos?: number; nota_cliente?: string }) =>
+    repartoAx.post('/parada', { id, estado, nota, ...(extra || {}) }),
   reordenar: (ids: number[]) => repartoAx.post('/reordenar', { ids }),
 }
 

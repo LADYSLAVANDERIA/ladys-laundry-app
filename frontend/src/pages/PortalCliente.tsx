@@ -115,9 +115,14 @@ function AccesoDirecto() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800">Tenla a mano en tu teléfono</p>
-          <p className="text-[11px] text-gray-500">Sin descargar nada: queda un acceso directo en tu pantalla</p>
+          <p className="text-[11px] text-gray-500">
+            {prompt ? 'Un toque y queda en tu pantalla de inicio' : 'Sin descargar nada: queda un acceso directo en tu pantalla'}
+          </p>
         </div>
-        <ChevronDown size={16} className={`text-gray-300 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+        {prompt
+          ? <span className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white shrink-0"
+                  style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Agregar</span>
+          : <ChevronDown size={16} className={`text-gray-300 transition-transform ${abierto ? 'rotate-180' : ''}`} />}
       </button>
 
       {abierto && (

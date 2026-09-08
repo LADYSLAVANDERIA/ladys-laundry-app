@@ -76,7 +76,34 @@ export default function Conductor() {
   }
   useEffect(() => () => { if (watch.current !== null) navigator.geolocation.clearWatch(watch.current) }, [])
 
-  const paradas: any[] = data?.paradas || []
+  const todas: any[] = data?.paradas || []
+
+  // Las rutas del día, en orden de salida
+  const rutas = useMemo(() => {
+    const m: Record<string, any> = {}
+    for (const p of todas) {
+      const k = String(p.ruta_id ?? 'sin')
+      if (!m[k]) m[k] = { id: p.ruta_id ?? null, clave: k, nombre: p.ruta_nombre || 'Sin ruta', inicio: p.ruta_inicio || '', fin: p.ruta_fin || '', n: 0 }
+      m[k].n++
+    }
+    return Object.values(m).sort((a: any, b: any) => String(a.inicio).localeCompare(String(b.inicio)))
+  }, [todas])
+
+  const [rutaSel, setRutaSel] = useState<string | null>(null)
+  useEffect(() => {
+    if (!rutas.length) { setRutaSel(null); return }
+    if (rutaSel && rutas.some(r => r.clave === rutaSel)) return
+    const ahora = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Santiago', hour12: false }).slice(0, 5)
+    const enCurso = rutas.find(r => r.inicio && r.fin && String(r.inicio).slice(0, 5) <= ahora && ahora <= String(r.fin).slice(0, 5))
+    const proxima = rutas.find(r => String(r.inicio).slice(0, 5) >= ahora)
+    setRutaSel((enCurso || proxima || rutas[rutas.length - 1]).clave)
+  }, [rutas, rutaSel])
+
+  const paradas = useMemo(
+    () => (rutaSel ? todas.filter(p => String(p.ruta_id ?? 'sin') === rutaSel) : todas),
+    [todas, rutaSel])
+
+  // La que va EN_CAMINO manda, pero solo dentro de su propia ruta.
   const pendientes = useMemo(() => paradas.filter(p => p.estado === 'EN_CAMINO' || p.estado === 'PENDIENTE')
     .sort((a, b) => (a.estado === 'EN_CAMINO' ? -1 : 0) - (b.estado === 'EN_CAMINO' ? -1 : 0)), [paradas])
   const actual = pendientes[0]
@@ -198,6 +225,14 @@ export default function Conductor() {
                         className="py-3 rounded-xl font-semibold border border-red-200 text-red-600 flex items-center justify-center gap-2">
                   <X size={18} /> No se pudo
                 </button>
+                {/* Sin esto, una parada marcada "voy en camino" y nunca cerrada
+                    se queda fija arriba de la lista y tapa a las siguientes. */}
+                {p.estado === 'EN_CAMINO' && (
+                  <button onClick={() => marcar(p, 'PENDIENTE')}
+                          className="col-span-2 py-2.5 rounded-xl border text-gray-500 text-sm">
+                    Ya no voy a esta · devolverla a la lista
+                  </button>
+                )}
               </div>
             ) : (
               <button onClick={() => marcar(p, 'PENDIENTE')}
@@ -247,6 +282,22 @@ export default function Conductor() {
       </div>
 
       <div className="px-4 -mt-3 space-y-3">
+        {/* Cada salida del día es un recorrido aparte. Se abre en la que
+            corresponde a esta hora, pero se puede cambiar. */}
+        {rutas.length > 1 && (
+          <div className="flex gap-1 bg-white rounded-xl p-1 border">
+            {rutas.map(r => (
+              <button key={r.clave} onClick={() => setRutaSel(r.clave)}
+                      className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium leading-tight ${
+                        rutaSel === r.clave ? 'text-white' : 'text-gray-500'}`}
+                      style={rutaSel === r.clave ? { background: 'linear-gradient(135deg,#4AAEE0,#A87BC8)' } : {}}>
+                {String(r.inicio).slice(0, 5) || '—'}<br />
+                <span className="opacity-80">{r.n} parada(s)</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Lista para trabajar parada a parada, mapa para ubicarse */}
         {!!paradas.length && (
           <div className="flex gap-1 bg-white rounded-xl p-1 border">

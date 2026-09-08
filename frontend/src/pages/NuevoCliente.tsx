@@ -5,6 +5,24 @@ import MapaDireccion from '../components/MapaDireccion'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Save, MapPin } from 'lucide-react'
 
+// Definido fuera del componente a proposito. Adentro, React lo veia como un tipo
+// nuevo en cada render: al escribir una letra cambiaba el formulario, el input
+// se destruia y se creaba otro, y el cursor saltaba. Solo se podia escribir de a
+// una letra volviendo a pinchar el campo.
+function Campo({ label, valor, onChange, type = 'text', required = false }: {
+  label: string; valor: string; onChange: (v: string) => void; type?: string; required?: boolean
+}) {
+  return (
+    <div>
+      <label className="text-xs font-medium text-gray-600 block mb-1">
+        {label}{required && <span className="text-pink-500 ml-1">*</span>}
+      </label>
+      <input type={type} value={valor} onChange={e => onChange(e.target.value)} required={required}
+        className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-pink-300 outline-none" />
+    </div>
+  )
+}
+
 export default function NuevoCliente() {
   const navigate = useNavigate()
   const [tipo, setTipo] = useState('PARTICULAR')
@@ -29,14 +47,6 @@ export default function NuevoCliente() {
     } catch { toast.error('Error al crear cliente') }
     finally { setLoading(false) }
   }
-
-  const F = ({ label, k, type = 'text', required = false }: { label: string, k: string, type?: string, required?: boolean }) => (
-    <div>
-      <label className="text-xs font-medium text-gray-600 block mb-1">{label}{required && <span className="text-pink-500 ml-1">*</span>}</label>
-      <input type={type} value={form[k] || ''} onChange={e => set(k, e.target.value)} required={required}
-        className="w-full border rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-pink-300 outline-none" />
-    </div>
-  )
 
   return (
     <div className="max-w-2xl mx-auto space-y-5">
@@ -63,11 +73,11 @@ export default function NuevoCliente() {
         <div className="bg-white rounded-xl p-5 shadow-sm border space-y-4">
           <p className="text-sm font-semibold text-gray-700">Datos personales</p>
           <div className="grid grid-cols-2 gap-4">
-            <F label="Nombre" k="nombre" required />
-            <F label="Apellido" k="apellido" />
-            <F label="Teléfono" k="telefono" type="tel" />
-            <F label="Email" k="email" type="email" />
-            <F label="Fecha nacimiento" k="fecha_nacimiento" type="date" />
+            <Campo label="Nombre" valor={form.nombre || ''} onChange={v => set('nombre', v)} required />
+            <Campo label="Apellido" valor={form.apellido || ''} onChange={v => set('apellido', v)} />
+            <Campo label="Teléfono" valor={form.telefono || ''} onChange={v => set('telefono', v)} type="tel" />
+            <Campo label="Email" valor={form.email || ''} onChange={v => set('email', v)} type="email" />
+            <Campo label="Fecha nacimiento" valor={form.fecha_nacimiento || ''} onChange={v => set('fecha_nacimiento', v)} type="date" />
             <div>
               <label className="text-xs font-medium text-gray-600 block mb-1">Tipo documento</label>
               <select value={form.tipo_doc || 'BOLETA'} onChange={e => set('tipo_doc', e.target.value)}
@@ -83,11 +93,11 @@ export default function NuevoCliente() {
           <div className="bg-white rounded-xl p-5 shadow-sm border space-y-4">
             <p className="text-sm font-semibold text-gray-700">Datos empresa</p>
             <div className="grid grid-cols-2 gap-4">
-              <F label="RUT" k="id_fiscal" />
-              <F label="Razón Social" k="razon_social" />
-              <F label="Giro" k="giro" />
-              <F label="Contacto" k="contacto" />
-              <F label="Plazo pago (días)" k="plazo_pago" type="number" />
+              <Campo label="RUT" valor={form.id_fiscal || ''} onChange={v => set('id_fiscal', v)} />
+              <Campo label="Razón Social" valor={form.razon_social || ''} onChange={v => set('razon_social', v)} />
+              <Campo label="Giro" valor={form.giro || ''} onChange={v => set('giro', v)} />
+              <Campo label="Contacto" valor={form.contacto || ''} onChange={v => set('contacto', v)} />
+              <Campo label="Plazo pago (días)" valor={form.plazo_pago || ''} onChange={v => set('plazo_pago', v)} type="number" />
             </div>
           </div>
         )}

@@ -26,6 +26,64 @@ function linkNav(p: any) {
 }
 function soloNumeros(t: string) { return String(t || '').replace(/[^\d]/g, '') }
 
+// Al retirar se abre esta ventana ANTES de cerrar la parada. Lo que el cliente
+// dice en la puerta -"desmanchar la sábana gris"- no vuelve a preguntarse
+// nunca: si no se anota aquí, se pierde y el taller trabaja a ciegas.
+//
+// Vive fuera del componente a proposito: definida adentro, React la veia como un
+// tipo nuevo en cada render y la recreaba entera. Una recarga de fondo de la
+// lista bastaba para borrar lo que el conductor estaba escribiendo.
+function VentanaRetiro({ p, onCerrar, onConfirmar }: {
+  p: any; onCerrar: () => void; onConfirmar: (d: { bultos: number; nota_cliente: string }) => void
+}) {
+  const [bultos, setBultos] = useState<number>(Number(p.bultos) > 0 ? Number(p.bultos) : 1)
+  const [nota, setNota] = useState('')
+  const [guardando, setGuardando] = useState(false)
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+         onClick={() => !guardando && onCerrar()}>
+      <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4"
+           onClick={e => e.stopPropagation()}>
+        <div>
+          <p className="text-lg font-bold text-gray-800">Retiro de {nombreDe(p)}</p>
+          <p className="text-sm text-gray-500">Anota lo que recibes y lo que te pidió.</p>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium text-gray-700">¿Cuántos bultos retiraste?</label>
+          <div className="flex items-center gap-4 mt-2">
+            <button onClick={() => setBultos(b => Math.max(1, b - 1))}
+                    className="w-14 h-14 rounded-2xl border text-2xl font-bold text-gray-600 active:scale-95">−</button>
+            <span className="flex-1 text-center text-4xl font-bold" style={{ color: '#E8177A' }}>{bultos}</span>
+            <button onClick={() => setBultos(b => Math.min(99, b + 1))}
+                    className="w-14 h-14 rounded-2xl border text-2xl font-bold text-gray-600 active:scale-95">+</button>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium text-gray-700">¿Te dijo algo la clienta?</label>
+          <textarea value={nota} onChange={e => setNota(e.target.value)} rows={3} autoFocus={false}
+                    placeholder="Ej: desmanchar una sábana gris · 2 cobertores king · entregar el viernes"
+                    className="mt-2 w-full border rounded-xl px-3 py-2.5 text-base" />
+          <p className="text-[11px] text-gray-400 mt-1">Queda en el pedido, a la vista del taller.</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button onClick={onCerrar} disabled={guardando}
+                  className="py-3 rounded-xl border text-gray-600 font-medium">Cancelar</button>
+          <button disabled={guardando}
+                  onClick={() => { setGuardando(true); onConfirmar({ bultos, nota_cliente: nota }) }}
+                  className="py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={{ background: '#16a34a' }}>
+            <Check size={18} /> {guardando ? 'Guardando…' : 'Confirmar retiro'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+  }
+
+
 export default function Conductor() {
   const { user, logout } = useAuthStore()
   const [fecha, setFecha] = useState(hoy())
@@ -136,57 +194,6 @@ export default function Conductor() {
       setCerrando(null)
       cargar()
     } catch { toast.error('No se pudo guardar') }
-  }
-
-  // Al retirar se abre esta ventana ANTES de cerrar la parada. Lo que el cliente
-  // dice en la puerta -"desmanchar la sábana gris"- no vuelve a preguntarse
-  // nunca: si no se anota aquí, se pierde y el taller trabaja a ciegas.
-  const VentanaRetiro = ({ p }: { p: any }) => {
-    const [bultos, setBultos] = useState<number>(Number(p.bultos) > 0 ? Number(p.bultos) : 1)
-    const [nota, setNota] = useState('')
-    const [guardando, setGuardando] = useState(false)
-    return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
-           onClick={() => !guardando && setCerrando(null)}>
-        <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4"
-             onClick={e => e.stopPropagation()}>
-          <div>
-            <p className="text-lg font-bold text-gray-800">Retiro de {nombreDe(p)}</p>
-            <p className="text-sm text-gray-500">Anota lo que recibes y lo que te pidió.</p>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-gray-700">¿Cuántos bultos retiraste?</label>
-            <div className="flex items-center gap-4 mt-2">
-              <button onClick={() => setBultos(b => Math.max(1, b - 1))}
-                      className="w-14 h-14 rounded-2xl border text-2xl font-bold text-gray-600 active:scale-95">−</button>
-              <span className="flex-1 text-center text-4xl font-bold" style={{ color: '#E8177A' }}>{bultos}</span>
-              <button onClick={() => setBultos(b => Math.min(99, b + 1))}
-                      className="w-14 h-14 rounded-2xl border text-2xl font-bold text-gray-600 active:scale-95">+</button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-gray-700">¿Te dijo algo la clienta?</label>
-            <textarea value={nota} onChange={e => setNota(e.target.value)} rows={3} autoFocus={false}
-                      placeholder="Ej: desmanchar una sábana gris · 2 cobertores king · entregar el viernes"
-                      className="mt-2 w-full border rounded-xl px-3 py-2.5 text-base" />
-            <p className="text-[11px] text-gray-400 mt-1">Queda en el pedido, a la vista del taller.</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            <button onClick={() => setCerrando(null)} disabled={guardando}
-                    className="py-3 rounded-xl border text-gray-600 font-medium">Cancelar</button>
-            <button disabled={guardando}
-                    onClick={() => { setGuardando(true); marcar(p, 'COMPLETADA', { bultos, nota_cliente: nota }) }}
-                    className="py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-                    style={{ background: '#16a34a' }}>
-              <Check size={18} /> {guardando ? 'Guardando…' : 'Confirmar retiro'}
-            </button>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   const Tarjeta = ({ p, principal = false }: { p: any; principal?: boolean }) => {
@@ -417,7 +424,11 @@ export default function Conductor() {
         )}
       </div>
 
-      {cerrando && <VentanaRetiro p={cerrando} />}
+      {cerrando && (
+        <VentanaRetiro p={cerrando}
+                       onCerrar={() => setCerrando(null)}
+                       onConfirmar={d => marcar(cerrando, 'COMPLETADA', d)} />
+      )}
     </div>
   )
 }

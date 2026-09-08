@@ -71,9 +71,12 @@ async function abonar(ordenId: number, monto: number, ref: string, usuarioId: nu
   await SQL`INSERT INTO pagos (orden_id, cliente_id, forma_pago_id, monto, referencia, usuario_id)
             SELECT ${ordenId}, cliente_id, ${FORMA_TRANSF}, ${monto}, ${ref}, ${usuarioId}
             FROM ordenes WHERE id = ${ordenId}`;
+  // Solo se suma el abono: el saldo y el estado de pago los cuadra el trigger
+  // trg_cuadrar_pago en la base. Antes esto bajaba el saldo pero se olvidaba de
+  // estado_pago, y la orden quedaba con saldo cero diciendo "pendiente de pago".
   await SQL`UPDATE ordenes
               SET monto_abonado = COALESCE(monto_abonado,0) + ${monto},
-                  saldo_pendiente = GREATEST(COALESCE(monto_total,0) - (COALESCE(monto_abonado,0) + ${monto}), 0)
+                  actualizado_en = NOW()
             WHERE id = ${ordenId}`;
   return true;
 }

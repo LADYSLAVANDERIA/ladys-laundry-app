@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import axios from 'axios'
-import { Scale, Package, Clock, CheckCircle2, Truck, Store, Zap, Phone, AlertTriangle, TrendingUp, CreditCard, ChevronRight, ChevronDown, Loader2, Radio, MapPin } from 'lucide-react'
+import { Scale, Package, Clock, CheckCircle2, Truck, Store, Zap, Phone, AlertTriangle, TrendingUp, CreditCard, ChevronRight, ChevronDown, Loader2, Radio, MapPin, Share, PlusSquare, MoreVertical, Smartphone } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, hora } from '../utils'
 import MapaEnVivo from '../components/MapaEnVivo'
 
@@ -80,11 +80,77 @@ function TarjetaPedido({ o, seg, abierto, onToggle }: { o: any; seg: any; abiert
   )
 }
 
+// Acceso directo en el telefono. No hay nada que instalar: el navegador guarda
+// un icono que abre este mismo enlace a pantalla completa. Se explica distinto
+// segun el telefono porque el gesto es distinto, y en Android, cuando el
+// navegador ofrece el dialogo nativo, se usa ese en vez del instructivo.
+function AccesoDirecto() {
+  const [abierto, setAbierto] = useState(false)
+  const [prompt, setPrompt] = useState<any>(null)
+  const [instalada, setInstalada] = useState(false)
+
+  useEffect(() => {
+    const yaEsApp = window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as any).standalone === true
+    setInstalada(yaEsApp)
+    const cazar = (e: any) => { e.preventDefault(); setPrompt(e) }
+    window.addEventListener('beforeinstallprompt', cazar)
+    return () => window.removeEventListener('beforeinstallprompt', cazar)
+  }, [])
+
+  if (instalada) return null
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent)
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+      <button
+        onClick={async () => {
+          if (prompt) { prompt.prompt(); const r = await prompt.userChoice; if (r?.outcome === 'accepted') setInstalada(true); setPrompt(null); return }
+          setAbierto(!abierto)
+        }}
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white"
+             style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+          <Smartphone size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-800">Tenla a mano en tu teléfono</p>
+          <p className="text-[11px] text-gray-500">Sin descargar nada: queda un acceso directo en tu pantalla</p>
+        </div>
+        <ChevronDown size={16} className={`text-gray-300 transition-transform ${abierto ? 'rotate-180' : ''}`} />
+      </button>
+
+      {abierto && (
+        <div className="px-4 pb-4 pt-1 border-t bg-gray-50 space-y-2.5 text-sm text-gray-600">
+          {ios ? (
+            <>
+              <p className="flex items-start gap-2"><Share size={15} className="mt-0.5 shrink-0 text-gray-400" />
+                Toca el botón de compartir, abajo en Safari.</p>
+              <p className="flex items-start gap-2"><PlusSquare size={15} className="mt-0.5 shrink-0 text-gray-400" />
+                Baja y elige <b>Agregar a inicio</b>.</p>
+            </>
+          ) : (
+            <>
+              <p className="flex items-start gap-2"><MoreVertical size={15} className="mt-0.5 shrink-0 text-gray-400" />
+                Toca los tres puntos, arriba a la derecha del navegador.</p>
+              <p className="flex items-start gap-2"><PlusSquare size={15} className="mt-0.5 shrink-0 text-gray-400" />
+                Elige <b>Agregar a pantalla principal</b>.</p>
+            </>
+          )}
+          <p className="text-[11px] text-gray-400 pt-1">
+            Es tu enlace personal: entra directo, sin clave y sin ocupar espacio.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PortalCliente() {
   const { id, token } = useParams()
   const [d, setD] = useState<any>(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<'inicio' | 'pedidos' | 'movimientos'>('inicio')
+  const [tab, setTab] = useState<'pedidos' | 'movimientos' | 'resumen'>('pedidos')
   const [segs, setSegs] = useState<Record<number, any>>({})
   const [abierta, setAbierta] = useState<number | null>(null)
 
@@ -158,6 +224,76 @@ export default function PortalCliente() {
             <ChevronRight size={18} className="opacity-80" />
           </button>
         )}
+        {/* Saldo por pagar */}
+        {Number(d.resumen?.saldo) > 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between">
+            <div><p className="text-xs text-red-600">Tienes pendiente</p><p className="text-xl font-bold text-red-700">{fmt(d.resumen.saldo)}</p></div>
+            {wa && <a href={`https://wa.me/${wa}?text=${encodeURIComponent('Hola, quiero pagar mi saldo pendiente')}`} target="_blank" rel="noreferrer"
+              className="px-3 py-2 rounded-xl bg-red-600 text-white text-xs font-medium">Pagar</a>}
+          </div>
+        )}
+
+        {/* Pestañas */}
+        <div className="flex gap-1.5">
+          {[['pedidos', `Pedidos${d.en_proceso ? ` (${d.en_proceso})` : ''}`], ...(m ? [['movimientos', 'Movimientos']] : []), ['resumen', 'Resumen']].map(([k, l]: any) => (
+            <button key={k} onClick={() => setTab(k)}
+              className={`flex-1 py-2 rounded-xl text-sm font-medium ${tab === k ? 'text-white' : 'bg-white border text-gray-500'}`}
+              style={tab === k ? { background: 'linear-gradient(135deg,#E8177A,#A87BC8)' } : {}}>{l}</button>
+          ))}
+        </div>
+
+        {tab === 'resumen' && (
+          <div className="grid grid-cols-2 gap-3">
+            {[['Pedidos', d.resumen?.ordenes || 0, Package], ['Kilos lavados', `${Number(d.resumen?.kilos || 0)} kg`, Scale],
+              ['Total en servicios', fmt(d.resumen?.gasto), TrendingUp], ['Cliente desde', fechaCorta(d.resumen?.desde), Clock]].map(([l, v, I]: any, i) => (
+              <div key={i} className="bg-white rounded-2xl shadow-sm border p-4">
+                <p className="text-[11px] text-gray-400 flex items-center gap-1"><I size={11} /> {l}</p>
+                <p className="text-lg font-bold text-gray-800">{v}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === 'pedidos' && (
+          <div className="space-y-2">
+            {d.ordenes.map((o: any) => (
+              <TarjetaPedido key={o.id} o={o} seg={segs[o.id]}
+                abierto={abierta === o.id}
+                onToggle={() => {
+                  if (abierta === o.id) { setAbierta(null); return }
+                  setAbierta(o.id)
+                  setTimeout(() => document.getElementById(`pedido-${o.id}`)
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 260)
+                }} />
+            ))}
+            {!d.ordenes.length && <p className="text-center text-gray-400 py-10 text-sm">Todavía no tienes pedidos</p>}
+          </div>
+        )}
+
+        {tab === 'movimientos' && m && (
+          <div className="bg-white rounded-2xl shadow-sm border divide-y">
+            {m.movimientos.map((mv: any, i: number) => (
+              <div key={i} className="flex items-start justify-between px-4 py-3">
+                <div className="min-w-0 pr-2">
+                  <p className="text-sm font-medium">
+                    {mv.tipo === 'CONSUMO_KILOS' ? `Pedido ${mv.orden_id ? ot(mv.orden_id) : ''}`
+                      : mv.tipo === 'EXTRA' ? 'Kilos adicionales'
+                      : mv.tipo === 'RENOVACION' ? 'Renovación del plan'
+                      : mv.tipo === 'CARGA' ? 'Inicio del plan' : mv.tipo}
+                  </p>
+                  <p className="text-[11px] text-gray-400">{mv.detalle}</p>
+                  <p className="text-[11px] text-gray-300">{fechaHora(mv.creado_en)}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  {Number(mv.kilos) > 0 && <p className={`text-sm font-bold ${mv.tipo === 'CONSUMO_KILOS' ? 'text-purple-600' : 'text-green-600'}`}>
+                    {mv.tipo === 'CONSUMO_KILOS' ? '-' : '+'}{Number(mv.kilos)} kg</p>}
+                  {Number(mv.monto) > 0 && mv.tipo === 'EXTRA' && <p className="text-xs text-amber-700">{fmt(mv.monto)}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Kilos disponibles */}
         {m ? (
           <div className="bg-white rounded-2xl shadow-sm border p-5">
@@ -228,82 +364,14 @@ export default function PortalCliente() {
           </div>
         )}
 
-        {/* Saldo por pagar */}
-        {Number(d.resumen?.saldo) > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-center justify-between">
-            <div><p className="text-xs text-red-600">Tienes pendiente</p><p className="text-xl font-bold text-red-700">{fmt(d.resumen.saldo)}</p></div>
-            {wa && <a href={`https://wa.me/${wa}?text=${encodeURIComponent('Hola, quiero pagar mi saldo pendiente')}`} target="_blank" rel="noreferrer"
-              className="px-3 py-2 rounded-xl bg-red-600 text-white text-xs font-medium">Pagar</a>}
-          </div>
-        )}
-
-        {/* Pestañas */}
-        <div className="flex gap-1.5">
-          {[['inicio', 'Resumen'], ['pedidos', `Pedidos${d.en_proceso ? ` (${d.en_proceso})` : ''}`], ...(m ? [['movimientos', 'Movimientos']] : [])].map(([k, l]: any) => (
-            <button key={k} onClick={() => setTab(k)}
-              className={`flex-1 py-2 rounded-xl text-sm font-medium ${tab === k ? 'text-white' : 'bg-white border text-gray-500'}`}
-              style={tab === k ? { background: 'linear-gradient(135deg,#E8177A,#A87BC8)' } : {}}>{l}</button>
-          ))}
-        </div>
-
-        {tab === 'inicio' && (
-          <div className="grid grid-cols-2 gap-3">
-            {[['Pedidos', d.resumen?.ordenes || 0, Package], ['Kilos lavados', `${Number(d.resumen?.kilos || 0)} kg`, Scale],
-              ['Total en servicios', fmt(d.resumen?.gasto), TrendingUp], ['Cliente desde', fechaCorta(d.resumen?.desde), Clock]].map(([l, v, I]: any, i) => (
-              <div key={i} className="bg-white rounded-2xl shadow-sm border p-4">
-                <p className="text-[11px] text-gray-400 flex items-center gap-1"><I size={11} /> {l}</p>
-                <p className="text-lg font-bold text-gray-800">{v}</p>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {tab === 'pedidos' && (
-          <div className="space-y-2">
-            {d.ordenes.map((o: any) => (
-              <TarjetaPedido key={o.id} o={o} seg={segs[o.id]}
-                abierto={abierta === o.id}
-                onToggle={() => {
-                  if (abierta === o.id) { setAbierta(null); return }
-                  setAbierta(o.id)
-                  setTimeout(() => document.getElementById(`pedido-${o.id}`)
-                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 260)
-                }} />
-            ))}
-            {!d.ordenes.length && <p className="text-center text-gray-400 py-10 text-sm">Todavía no tienes pedidos</p>}
-          </div>
-        )}
-
-        {tab === 'movimientos' && m && (
-          <div className="bg-white rounded-2xl shadow-sm border divide-y">
-            {m.movimientos.map((mv: any, i: number) => (
-              <div key={i} className="flex items-start justify-between px-4 py-3">
-                <div className="min-w-0 pr-2">
-                  <p className="text-sm font-medium">
-                    {mv.tipo === 'CONSUMO_KILOS' ? `Pedido ${mv.orden_id ? ot(mv.orden_id) : ''}`
-                      : mv.tipo === 'EXTRA' ? 'Kilos adicionales'
-                      : mv.tipo === 'RENOVACION' ? 'Renovación del plan'
-                      : mv.tipo === 'CARGA' ? 'Inicio del plan' : mv.tipo}
-                  </p>
-                  <p className="text-[11px] text-gray-400">{mv.detalle}</p>
-                  <p className="text-[11px] text-gray-300">{fechaHora(mv.creado_en)}</p>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  {Number(mv.kilos) > 0 && <p className={`text-sm font-bold ${mv.tipo === 'CONSUMO_KILOS' ? 'text-purple-600' : 'text-green-600'}`}>
-                    {mv.tipo === 'CONSUMO_KILOS' ? '-' : '+'}{Number(mv.kilos)} kg</p>}
-                  {Number(mv.monto) > 0 && mv.tipo === 'EXTRA' && <p className="text-xs text-amber-700">{fmt(mv.monto)}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {wa && (
           <a href={`https://wa.me/${wa}?text=${encodeURIComponent('Hola, necesito coordinar un retiro')}`} target="_blank" rel="noreferrer"
             className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-green-500 text-white font-semibold text-sm">
             <Phone size={16} /> Pedir un retiro por WhatsApp
           </a>
         )}
+        <AccesoDirecto />
+
         <p className="text-center text-[11px] text-gray-400">{d.local?.horario}</p>
       </div>
     </div>

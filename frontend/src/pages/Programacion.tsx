@@ -116,8 +116,18 @@ export default function Programacion() {
             </div>
           </div>
           <div className="flex flex-col gap-1.5 items-end flex-shrink-0">
-            {listoRetiro && <button onClick={() => marcar(o.id, 'EN_PROCESO')} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-orange-100 text-orange-700 font-medium whitespace-nowrap">Retirado</button>}
-            {listoEntrega && <button onClick={() => marcar(o.id, 'ENTREGADA')} className="text-[11px] px-2.5 py-1.5 rounded-lg bg-blue-100 text-blue-700 font-medium whitespace-nowrap">Entregada</button>}
+            {listoRetiro && (
+              <button onClick={() => marcar(o.id, 'EN_PROCESO')}
+                      className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg bg-orange-500 text-white font-semibold whitespace-nowrap shadow-sm active:scale-95 transition">
+                <Check size={12} /> Marcar retirado
+              </button>
+            )}
+            {listoEntrega && (
+              <button onClick={() => marcar(o.id, 'ENTREGADA')}
+                      className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg bg-blue-600 text-white font-semibold whitespace-nowrap shadow-sm active:scale-95 transition">
+                <Check size={12} /> Marcar entregada
+              </button>
+            )}
             {o.estado === 'ENTREGADA' && <CheckCircle2 size={16} className="text-green-500" />}
           </div>
         </div>

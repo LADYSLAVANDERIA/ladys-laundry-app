@@ -82,7 +82,8 @@ async function traerDia(fecha: string) {
   return await SQL`
     SELECT p.id, p.orden_id, p.tipo, p.secuencia, p.estado, p.nota,
            p.hora_estimada, p.llegada_real, p.km_tramo, p.min_tramo,
-           p.lat, p.lng, p.direccion_id,
+           p.lat, p.lng, p.direccion_id, p.ruta_id,
+           r.nombre AS ruta_nombre, r.hora_inicio AS ruta_inicio, r.hora_fin AS ruta_fin,
            o.nro_doc_tributario, o.bultos, o.kilos, o.observaciones,
            o.saldo_pendiente, o.monto_total, o.monto_abonado, o.estado AS estado_orden,
            o.ot_easylaundry, o.token_publico,
@@ -93,8 +94,9 @@ async function traerDia(fecha: string) {
     JOIN ordenes o  ON o.id = p.orden_id
     JOIN clientes c ON c.id = o.cliente_id
     LEFT JOIN direcciones_clientes d ON d.id = p.direccion_id
+    LEFT JOIN rutas r ON r.id = p.ruta_id
     WHERE p.fecha = ${fecha}::date
-    ORDER BY (p.secuencia = 0), p.secuencia, p.id`;
+    ORDER BY r.hora_inicio NULLS LAST, (p.secuencia = 0), p.secuencia, p.id`;
 }
 
 // ── recorrido óptimo: vecino más cercano desde el local + mejora 2-opt ──
@@ -157,44 +159,88 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // POST /optimizar { fecha, inicio }
+    // POST /optimizar { fecha, inicio?, ruta_id? }
+    //
+    // Se optimiza UNA RUTA A LA VEZ, no el dia completo. Las rutas tienen
+    // ventanas distintas -la Intermedia sale 13:30, la Tarde 19:00- y mezclarlas
+    // en un solo recorrido le daba a una parada de las 13:30 una hora estimada
+    // de las 19:20. Cada ruta arranca del local a su propia hora.
     if (req.method === "POST" && ruta === "/optimizar") {
       const b = await req.json();
       const fecha = b.fecha;
       if (!fecha) return json({ error: "Falta la fecha" }, 400);
       await sincronizar(fecha);
       const todas = await traerDia(fecha);
-      const conGeo = todas.filter((p: any) => p.lat !== null && p.estado !== "COMPLETADA");
-      if (!conGeo.length) return json({ ok: true, ordenadas: 0, mensaje: "No hay paradas ubicadas que ordenar" });
+      const soloRuta = b.ruta_id ? Number(b.ruta_id) : null;
+
+      const candidatas = todas.filter((p: any) =>
+        p.lat !== null && p.estado !== "COMPLETADA" &&
+        (soloRuta === null || Number(p.ruta_id) === soloRuta));
+      if (!candidatas.length) return json({ ok: true, ordenadas: 0, mensaje: "No hay paradas ubicadas que ordenar" });
+
+      // Agrupadas por ruta y en orden de salida
+      const grupos = new Map<string, any[]>();
+      for (const p of candidatas) {
+        const k = String(p.ruta_id ?? "sin");
+        if (!grupos.has(k)) grupos.set(k, []);
+        grupos.get(k)!.push(p);
+      }
+      const claves = [...grupos.keys()].sort((a, b2) => {
+        const ha = String(grupos.get(a)![0].ruta_inicio || "99:99");
+        const hb = String(grupos.get(b2)![0].ruta_inicio || "99:99");
+        return ha < hb ? -1 : ha > hb ? 1 : 0;
+      });
 
       const base = { lat: Number(cfg.lat), lng: Number(cfg.lng) };
-      const orden = optimizar(conGeo.map((p: any) => ({ ...p, lat: Number(p.lat), lng: Number(p.lng) })), base);
+      // La secuencia sigue siendo unica en el dia, para que el conductor vea una
+      // numeracion corrida, pero respeta el orden de las rutas.
+      let n = 0, kmDia = 0, minDia = 0;
+      const detalle: any[] = [];
 
-      // hora estimada acumulando trayecto + atención en cada puerta
-      const [hh, mm] = String(b.inicio || "16:00").split(":").map(Number);
-      let reloj = hh * 60 + mm;
-      let ant = base, totalKm = 0;
+      for (const k of claves) {
+        const grupo = grupos.get(k)!;
+        // Hora de salida: la de la ruta. El campo manual solo manda cuando se
+        // esta ordenando una sola ruta a proposito.
+        const arranque = (soloRuta !== null && b.inicio)
+          ? String(b.inicio)
+          : String(grupo[0].ruta_inicio || b.inicio || "16:00").slice(0, 5);
+        const [hh, mm] = arranque.split(":").map(Number);
+        let reloj = hh * 60 + mm;
+        let ant = base, kmRuta = 0;
 
-      await SQL.begin(async (t: any) => {
-        for (let i = 0; i < orden.length; i++) {
-          const p = orden[i];
-          const d = km(ant.lat, ant.lng, p.lat, p.lng) * RODEO;
-          const min = Math.max(2, Math.round((d / cfg.vel_kmh) * 60));
-          reloj += min;
-          const hora = `${String(Math.floor(reloj / 60) % 24).padStart(2, "0")}:${String(reloj % 60).padStart(2, "0")}`;
-          await t`UPDATE reparto_paradas SET secuencia=${i + 1}, hora_estimada=${hora}::time,
-                    km_tramo=${Number(d.toFixed(2))}, min_tramo=${min} WHERE id=${p.id}`;
-          await t`UPDATE ordenes SET orden_ruta=${i + 1} WHERE id=${p.orden_id}`;
-          reloj += cfg.min_por_parada;
-          totalKm += d;
-          ant = p;
-        }
-      });
-      const regreso = km(ant.lat, ant.lng, base.lat, base.lng) * RODEO;
+        const orden = optimizar(grupo.map((p: any) => ({ ...p, lat: Number(p.lat), lng: Number(p.lng) })), base);
+
+        await SQL.begin(async (t: any) => {
+          for (const p of orden) {
+            const d = km(ant.lat, ant.lng, p.lat, p.lng) * RODEO;
+            const min = Math.max(2, Math.round((d / cfg.vel_kmh) * 60));
+            reloj += min;
+            const hora = `${String(Math.floor(reloj / 60) % 24).padStart(2, "0")}:${String(reloj % 60).padStart(2, "0")}`;
+            n += 1;
+            await t`UPDATE reparto_paradas SET secuencia=${n}, hora_estimada=${hora}::time,
+                      km_tramo=${Number(d.toFixed(2))}, min_tramo=${min} WHERE id=${p.id}`;
+            await t`UPDATE ordenes SET orden_ruta=${n} WHERE id=${p.orden_id}`;
+            reloj += cfg.min_por_parada;
+            kmRuta += d;
+            ant = p;
+          }
+        });
+
+        const regreso = km(ant.lat, ant.lng, base.lat, base.lng) * RODEO;
+        const minRuta = Math.round(reloj - (hh * 60 + mm) + (regreso / cfg.vel_kmh) * 60);
+        kmDia += kmRuta + regreso;
+        minDia += minRuta;
+        detalle.push({
+          ruta_id: grupo[0].ruta_id, ruta: grupo[0].ruta_nombre || "Sin ruta",
+          salida: arranque, paradas: orden.length,
+          km: Number((kmRuta + regreso).toFixed(1)), min: minRuta,
+          termina: `${String(Math.floor((reloj + (regreso / cfg.vel_kmh) * 60) / 60) % 24).padStart(2, "0")}:${String(Math.round(reloj + (regreso / cfg.vel_kmh) * 60) % 60).padStart(2, "0")}`,
+        });
+      }
+
       return json({
-        ok: true, ordenadas: orden.length,
-        km_total: Number((totalKm + regreso).toFixed(1)),
-        min_total: Math.round(reloj - (hh * 60 + mm) + (regreso / cfg.vel_kmh) * 60),
+        ok: true, ordenadas: n, rutas: detalle,
+        km_total: Number(kmDia.toFixed(1)), min_total: minDia,
         sin_ubicar: todas.filter((p: any) => p.lat === null).length,
       });
     }

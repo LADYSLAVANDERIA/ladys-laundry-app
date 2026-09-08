@@ -186,6 +186,19 @@ export default function Reparto() {
         </div>
       )}
 
+      {resumen?.rutas?.length > 1 && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {resumen.rutas.map((r: any) => (
+            <div key={r.ruta_id ?? r.ruta} className="bg-white border rounded-xl px-3 py-2.5">
+              <p className="text-sm font-semibold text-gray-700">{r.ruta}</p>
+              <p className="text-xs text-gray-500">
+                Sale {r.salida} · vuelve {r.termina} · {r.paradas} parada(s) · {r.km} km
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+
       {resumen && (
         <div className="flex flex-wrap gap-3 text-sm">
           <span className="flex items-center gap-1.5 bg-white border rounded-xl px-3 py-2">
@@ -234,7 +247,18 @@ export default function Reparto() {
         ) : (
           <div className="divide-y">
             {paradas.map((p, i) => (
-              <div key={p.id}
+              <div key={p.id}>
+              {(i === 0 || paradas[i - 1].ruta_id !== p.ruta_id) && (
+                <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-y">
+                  <span className="text-xs font-semibold text-gray-600">
+                    {p.ruta_nombre || 'Sin ruta asignada'}
+                  </span>
+                  <span className="text-[11px] text-gray-400">
+                    {paradas.filter(x => x.ruta_id === p.ruta_id).length} parada(s)
+                  </span>
+                </div>
+              )}
+              <div
                    draggable
                    onDragStart={() => setArrastrando(i)}
                    onDragEnd={() => { setArrastrando(null); setEncima(null) }}
@@ -279,6 +303,7 @@ export default function Reparto() {
                   {Number(p.saldo_pendiente) > 0 &&
                     <p className="text-xs font-semibold text-amber-700">{plata(p.saldo_pendiente)}</p>}
                 </div>
+              </div>
               </div>
             ))}
           </div>

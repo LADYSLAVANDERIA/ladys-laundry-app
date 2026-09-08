@@ -120,7 +120,10 @@ export default function NuevaOrden() {
   }, [plazo, f.fecha_recogida, fechaTocada])
 
   const pct = Number(config.descuento_continuidad || 10)
-  const minimo = Number(config.minimo_retiro || 20000)
+  // El valor real vive en configuracion.minimo_retiro. Este numero solo actua si
+  // esa clave desapareciera, y por eso tiene que ser el vigente: un respaldo
+  // desactualizado cobra de menos sin que nadie lo note.
+  const minimo = Number(config.minimo_retiro || 25000)
   // Mínimo de venta en el mesón. Aplica a cualquier pedido, con kilos o prendas.
   const minimoLocal = Number(config.minimo_venta_local || 14500)
   const domicilio = f.retiro_domicilio || f.entrega_domicilio

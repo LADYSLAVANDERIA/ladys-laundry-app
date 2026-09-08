@@ -3,7 +3,7 @@ import { repartoApi } from '../services/api'
 import toast from 'react-hot-toast'
 import {
   Wand2, ChevronUp, ChevronDown, Navigation, Route, Clock, GripVertical,
-  AlertTriangle, Check, X, Smartphone, RefreshCw,
+  AlertTriangle, Check, X, Smartphone, RefreshCw, Package,
 } from 'lucide-react'
 import { rutaCompletaMaps } from '../utils'
 import { cargarGoogle, ESTILO, pin } from '../lib/google'
@@ -253,8 +253,20 @@ export default function Reparto() {
                   <span className="text-xs font-semibold text-gray-600">
                     {p.ruta_nombre || 'Sin ruta asignada'}
                   </span>
-                  <span className="text-[11px] text-gray-400">
+                  <span className="text-[11px] text-gray-500 flex items-center gap-2">
                     {paradas.filter(x => x.ruta_id === p.ruta_id).length} parada(s)
+                    {(() => {
+                      // Lo que hay que subir a la camioneta para esta ruta: solo
+                      // cuentan las entregas, porque los retiros vienen vacios.
+                      const carga = paradas
+                        .filter(x => x.ruta_id === p.ruta_id && x.tipo === 'ENTREGA' && x.estado !== 'COMPLETADA')
+                        .reduce((t, x) => t + (Number(x.bultos) || 0), 0)
+                      return carga > 0 ? (
+                        <span className="font-semibold text-gray-700 flex items-center gap-1">
+                          <Package size={12} /> cargar {carga} bulto{carga > 1 ? 's' : ''}
+                        </span>
+                      ) : null
+                    })()}
                   </span>
                 </div>
               )}
@@ -294,6 +306,12 @@ export default function Reparto() {
                     {p.estado === 'COMPLETADA' && <Check size={14} className="text-green-600" />}
                     {p.estado === 'FALLIDA' && <X size={14} className="text-red-500" />}
                     {!p.lat && <span className="text-[11px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin ubicar</span>}
+                    {p.tipo === 'ENTREGA' && Number(p.bultos) > 0 && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 flex items-center gap-1">
+                        <Package size={11} /> {p.bultos} bulto{Number(p.bultos) > 1 ? 's' : ''}
+                        {Number(p.kilos) > 0 ? ` · ${p.kilos} kg` : ''}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-500 truncate">{dirDe(p)}</p>
                 </div>

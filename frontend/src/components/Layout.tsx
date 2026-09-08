@@ -7,7 +7,7 @@ import BarraIndicadores from './BarraIndicadores'
 import {
   Home, LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
   DollarSign, ArrowLeftRight, PieChart, FileText, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
-  LogOut, Menu, X, ChevronRight, ChevronDown, CreditCard, Shirt, Wallet, KeyRound
+  LogOut, Menu, X, ChevronRight, ChevronDown, CreditCard, Wallet, KeyRound
 } from 'lucide-react'
 
 // Quien ve cada pantalla. ADMINISTRADOR ve todo sin necesidad de listarse.
@@ -108,14 +108,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const Sidebar = () => (
     <div className="flex flex-col h-full">
       <div className="p-5 border-b border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center">
-            <Shirt size={20} className="text-pink-600" />
-          </div>
-          <div>
-            <p className="font-bold text-white text-sm leading-tight">Ladys</p>
-            <p className="text-xs text-white/60">Lavandería</p>
-          </div>
+        <div className="bg-white rounded-xl px-3 py-2.5">
+          <img src="/app/logo-ladys.png" alt="Ladys Lavandería" className="w-full max-w-[150px] mx-auto block" />
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
@@ -198,7 +192,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             números que el equipo mira varias veces al día. */}
         <header className="bg-white border-b px-4 py-3 flex items-center gap-3">
           <button onClick={() => setOpen(true)} className="text-gray-600 md:hidden"><Menu size={22} /></button>
-          <span className="font-bold text-pink-600 md:hidden">Ladys</span>
+          <img src="/app/logo-ladys.png" alt="Ladys" className="h-7 md:hidden" />
           {/* scrollbar-hide para que en el celular se deslice sin barra a la vista */}
           <div className="flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <BarraIndicadores />

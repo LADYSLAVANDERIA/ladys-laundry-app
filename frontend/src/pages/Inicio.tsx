@@ -53,7 +53,8 @@ export default function Inicio() {
   return (
     <div className="max-w-lg mx-auto space-y-6 pt-2">
       <div className="text-center space-y-1">
-        <h1 className="text-3xl font-bold" style={{ color: '#E8177A' }}>Ladys Lavandería</h1>
+        <img src="/app/logo-ladys-completo.png" alt="Ladys Lavandería"
+             className="w-64 mx-auto" />
         <p className="text-sm text-gray-400">Hola {user?.nombre}, ¿qué necesitas?</p>
       </div>
 

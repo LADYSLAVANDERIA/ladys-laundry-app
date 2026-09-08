@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { authApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { Shirt, Lock, Mail } from 'lucide-react'
+import { Lock, Mail } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('admin@ladys.cl')
@@ -31,12 +31,9 @@ export default function Login() {
       style={{ background: 'linear-gradient(135deg, #E8177A 0%, #A87BC8 60%, #4AAEE0 100%)' }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
-            style={{ background: 'linear-gradient(135deg, #E8177A, #A87BC8)' }}>
-            <Shirt size={32} className="text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-800">Ladys Lavandería</h1>
-          <p className="text-gray-500 text-sm mt-1">Sistema de Gestión</p>
+          <img src="/app/logo-ladys-completo.png" alt="Ladys Lavandería"
+               className="w-52 mx-auto mb-3" />
+          <p className="text-gray-500 text-sm">Sistema de Gestión</p>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="relative">

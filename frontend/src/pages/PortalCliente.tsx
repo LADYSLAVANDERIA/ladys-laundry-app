@@ -201,7 +201,9 @@ export default function PortalCliente() {
     <div className="min-h-screen bg-gray-50 pb-8">
       {/* Cabecera */}
       <div className="text-white px-5 pt-6 pb-8" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-        <p className="text-sm opacity-80">{d.local?.nombre || 'Ladys Lavandería'}</p>
+        <div className="bg-white rounded-xl px-3 py-2 inline-block mb-2">
+          <img src="/app/logo-ladys.png" alt="Ladys Lavandería" className="h-6" />
+        </div>
         <h1 className="text-2xl font-bold">Hola, {String(d.cliente.nombre).split(' ')[0]}</h1>
         {m && <p className="text-sm opacity-90">{m.plan}</p>}
       </div>

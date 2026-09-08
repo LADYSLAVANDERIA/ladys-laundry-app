@@ -158,9 +158,15 @@ export default function Conductor() {
     setRutaSel((enCurso || proxima || rutas[rutas.length - 1]).clave)
   }, [rutas, rutaSel])
 
-  const paradas = useMemo(
-    () => (rutaSel ? todas.filter(p => String(p.ruta_id ?? 'sin') === rutaSel) : todas),
-    [todas, rutaSel])
+  const paradas = useMemo(() => {
+    const lista = rutaSel ? todas.filter(p => String(p.ruta_id ?? 'sin') === rutaSel) : todas
+    // Entrega y retiro en la misma casa son una sola bajada. Se avisa en cada
+    // tarjeta para que el conductor no se vaya y tenga que volver.
+    return lista.map(p => {
+      const otra = lista.find(x => x.id !== p.id && x.direccion_id && x.direccion_id === p.direccion_id)
+      return { ...p, junto_con: otra ? (otra.tipo === 'RETIRO' ? 'retiras ropa' : 'entregas un pedido') : null }
+    })
+  }, [todas, rutaSel])
 
   // La que va EN_CAMINO manda, pero solo dentro de su propia ruta.
   const pendientes = useMemo(() => paradas.filter(p => p.estado === 'EN_CAMINO' || p.estado === 'PENDIENTE')
@@ -238,6 +244,11 @@ export default function Conductor() {
 
         {abierto && (
           <div className="px-4 pb-4 space-y-3">
+            {p.junto_con && (
+              <div className="mb-2 text-[12px] font-semibold px-2.5 py-1.5 rounded-lg bg-violet-100 text-violet-800">
+                Misma dirección: aquí también {p.junto_con}
+              </div>
+            )}
             {(p.bultos || p.kilos) && (
               <p className="text-sm text-gray-600 flex items-center gap-2">
                 <Package size={14} />

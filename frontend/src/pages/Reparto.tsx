@@ -306,6 +306,11 @@ export default function Reparto() {
                     {p.estado === 'COMPLETADA' && <Check size={14} className="text-green-600" />}
                     {p.estado === 'FALLIDA' && <X size={14} className="text-red-500" />}
                     {!p.lat && <span className="text-[11px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin ubicar</span>}
+                    {i > 0 && paradas[i - 1].direccion_id && paradas[i - 1].direccion_id === p.direccion_id && (
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                        misma parada que la anterior
+                      </span>
+                    )}
                     {p.tipo === 'ENTREGA' && Number(p.bultos) > 0 && (
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 flex items-center gap-1">
                         <Package size={11} /> {p.bultos} bulto{Number(p.bultos) > 1 ? 's' : ''}

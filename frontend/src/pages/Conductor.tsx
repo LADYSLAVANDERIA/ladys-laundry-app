@@ -227,6 +227,9 @@ export default function Conductor() {
                       style={{ background: esRetiro ? '#4AAEE0' : '#E8177A' }}>
                   {esRetiro ? 'RETIRO' : 'ENTREGA'}
                 </span>
+                <span className="text-[13px] font-bold font-mono px-2 py-0.5 rounded-md bg-gray-900 text-white">
+                  OT {p.orden_id}
+                </span>
                 {p.hora_estimada && <span className="text-xs text-gray-500">~{hhmm(p.hora_estimada)}</span>}
                 {!p.lat && <span className="text-[11px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin ubicar</span>}
               </div>
@@ -253,6 +256,9 @@ export default function Conductor() {
               <p className="text-sm text-gray-600 flex items-center gap-2">
                 <Package size={14} />
                 {p.bultos ? `${p.bultos} bulto(s)` : ''}{p.bultos && p.kilos ? ' · ' : ''}{p.kilos ? `${p.kilos} kg` : ''}
+                {p.tipo === 'ENTREGA' && Number(p.bultos) > 0 && !p.bultos_confirmados && (
+                  <span className="ml-1 text-amber-700">· sin confirmar, cuéntalos</span>
+                )}
               </p>
             )}
             {p.observaciones && (

@@ -84,7 +84,7 @@ async function traerDia(fecha: string) {
            p.hora_estimada, p.llegada_real, p.km_tramo, p.min_tramo,
            p.lat, p.lng, p.direccion_id, p.ruta_id,
            r.nombre AS ruta_nombre, r.hora_inicio AS ruta_inicio, r.hora_fin AS ruta_fin,
-           o.nro_doc_tributario, o.bultos, o.kilos, o.observaciones,
+           o.nro_doc_tributario, o.bultos, o.bultos_confirmados, o.kilos, o.observaciones,
            o.saldo_pendiente, o.monto_total, o.monto_abonado, o.estado AS estado_orden,
            o.ot_easylaundry, o.token_publico,
            c.id AS cliente_id, c.nombre, c.apellido, c.razon_social, c.telefono, c.es_empresa,

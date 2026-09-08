@@ -261,9 +261,12 @@ export default function Reparto() {
                       const carga = paradas
                         .filter(x => x.ruta_id === p.ruta_id && x.tipo === 'ENTREGA' && x.estado !== 'COMPLETADA')
                         .reduce((t, x) => t + (Number(x.bultos) || 0), 0)
+                      const dudosos = paradas.filter(x => x.ruta_id === p.ruta_id
+                        && x.tipo === 'ENTREGA' && x.estado !== 'COMPLETADA' && !x.bultos_confirmados).length
                       return carga > 0 ? (
                         <span className="font-semibold text-gray-700 flex items-center gap-1">
                           <Package size={12} /> cargar {carga} bulto{carga > 1 ? 's' : ''}
+                          {dudosos > 0 && <span className="font-normal text-amber-700"> ({dudosos} sin confirmar)</span>}
                         </span>
                       ) : null
                     })()}
@@ -298,6 +301,9 @@ export default function Reparto() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[12px] font-bold font-mono px-1.5 py-0.5 rounded bg-gray-900 text-white">
+                      OT {p.orden_id}
+                    </span>
                     <span className="font-medium text-gray-800 truncate">{nombreDe(p)}</span>
                     <span className="text-[11px] px-2 py-0.5 rounded-full text-white"
                           style={{ background: p.tipo === 'RETIRO' ? '#4AAEE0' : '#E8177A' }}>
@@ -315,6 +321,7 @@ export default function Reparto() {
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 flex items-center gap-1">
                         <Package size={11} /> {p.bultos} bulto{Number(p.bultos) > 1 ? 's' : ''}
                         {Number(p.kilos) > 0 ? ` · ${p.kilos} kg` : ''}
+                        {!p.bultos_confirmados && <span className="text-amber-700">· sin confirmar</span>}
                       </span>
                     )}
                   </div>

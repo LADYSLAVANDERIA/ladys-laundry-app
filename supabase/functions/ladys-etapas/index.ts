@@ -76,6 +76,22 @@ Deno.serve(async (req: Request) => {
       const retrocede = ahora < antes;
       const repetida = ahora === antes;
 
+      // Los bultos SIEMPRE se guardan, aunque la etapa ya este marcada.
+      //
+      // Produccion embolsa en dos pasos: primero escanea el codigo -y ahi todavia
+      // no sabe cuantos bultos son- y despues elige el numero en la pantalla. Ese
+      // segundo llamado llegaba con la etapa ya en EMBOLSADO, caia en "repetida"
+      // y se descartaba entero. Resultado: el pedido de Alejandra salio con 1
+      // bulto cuando se habian embolsado 5, y el conductor iba a cargar de menos.
+      if (repetida && b.bultos != null) {
+        await SQL`UPDATE ordenes SET bultos = ${Number(b.bultos)}, actualizado_en = NOW()
+                  WHERE id = ${id}`;
+        await SQL`UPDATE orden_etapas SET bultos = ${Number(b.bultos)}
+                  WHERE id = (SELECT id FROM orden_etapas
+                               WHERE orden_id = ${id} AND etapa = ${etapa}
+                               ORDER BY id DESC LIMIT 1)`;
+      }
+
       if (!repetida) {
         await SQL`UPDATE ordenes SET etapa = ${etapa}, etapa_en = NOW(),
                     estado = ${ESTADO_DE[etapa]},

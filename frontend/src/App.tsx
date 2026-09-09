@@ -32,6 +32,7 @@ import Reparto from './pages/Reparto'
 import Configuracion from './pages/Configuracion'
 import SeguirPedido from './pages/SeguirPedido'
 import Produccion from './pages/Produccion'
+import Taller from './pages/Taller'
 import Estacion from './pages/Estacion'
 import Cotejo from './pages/Cotejo'
 import Conductor from './pages/Conductor'
@@ -78,6 +79,7 @@ export default function App() {
         <Route path="/rutas"           element={<PrivateRoute><Rutas /></PrivateRoute>} />
         <Route path="/reparto"         element={<PrivateRoute><Reparto /></PrivateRoute>} />
         <Route path="/produccion"      element={<PrivateRoute><Produccion /></PrivateRoute>} />
+        <Route path="/taller"          element={<PrivateRoute><Taller /></PrivateRoute>} />
         <Route path="/cotejo"          element={<PrivateRoute><Cotejo /></PrivateRoute>} />
         <Route path="/usuarios"        element={<PrivateRoute><Usuarios /></PrivateRoute>} />
         <Route path="/agenda"          element={<PrivateRoute><Agenda /></PrivateRoute>} />

@@ -343,7 +343,12 @@ export default function OrdenDetalle() {
           <div className="flex gap-2 flex-wrap">
             {sig && <button onClick={() => cambiar(sig)} className="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Marcar como {ESTADO_LABEL[sig].toLowerCase()}</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => setModal('pago')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold"><DollarSign size={14} /> Registrar pago {fmt(o.saldo_pendiente)}</button>}
-            {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setPos(null); setPosError(''); setModal('maquina') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold"><CreditCard size={14} /> Cobrar en la máquina {fmt(o.saldo_pendiente)}</button>}
+            {Number(o.saldo_pendiente) > 0 && !o.entrega_domicilio && <button onClick={() => { setPos(null); setPosError(''); setModal('maquina') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold"><CreditCard size={14} /> Cobrar en la máquina {fmt(o.saldo_pendiente)}</button>}
+            {Number(o.saldo_pendiente) > 0 && o.entrega_domicilio && (
+              <span className="px-3 py-2.5 rounded-xl bg-gray-100 text-gray-500 text-xs self-center">
+                A domicilio no va la máquina: cobra por transferencia o link
+              </span>
+            )}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setCobro(null); setModal('cobrar') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Link2 size={14} /> Cobrar con link</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => { setComp({ monto: String(Math.round(Number(o.saldo_pendiente))), nombre_origen: '', nota: '' }); setModal('comprobante') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Send size={14} /> Comprobante de transferencia</button>}
             {o.estado === 'ENTREGADA' && (

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi} from '../services/api'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi } from '../services/api'
+import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
@@ -18,6 +18,7 @@ export default function OrdenDetalle() {
   const [formas, setFormas] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([]); const [rutas, setRutas] = useState<any[]>([])
   const [pago, setPago] = useState<any>({ forma_pago_id: '', monto: '' })
   const [cobro, setCobro] = useState<any>(null)
+  const [config, setConfig] = useState<any>({})
   const [motivoVuelta, setMotivoVuelta] = useState('')
   const [generando, setGenerando] = useState(false)
   const [comp, setComp] = useState<any>({ monto: '', nombre_origen: '', nota: '' })
@@ -45,8 +46,8 @@ export default function OrdenDetalle() {
   }
   useEffect(() => {
     load()
-    Promise.all([formasPagoApi.getAll(), serviciosApi.getAll(), localApi.get(), rutasApi.getAll()])
-      .then(([f, s, l, r]) => { setFormas(f.data); setServicios(s.data); setLocal(l.data || {}); setRutas(r.data.filter((x: any) => x.activo !== false)) }).catch(() => {})
+    Promise.all([formasPagoApi.getAll(), serviciosApi.getAll(), localApi.get(), rutasApi.getAll(), configApi.get()])
+      .then(([f, s, l, r, c]) => { setFormas(f.data); setServicios(s.data); setLocal(l.data || {}); setRutas(r.data.filter((x: any) => x.activo !== false)); setConfig(c.data || {}) }).catch(() => {})
   }, [id])
   // El QR del ticket: lo lee la pistola y tambien la camara del celular en Produccion
   const [qr, setQr] = useState('')
@@ -108,8 +109,27 @@ export default function OrdenDetalle() {
   }
   const guardarItems = async () => {
     const { buildItems } = await import('../components/ItemsPicker')
-    const items = buildItems(servicios, kilos, express, prendas)
-    if (!items.length) return toast.error('La orden debe tener al menos un ítem')
+    const base = buildItems(servicios, kilos, express, prendas)
+    if (!base.length) return toast.error('La orden debe tener al menos un ítem')
+
+    // El pedido mínimo se aplicaba solo en Nueva Orden. Cuando la orden venía
+    // agendada y se le cargaban los ítems acá, nadie cobraba el diferencial: la
+    // OT 6407 quedó en $18.705 con mínimo a domicilio de $25.000.
+    const minimo = Number(o.retiro_domicilio || o.entrega_domicilio
+      ? (config.minimo_retiro || 25000)
+      : (config.minimo_venta_local || 14500))
+    const suma = base.reduce((t: number, i: any) => t + Number(i.subtotal || 0), 0)
+    const faltante = Math.max(0, minimo - suma)
+    let items = base
+    if (faltante > 0 && !o.es_membresia) {
+      const domicilio = !!(o.retiro_domicilio || o.entrega_domicilio)
+      const ok = window.confirm(
+        `Esta orden suma ${fmt(suma)} y el mínimo ${domicilio ? 'a domicilio' : 'del local'} es ${fmt(minimo)}.\n\n` +
+        `Aceptar agrega el ajuste por ${fmt(faltante)} y la deja en ${fmt(minimo)}.\n` +
+        `Cancelar la guarda en ${fmt(suma)}, sin cobrar el mínimo.`)
+      if (ok) items = [...base, { servicio_id: 78, nombre: 'AJUSTE POR PEDIDO MÍNIMO',
+                                  cantidad: 1, precio_unit: faltante, subtotal: faltante }]
+    }
     const datos = { items, kilos: Number(String(kilos).replace(',', '.') || 0), tipo_servicio: express ? 'EXPRESS' : 'NORMAL' }
     const cambios = [
       ...describirCambios(o, datos, { kilos: 'Kilos', tipo_servicio: 'Servicio' }),

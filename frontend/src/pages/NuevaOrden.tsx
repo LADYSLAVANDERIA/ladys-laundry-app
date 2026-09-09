@@ -112,12 +112,30 @@ export default function NuevaOrden() {
   const [dividir, setDividir] = useState(true)
   const hayVariosPlazos = gruposPorPlazo.length > 1
 
-  // Solo se mueve sola mientras nadie la haya tocado a mano.
+  // La fecha propuesta se recalcula sola cuando cambian los servicios, PERO
+  // nunca pisa una fecha que se haya escrito a mano.
+  //
+  // Antes esto dependia de una marca "fecha tocada" que se perdia en algunos
+  // caminos, y la fecha volvia sola al plazo automatico despues de que alguien
+  // ya se la habia prometido al cliente. Paso con la OT 6496: se puso 12/09 y
+  // quedo 11/09.
+  //
+  // Ahora no depende de ninguna marca: se guarda cual fue el ultimo valor que
+  // puso el sistema, y solo se reemplaza si la fecha actual sigue siendo ese
+  // valor. Si difiere, es porque la escribio una persona y se respeta.
   const [fechaTocada, setFechaTocada] = useState(false)
+  const [fechaAuto, setFechaAuto] = useState<string>('')
   useEffect(() => {
-    if (fechaTocada) return
-    setF((p: any) => ({ ...p, fecha_entrega: addDiasHabiles(p.fecha_recogida || hoy(), plazo) }))
-  }, [plazo, f.fecha_recogida, fechaTocada])
+    const propuesta = addDiasHabiles(f.fecha_recogida || hoy(), plazo)
+    setF((p: any) => {
+      const actual = p.fecha_entrega || ''
+      const laPusoElSistema = !actual || actual === fechaAuto
+      if (fechaTocada && !laPusoElSistema) return p
+      if (!laPusoElSistema) return p
+      return { ...p, fecha_entrega: propuesta }
+    })
+    setFechaAuto(propuesta)
+  }, [plazo, f.fecha_recogida])
 
   const pct = Number(config.descuento_continuidad || 10)
   // El valor real vive en configuracion.minimo_retiro. Este numero solo actua si
@@ -377,7 +395,7 @@ export default function NuevaOrden() {
                 <p className="text-[11px] text-gray-400 mt-1">
                   {fechaTocada
                     ? <>Fecha puesta a mano. <button type="button" className="underline"
-                        onClick={() => { setFechaTocada(false) }}>volver al plazo automático</button></>
+                        onClick={() => { setFechaTocada(false); const a = addDiasHabiles(f.fecha_recogida || hoy(), plazo); setFechaAuto(a); setF({ ...f, fecha_entrega: a, ruta_entrega_id: '' }) }}>volver al plazo automático</button></>
                     : plazo === 0 ? 'Express: se entrega el mismo día.'
                     : `Propuesta por el servicio más lento de la orden: ${plazo} ${plazo === 1 ? 'día hábil' : 'días hábiles'}.`}
                 </p>

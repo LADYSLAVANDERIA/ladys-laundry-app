@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, Clock, Package, QrCode, RefreshCw, MessageSquare } from 'lucide-react'
-import { tallerApi } from '../services/api'
+import { AlertTriangle, Clock, Package, QrCode, RefreshCw, MessageSquare, Send } from 'lucide-react'
+import { tallerApi, tallerChatApi } from '../services/api'
 import { ot } from '../utils'
 
 // La vista de trabajo del taller. Producción tiene la estación de escaneo, que
@@ -60,6 +60,75 @@ function Ficha({ p }: { p: any }) {
   )
 }
 
+
+// Lo que pasa en el taller se decide en el momento: un pedido que se lavo en tres
+// cargas, una maquina que se detuvo, un cobertor que hubo que resecar. Si nadie
+// lo escribe, se pierde, y el calculo de plazos queda en adivinanza.
+function Conversacion() {
+  const [msgs, setMsgs] = useState<any[]>([])
+  const [txt, setTxt] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  const cargar = () => tallerChatApi.leer().then(r => setMsgs(r.data.mensajes || [])).catch(() => {})
+  useEffect(() => { cargar(); const t = setInterval(cargar, 45000); return () => clearInterval(t) }, [])
+
+  const enviar = async () => {
+    const t = txt.trim()
+    if (!t) return
+    setEnviando(true)
+    try { await tallerChatApi.responder(t); setTxt(''); cargar() } finally { setEnviando(false) }
+  }
+
+  const abiertas = msgs.filter(m => m.de === 'SISTEMA' && !m.leido)
+
+  return (
+    <div className="bg-white border rounded-2xl p-4 space-y-3">
+      <div>
+        <h2 className="font-bold text-gray-800 text-sm">Cuéntanos del taller</h2>
+        <p className="text-xs text-gray-500">
+          Si un pedido se lavó en varias cargas, si una máquina falló, si algo hubo que
+          rehacer: escríbelo acá. Con eso el sistema aprende cuánto demora de verdad
+          cada cosa, en vez de suponerlo.
+        </p>
+      </div>
+
+      {abiertas.map(m => (
+        <div key={m.id} className="text-sm rounded-xl px-3 py-2.5 bg-blue-50 border border-blue-200 text-blue-900">
+          <b>Pregunta:</b> {m.texto}
+        </div>
+      ))}
+
+      <div className="max-h-56 overflow-y-auto space-y-2">
+        {msgs.slice(-12).map(m => (
+          <div key={m.id}
+               className={`text-sm rounded-xl px-3 py-2 ${m.de === 'TALLER'
+                 ? 'bg-gray-50 text-gray-800'
+                 : 'bg-blue-50/60 text-blue-900'}`}>
+            <span className="text-[11px] text-gray-400 block">
+              {m.de === 'TALLER' ? (m.quien || 'Taller') : 'Sistema'} ·{' '}
+              {new Date(m.creado_en).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {m.orden_id ? <b>#{m.orden_id} · </b> : null}{m.texto}
+          </div>
+        ))}
+        {!msgs.length && <p className="text-xs text-gray-400 py-3 text-center">Todavía no hay nada escrito.</p>}
+      </div>
+
+      <div className="flex gap-2">
+        <input value={txt} onChange={e => setTxt(e.target.value)}
+               onKeyDown={e => { if (e.key === 'Enter') enviar() }}
+               placeholder="Por ejemplo: la 6465 fueron 3 cargas, eran cobertores"
+               className="flex-1 border rounded-xl px-3 py-2.5 text-sm" />
+        <button onClick={enviar} disabled={enviando || !txt.trim()}
+                className="px-4 py-2.5 rounded-xl text-white text-sm font-semibold disabled:opacity-40"
+                style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+          <Send size={15} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function Taller() {
   const [d, setD] = useState<any>(null)
   const [cargando, setCargando] = useState(true)
@@ -107,6 +176,8 @@ export default function Taller() {
           )}
         </div>
       )}
+
+      <Conversacion />
 
       {d.etapas.map((e: any) => (
         <section key={e.id}>

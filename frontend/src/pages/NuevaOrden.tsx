@@ -179,6 +179,11 @@ export default function NuevaOrden() {
         ? gruposPorPlazo
         : [{ dias: plazo, items: itemsConAjuste }]
       const creadas: number[] = []
+      // Cuando la orden se parte por plazo, el pago tambien tiene que partirse.
+      // Antes el cobro se aplicaba solo a la primera OT y la segunda quedaba
+      // impaga sin que nadie lo notara: el cliente pagaba en el mesón creyendo
+      // que dejaba todo cancelado y se iba debiendo.
+      let porPagar = body.pago ? Number(body.pago.monto || total) : 0
 
       for (let n = 0; n < partes.length; n++) {
         const parte = partes[n]
@@ -192,8 +197,15 @@ export default function NuevaOrden() {
         const nota = [f.observaciones, partes.length > 1 ? `Parte ${n + 1} de ${partes.length}` : '']
           .filter(Boolean).join(' · ')
 
+        const totalParte = sub - desc + envio
+        const pagoParte = body.pago && porPagar > 0
+          ? { ...body.pago, monto: Math.min(porPagar, totalParte) }
+          : null
+        if (pagoParte) porPagar -= pagoParte.monto
+
         const { data: o } = await ordenesApi.create({
           ...body,
+          pago: pagoParte,
           items: parte.items,
           kilos: kilosParte,
           observaciones: nota,
@@ -213,8 +225,9 @@ export default function NuevaOrden() {
       }
 
       toast.success(creadas.length > 1
-        ? `${creadas.length} órdenes creadas: ${creadas.map(ot).join(', ')}`
-        : `OT ${ot(creadas[0])} creada`)
+        ? `${creadas.length} órdenes creadas: ${creadas.map(ot).join(', ')}${
+            body.pago ? ' · el pago se repartió entre ellas' : ''}`
+        : `OT ${ot(creadas[0])} creada`, { duration: creadas.length > 1 ? 7000 : 4000 })
       // Con POS se abre el pedido y se manda el cobro a la máquina desde ahí,
       // que es el flujo que espera el terminal ("inicia el cobro desde el sistema").
       navigate(`/ordenes/${creadas[0]}?print=1${(!usarMemb && pago.ahora && esPos(pago.forma_pago_id)) ? '&cobrar=pos' : ''}`)
@@ -333,6 +346,10 @@ export default function NuevaOrden() {
                     <p className="text-xs text-amber-900">
                       <b>Esta orden tiene servicios con plazos distintos.</b> Si va todo junto,
                       lo rápido espera por lo lento.
+                      {dividir && pago.ahora && (
+                        <><br/><b>Se crearán {gruposPorPlazo.length} órdenes separadas</b> y el
+                        cobro de {fmt(total)} se repartirá entre ellas. Cóbralas todas juntas al cliente.</>
+                      )}
                     </p>
                     <label className="flex items-start gap-2 text-xs text-amber-900 cursor-pointer">
                       <input type="checkbox" checked={dividir} onChange={e => setDividir(e.target.checked)} className="mt-0.5" />

@@ -165,6 +165,23 @@ export const diasInhabilesApi = {
   create: (d: object) => api.post('/dias-inhabiles', d),
   remove: (fecha: string) => api.delete(`/dias-inhabiles/${fecha}`),
 }
+// Los feriados se administran aparte: esta es la unica via que ve tambien los
+// dias marcados como "trabajamos", que la vista dias_inhabiles oculta a proposito.
+const FER_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-feriados')
+const ferAx = axios.create({ baseURL: FER_URL })
+ferAx.interceptors.request.use(cfg => {
+  const t = localStorage.getItem('ladys_token')
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
+export const feriadosApi = {
+  getAll:   (anio: number) => ferAx.get('/', { params: { anio } }),
+  trabajar: (fecha: string, trabajamos: boolean, nota?: string) =>
+              ferAx.put('/trabajar', { fecha, trabajamos, nota }),
+  crear:    (fecha: string, motivo: string) => ferAx.post('/', { fecha, motivo }),
+  borrar:   (fecha: string) => ferAx.delete('/', { params: { fecha } }),
+}
+
 export const reportesApi  = { control: (p: object) => api.get('/reportes/control', { params: p }) }
 export const localApi     = { get: () => api.get('/local'), update: (d: object) => api.put('/local', d) }
 export const prepagosApi  = { planes: () => api.get('/prepagos/planes'), saldos: () => api.get('/prepagos/saldos') }

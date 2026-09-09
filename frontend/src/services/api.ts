@@ -387,3 +387,20 @@ export const gastosMpApi = {
   descartar: (mp_payment_id: string, motivo: string) => gastosAx.post('/descartar', { mp_payment_id, motivo }),
   reabrir:   (mp_payment_id: string) => gastosAx.post('/reabrir', { mp_payment_id }),
 }
+
+// Conciliacion de transferencias de Mercado Pago.
+// El cliente manda el comprobante por WhatsApp, SofIA lo abona, y esto solo
+// confirma que el monto entro de verdad a la cuenta.
+const CONC_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-conciliar')
+const concAx = axios.create({ baseURL: CONC_URL })
+concAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const conciliarApi = {
+  pendientes: () => concAx.get('/pendientes'),
+  imputar:    (mp_id: string, orden_id: number) => concAx.post('/imputar', { mp_id, orden_id }),
+  descartar:  (mp_id: string, nota: string) => concAx.post('/descartar', { mp_id, nota }),
+  anular:     (id: number, motivo: string) => concAx.post('/anular-comprobante', { id, motivo }),
+}

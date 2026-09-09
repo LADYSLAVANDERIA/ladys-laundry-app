@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi} from '../services/api'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi } from '../services/api'
+import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
@@ -20,6 +20,11 @@ export default function OrdenDetalle() {
   const [cobro, setCobro] = useState<any>(null)
   const [config, setConfig] = useState<any>({})
   const [grupo, setGrupo] = useState<any>({ dividido: false, hermanas: [], total_grupo: 0 })
+  const [direcciones, setDirecciones] = useState<any[]>([])
+  const cargarDirecciones = () => {
+    if (!o?.cliente_id) return
+    clientesApi.getById(o.cliente_id).then(r => setDirecciones(r.data.direcciones || [])).catch(() => {})
+  }
   const [motivoVuelta, setMotivoVuelta] = useState('')
   const [generando, setGenerando] = useState(false)
   const [comp, setComp] = useState<any>({ monto: '', nombre_origen: '', nota: '' })
@@ -149,7 +154,12 @@ export default function OrdenDetalle() {
         fecha_entrega: edit.fecha_entrega || null, ruta_entrega_id: edit.ruta_entrega_id || null,
         observaciones: edit.observaciones || null, bultos: Number(edit.bultos || 1),
         ot_easylaundry: edit.ot_easylaundry || null,
+        retiro_domicilio: !!edit.retiro_domicilio, entrega_domicilio: !!edit.entrega_domicilio,
+        dir_recogida_id: edit.retiro_domicilio ? Number(edit.dir_id) || null : null,
+        dir_entrega_id: edit.entrega_domicilio ? Number(edit.dir_id) || null : null,
       }
+      if ((datos.retiro_domicilio || datos.entrega_domicilio) && !edit.dir_id)
+        return toast.error('Elige la dirección del domicilio')
       const nombreRuta = (id: any) => rutas.find((r: any) => String(r.id) === String(id))?.nombre || '—'
       const cambios = describirCambios(o, datos, {
         fecha_recogida: 'Retiro', fecha_entrega: 'Entrega',
@@ -371,7 +381,7 @@ export default function OrdenDetalle() {
               </button>
             )}
             {o.estado !== 'ENTREGADA' && <button onClick={abrirEdicionItems} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Package size={14} /> Editar ítems</button>}
-            <button onClick={() => { setEdit({ ot_easylaundry: o.ot_easylaundry || '', fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos }); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
+            <button onClick={() => { setEdit({ ot_easylaundry: o.ot_easylaundry || '', fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos, retiro_domicilio: !!o.retiro_domicilio, entrega_domicilio: !!o.entrega_domicilio, dir_id: o.dir_entrega_id || o.dir_recogida_id || '' }); cargarDirecciones(); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
             <button onClick={() => prepararAviso(o.estado === 'LISTA' ? 'LISTA' : o.estado === 'PRE_ORDEN' ? 'INGRESO' : o.estado === 'ENTREGADA' ? 'ENTREGADA' : 'INGRESO')}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium"><Send size={14} /> Avisar al cliente</button>
             <button onClick={() => setModal('anular')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm"><Ban size={14} /> Anular</button>
@@ -782,7 +792,33 @@ export default function OrdenDetalle() {
               <input value={edit.ot_easylaundry || ''} onChange={e => setEdit({ ...edit, ot_easylaundry: e.target.value })}
                      inputMode="numeric" placeholder="para aparear en el cotejo" className={inp} />
             </div>
-            {o.retiro_domicilio && (
+            <div className="rounded-xl border p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-600">Tipo de servicio</p>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={!!edit.retiro_domicilio}
+                       onChange={e => setEdit({ ...edit, retiro_domicilio: e.target.checked })} />
+                Retiro a domicilio
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={!!edit.entrega_domicilio}
+                       onChange={e => setEdit({ ...edit, entrega_domicilio: e.target.checked })} />
+                Entrega a domicilio
+              </label>
+              {(edit.retiro_domicilio || edit.entrega_domicilio) && (
+                <div>
+                  <label className="text-xs text-gray-500">Dirección</label>
+                  <select value={edit.dir_id || ''} onChange={e => setEdit({ ...edit, dir_id: e.target.value })} className={inp}>
+                    <option value="">Elige la dirección…</option>
+                    {direcciones.map((d: any) => (
+                      <option key={d.id} value={d.id}>
+                        {[d.calle, d.numero].filter(Boolean).join(' ')}{d.otro ? `, ${d.otro}` : ''} · {d.comuna_geo || d.ciudad}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+            {edit.retiro_domicilio && (
               <div className="grid grid-cols-2 gap-2">
                 <div><label className="text-xs text-gray-500">Fecha retiro</label><input type="date" value={edit.fecha_recogida} onChange={e => setEdit({ ...edit, fecha_recogida: e.target.value, ruta_recogida_id: '' })} className={inp} /></div>
                 <div><label className="text-xs text-gray-500">Ruta retiro</label><select value={edit.ruta_recogida_id} onChange={e => setEdit({ ...edit, ruta_recogida_id: e.target.value })} className={inp}><option value="">—</option>{rutas.filter(r => r.dia_semana === diaSemana(edit.fecha_recogida) && r.tipo !== 'SOLO_ENTREGAS').map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></div>
@@ -790,7 +826,7 @@ export default function OrdenDetalle() {
             )}
             <div className="grid grid-cols-2 gap-2">
               <div><label className="text-xs text-gray-500">Fecha entrega</label><input type="date" value={edit.fecha_entrega} onChange={e => setEdit({ ...edit, fecha_entrega: e.target.value, ruta_entrega_id: '' })} className={inp} /></div>
-              {o.entrega_domicilio && <div><label className="text-xs text-gray-500">Ruta entrega</label><select value={edit.ruta_entrega_id} onChange={e => setEdit({ ...edit, ruta_entrega_id: e.target.value })} className={inp}><option value="">—</option>{rutas.filter(r => r.dia_semana === diaSemana(edit.fecha_entrega) && r.tipo !== 'SOLO_RETIROS').map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></div>}
+              {edit.entrega_domicilio && <div><label className="text-xs text-gray-500">Ruta entrega</label><select value={edit.ruta_entrega_id} onChange={e => setEdit({ ...edit, ruta_entrega_id: e.target.value })} className={inp}><option value="">—</option>{rutas.filter(r => r.dia_semana === diaSemana(edit.fecha_entrega) && r.tipo !== 'SOLO_RETIROS').map(r => <option key={r.id} value={r.id}>{r.nombre}</option>)}</select></div>}
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div><label className="text-xs text-gray-500">Bultos</label><input type="number" min="1" value={edit.bultos} onChange={e => setEdit({ ...edit, bultos: e.target.value })} className={inp} /></div>

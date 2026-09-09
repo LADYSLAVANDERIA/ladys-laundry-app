@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi} from '../services/api'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi } from '../services/api'
+import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
@@ -19,6 +19,7 @@ export default function OrdenDetalle() {
   const [pago, setPago] = useState<any>({ forma_pago_id: '', monto: '' })
   const [cobro, setCobro] = useState<any>(null)
   const [config, setConfig] = useState<any>({})
+  const [grupo, setGrupo] = useState<any>({ dividido: false, hermanas: [], total_grupo: 0 })
   const [motivoVuelta, setMotivoVuelta] = useState('')
   const [generando, setGenerando] = useState(false)
   const [comp, setComp] = useState<any>({ monto: '', nombre_origen: '', nota: '' })
@@ -46,6 +47,7 @@ export default function OrdenDetalle() {
   }
   useEffect(() => {
     load()
+    grupoApi.get(Number(id)).then(r => setGrupo(r.data)).catch(() => {})
     Promise.all([formasPagoApi.getAll(), serviciosApi.getAll(), localApi.get(), rutasApi.getAll(), configApi.get()])
       .then(([f, s, l, r, c]) => { setFormas(f.data); setServicios(s.data); setLocal(l.data || {}); setRutas(r.data.filter((x: any) => x.activo !== false)); setConfig(c.data || {}) }).catch(() => {})
   }, [id])
@@ -229,10 +231,14 @@ export default function OrdenDetalle() {
     } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo registrar') }
   }
 
+  // Total del pedido completo: si esta orden se dividió por plazos, la máquina
+  // cobra las dos partes en una sola pasada y la base reparte el excedente.
+  const totalGrupo = grupo.dividido ? Number(grupo.total_grupo || 0) : Number(o?.saldo_pendiente || 0)
+
   const cobrarEnMaquina = async () => {
     setPosError(''); setPos({ cargando: true })
     try {
-      const { data } = await cobrosApi.cobrarPos(o.id)
+      const { data } = await cobrosApi.cobrarPos(o.id, totalGrupo)
       setPos({ ...data, estado: 'esperando' })
     } catch (e: any) {
       setPos(null)
@@ -343,7 +349,14 @@ export default function OrdenDetalle() {
           <div className="flex gap-2 flex-wrap">
             {sig && <button onClick={() => cambiar(sig)} className="px-4 py-2.5 rounded-xl text-white text-sm font-semibold" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Marcar como {ESTADO_LABEL[sig].toLowerCase()}</button>}
             {Number(o.saldo_pendiente) > 0 && <button onClick={() => setModal('pago')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-500 text-white text-sm font-semibold"><DollarSign size={14} /> Registrar pago {fmt(o.saldo_pendiente)}</button>}
-            {Number(o.saldo_pendiente) > 0 && !o.entrega_domicilio && <button onClick={() => { setPos(null); setPosError(''); setModal('maquina') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold"><CreditCard size={14} /> Cobrar en la máquina {fmt(o.saldo_pendiente)}</button>}
+            {Number(o.saldo_pendiente) > 0 && !o.entrega_domicilio && <button onClick={() => { setPos(null); setPosError(''); setModal('maquina') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold"><CreditCard size={14} /> Cobrar en la máquina {fmt(totalGrupo)}</button>}
+            {grupo.dividido && Number(totalGrupo) > 0 && (
+              <span className="w-full text-xs px-3 py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-800">
+                Este pedido se dividió por plazos: son {grupo.hermanas.length + 1} órdenes
+                ({[o.id, ...grupo.hermanas.map((h: any) => h.id)].map(ot).join(', ')}).
+                <b> Cóbralas juntas por {fmt(totalGrupo)}</b> — el pago se reparte solo entre ellas.
+              </span>
+            )}
             {Number(o.saldo_pendiente) > 0 && o.entrega_domicilio && (
               <span className="px-3 py-2.5 rounded-xl bg-gray-100 text-gray-500 text-xs self-center">
                 A domicilio no va la máquina: cobra por transferencia o link

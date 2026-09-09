@@ -182,6 +182,16 @@ export const feriadosApi = {
   borrar:   (fecha: string) => ferAx.delete('/', { params: { fecha } }),
 }
 
+// El pedido completo cuando se dividio por plazos: hermanas y total a cobrar.
+const GRU_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-grupo')
+const gruAx = axios.create({ baseURL: GRU_URL })
+gruAx.interceptors.request.use(cfg => {
+  const t = useAuthStore.getState().token
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
+export const grupoApi = { get: (orden_id: number) => gruAx.get('/', { params: { orden_id } }) }
+
 export const reportesApi  = { control: (p: object) => api.get('/reportes/control', { params: p }) }
 export const localApi     = { get: () => api.get('/local'), update: (d: object) => api.put('/local', d) }
 export const prepagosApi  = { planes: () => api.get('/prepagos/planes'), saldos: () => api.get('/prepagos/saldos') }

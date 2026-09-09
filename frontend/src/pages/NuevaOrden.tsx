@@ -133,7 +133,10 @@ export default function NuevaOrden() {
   // Va como ítem y no como un ajuste suelto para que quede en el ticket, en la
   // factura y en los reportes: es venta, no un descuadre.
   const baseItems = items.reduce((s, i) => s + i.subtotal, 0)
-  const descBase = f.aplicar_descuento ? Math.round(baseItems * pct / 100) : 0
+  // Descuento por convenio del cliente (ficha). Es independiente del de
+  // continuidad y no se pregunta: si el cliente lo tiene, se aplica.
+  const pctConvenio = Number(cliente?.descuento_pct || 0)
+  const descBase = Math.round(baseItems * ((f.aplicar_descuento ? pct : 0) + pctConvenio) / 100)
   const faltante = Math.max(0, minimoAplica - (baseItems - descBase + Number(f.monto_delivery || 0)))
   const itemsConAjuste = (baseItems > 0 && faltante > 0 && !f.sin_minimo)
     ? [...items, { servicio_id: SERVICIO_AJUSTE, nombre: 'AJUSTE POR PEDIDO MÍNIMO',
@@ -141,7 +144,8 @@ export default function NuevaOrden() {
     : items
 
   const subtotal = itemsConAjuste.reduce((s, i) => s + i.subtotal, 0)
-  const descuento = f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0
+  const descConvenio = Math.round(subtotal * pctConvenio / 100)
+  const descuento = (f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0) + descConvenio
   const total = subtotal - descuento + Number(f.monto_delivery || 0)
   const rutasRet = rutas.filter(r => r.dia_semana === diaSemana(f.fecha_recogida) && RUTA_RET.includes(r.tipo))
   const rutasEnt = rutas.filter(r => r.dia_semana === diaSemana(f.fecha_entrega) && RUTA_ENT.includes(r.tipo))
@@ -404,6 +408,12 @@ export default function NuevaOrden() {
               ))}
               {!items.length && <p className="text-gray-400 text-xs">Agrega kilos o prendas…</p>}
               <div className="flex justify-between border-t pt-2"><span>Subtotal</span><span className="font-medium">{fmt(subtotal)}</span></div>
+              {pctConvenio > 0 && (
+                <div className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 bg-violet-50 text-violet-700">
+                  <span className="flex items-center gap-1.5"><Percent size={12} /> Convenio del cliente {pctConvenio}%</span>
+                  <span className="font-semibold">−{fmt(descConvenio)}</span>
+                </div>
+              )}
               <label className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 cursor-pointer ${f.aplicar_descuento ? 'bg-green-50 text-green-700' : 'text-gray-500'}`}>
                 <span className="flex items-center gap-1.5"><input type="checkbox" checked={f.aplicar_descuento} onChange={e => setF({ ...f, aplicar_descuento: e.target.checked })} /><Percent size={12} /> Continuidad {pct}%</span>
                 <span>-{fmt(descuento)}</span>

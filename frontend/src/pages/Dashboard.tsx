@@ -14,9 +14,30 @@ export default function Dashboard() {
   const [res, setRes] = useState<any>({})
   const [loading, setLoading] = useState(true)
 
+  // El cierre por período era una pantalla aparte (Reporte de Control). Vive acá
+  // porque se mira junto con lo del día, no como un reporte separado.
+  //
+  // OJO: TODOS los hooks van antes del return de "cargando". Estaban después, y
+  // eso dejaba la pantalla EN BLANCO siempre: React exige la misma cantidad de
+  // hooks en cada render, y acá pasaban de 3 mientras cargaba a 7 cuando
+  // llegaban los datos. El componente se caía justo al terminar de cargar.
+  const hoyStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
+  const [desde, setDesde] = useState(hoyStr)
+  const [hasta, setHasta] = useState(hoyStr)
+  const [cierre, setCierre] = useState<any>(null)
+  const [cargandoCierre, setCargandoCierre] = useState(false)
+
+  const verCierre = async (d = desde, h = hasta) => {
+    setCargandoCierre(true)
+    try { const r = await cierreApi.get(d, h); setCierre(r.data) }
+    catch { setCierre(null) }
+    finally { setCargandoCierre(false) }
+  }
+
   useEffect(() => {
     ordenesApi.resumen().then(r => setRes(r.data)).catch(() => {})
-    dashboardApi.get().then(r => setData(r.data)).finally(() => setLoading(false))
+    dashboardApi.get().then(r => setData(r.data)).catch(() => {}).finally(() => setLoading(false))
+    verCierre()
   }, [])
 
   if (loading) return (
@@ -24,21 +45,6 @@ export default function Dashboard() {
       <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" />
     </div>
   )
-
-  // El cierre por período era una pantalla aparte (Reporte de Control). Vive acá
-  // porque se mira junto con lo del día, no como un reporte separado.
-  const hoyStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
-  const [desde, setDesde] = useState(hoyStr)
-  const [hasta, setHasta] = useState(hoyStr)
-  const [cierre, setCierre] = useState<any>(null)
-  const [cargandoCierre, setCargandoCierre] = useState(false)
-  const verCierre = async (d = desde, h = hasta) => {
-    setCargandoCierre(true)
-    try { const r = await cierreApi.get(d, h); setCierre(r.data) }
-    catch { setCierre(null) }
-    finally { setCargandoCierre(false) }
-  }
-  useEffect(() => { verCierre() }, [])
 
   const kpis = [
     { label: 'Clientes', value: data?.kpis?.total_clientes, icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -103,7 +109,7 @@ export default function Dashboard() {
             <XAxis dataKey="fecha" tickFormatter={d => format(parseISO(d), 'd/M')} tick={{ fontSize: 11 }} />
             <YAxis tickFormatter={v => `$${(v/1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
             <Tooltip formatter={(v: number) => fmt(v)} labelFormatter={l => format(parseISO(l as string), 'd MMM', { locale: es })} />
-            <Area type="monotone" dataKey="ventas" stroke="#E8177A" fill="url(#gradPink)" strokeWidth={2} />
+            <Area type="monotone" dataKey="total" stroke="#E8177A" fill="url(#gradPink)" strokeWidth={2} />
           </AreaChart>
         </ResponsiveContainer>
       </div>

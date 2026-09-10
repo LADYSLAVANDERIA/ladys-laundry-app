@@ -351,7 +351,11 @@ cierreAx.interceptors.request.use(config => {
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
-export const cierreApi = { get: (desde: string, hasta: string) => cierreAx.get('', { params: { desde, hasta } }) }
+export const cierreApi = {
+  get: (desde: string, hasta: string) => cierreAx.get('', { params: { desde, hasta } }),
+  // El mes en curso contra el anterior, dia contra dia y cortado en la misma fecha.
+  ventasMes: () => cierreAx.get('/ventas-mes'),
+}
 
 const IND_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-indicadores')
 const indAx = axios.create({ baseURL: IND_URL })

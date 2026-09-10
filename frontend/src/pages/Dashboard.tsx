@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { dashboardApi, ordenesApi, cierreApi } from '../services/api'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Clock, CheckCircle, CalendarClock, Wallet, TrendingUp, TrendingDown } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
 const num = (v: any) => Number(v) || 0
@@ -54,6 +54,7 @@ export default function Dashboard() {
   const [hasta, setHasta] = useState(hoyStr)
   const [cierre, setCierre] = useState<any>(null)
   const [cargandoCierre, setCargandoCierre] = useState(false)
+  const [vm, setVm] = useState<any>(null)
 
   const verCierre = async (d = desde, h = hasta) => {
     setCargandoCierre(true)
@@ -65,31 +66,25 @@ export default function Dashboard() {
   useEffect(() => {
     ordenesApi.resumen().then(r => setRes(r.data)).catch(() => {})
     dashboardApi.get().then(r => setData(r.data)).catch(() => {}).finally(() => setLoading(false))
+    cierreApi.ventasMes().then(r => setVm(r.data)).catch(() => {})
     verCierre()
   }, [])
 
-  // El servidor manda los montos como texto y SALTA los dias sin ventas: 25
-  // puntos para 29 dias. Con texto, la curva se corta; con dias faltantes, une
-  // el 15 con el 17 como si el 16 no existiera. Se convierte a numero y se
-  // rellenan los dias vacios con cero, que es lo que de verdad pasó.
+  // Solo los dias del mes en curso, y al lado los MISMOS dias del mes anterior.
+  // Comparar 10 dias corridos contra un mes completo de 31 no dice nada: por eso
+  // el corte cae en la misma fecha en los dos meses.
   const serie = useMemo(() => {
-    const crudo = (data?.ventasDiarias || []).map((d: any) => ({
-      fecha: String(d.fecha).slice(0, 10),
-      total: num(d.total),
+    const act = vm?.actual?.dias || []
+    const ant = vm?.anterior?.dias || []
+    if (!act.length) return []
+    const porDia = new Map(ant.map((d: any) => [d.dia, d]))
+    return act.map((d: any) => ({
+      dia: d.dia,
+      actual: num(d.total),
       ordenes: num(d.ordenes),
+      anterior: porDia.has(d.dia) ? num((porDia.get(d.dia) as any).total) : null,
     }))
-    if (!crudo.length) return []
-    const porFecha = new Map(crudo.map((d: any) => [d.fecha, d]))
-    const salida: any[] = []
-    const cursor = new Date(crudo[0].fecha + 'T12:00:00')
-    const fin = new Date(hoyStr + 'T12:00:00')
-    while (cursor <= fin) {
-      const k = cursor.toLocaleDateString('sv-SE')
-      salida.push(porFecha.get(k) || { fecha: k, total: 0, ordenes: 0 })
-      cursor.setDate(cursor.getDate() + 1)
-    }
-    return salida
-  }, [data, hoyStr])
+  }, [vm])
 
   // Por plata, no por cantidad: 186 kilos y 6 cobertores no se comparan.
   const servicios = useMemo(() => {
@@ -121,9 +116,12 @@ export default function Dashboard() {
     </div>
   )
 
-  const mes = num(data?.kpis?.ventas_mes)
-  const mesAnterior = num(data?.ventasMesAnterior)
-  const variacion = mesAnterior > 0 ? Math.round((mes / mesAnterior - 1) * 100) : null
+  const mes = num(vm?.actual?.total ?? data?.kpis?.ventas_mes)
+  const tramoAnterior = num(vm?.anterior?.total_mismo_tramo)
+  const variacion = vm?.variacion ?? null
+  const corte = num(vm?.dia_de_corte)
+  const mesActualNombre = vm?.actual?.etiqueta || ''
+  const mesAnteriorNombre = vm?.anterior?.etiqueta || ''
   const topServicio = servicios[0]?.total || 1
 
   const hoyCards = [
@@ -176,11 +174,11 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Ventas del mes */}
+      {/* Ventas del mes, contra el mismo tramo del mes anterior */}
       <div className="bg-white rounded-xl p-5 shadow-sm border">
-        <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-start justify-between gap-3 mb-1 flex-wrap">
           <div>
-            <h2 className="font-semibold text-gray-700">Ventas del mes</h2>
+            <h2 className="font-semibold text-gray-700 capitalize">{mesActualNombre || 'Ventas del mes'}</h2>
             <p className="text-3xl font-bold mt-1" style={{ color: '#E8177A' }}>{fmt(mes)}</p>
           </div>
           {variacion !== null && (
@@ -190,14 +188,30 @@ export default function Dashboard() {
                 {variacion >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
                 {variacion > 0 ? '+' : ''}{variacion}%
               </span>
-              <p className="text-xs text-gray-400 mt-1">mes anterior {fmt(mesAnterior)}</p>
+              <p className="text-xs text-gray-400 mt-1">
+                <span className="capitalize">{mesAnteriorNombre}</span> al {corte}: {fmt(tramoAnterior)}
+              </p>
             </div>
           )}
         </div>
+
+        {/* Se comparan los mismos dias, no el mes completo: al dia 10, contra el
+            dia 10 del mes pasado. */}
+        <div className="flex items-center gap-4 text-xs text-gray-500 mb-3">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 rounded" style={{ background: '#E8177A' }} />
+            <span className="capitalize">{mesActualNombre}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-0.5 rounded" style={{ background: '#C7CBD4' }} />
+            <span className="capitalize">{mesAnteriorNombre}</span>, mismos días
+          </span>
+        </div>
+
         {serie.length === 0 ? (
-          <p className="text-sm text-gray-400 py-10 text-center">Todavía no hay ventas cargadas.</p>
+          <p className="text-sm text-gray-400 py-10 text-center">Todavía no hay ventas este mes.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={210}>
             <AreaChart data={serie} margin={{ top: 5, right: 8, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="gradPink" x1="0" y1="0" x2="0" y2="1">
@@ -206,17 +220,21 @@ export default function Dashboard() {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F1F4" vertical={false} />
-              <XAxis dataKey="fecha" tickFormatter={d => format(parseISO(d), 'd/M')}
-                     tick={{ fontSize: 11, fill: '#9CA3AF' }} minTickGap={22}
-                     axisLine={false} tickLine={false} />
+              <XAxis dataKey="dia" tick={{ fontSize: 11, fill: '#9CA3AF' }}
+                     axisLine={false} tickLine={false} minTickGap={12} />
               <YAxis tickFormatter={corto} tick={{ fontSize: 11, fill: '#9CA3AF' }}
                      axisLine={false} tickLine={false} width={52} />
               <Tooltip
-                formatter={(v: any, _n: any, p: any) =>
-                  [`${fmt(v)} · ${p?.payload?.ordenes || 0} ${p?.payload?.ordenes === 1 ? 'orden' : 'órdenes'}`, 'Ventas']}
-                labelFormatter={l => format(parseISO(l as string), "EEEE d 'de' MMMM", { locale: es })}
+                formatter={(v: any, name: any, p: any) => {
+                  if (name === 'anterior') return [fmt(v), mesAnteriorNombre]
+                  const o = p?.payload?.ordenes || 0
+                  return [`${fmt(v)} · ${o} ${o === 1 ? 'orden' : 'órdenes'}`, mesActualNombre]
+                }}
+                labelFormatter={l => `Día ${l}`}
                 contentStyle={{ borderRadius: 12, border: '1px solid #E5E7EB', fontSize: 13 }} />
-              <Area type="monotone" dataKey="total" stroke="#E8177A" fill="url(#gradPink)" strokeWidth={2} />
+              <Area type="monotone" dataKey="anterior" stroke="#C7CBD4" fill="none"
+                    strokeWidth={2} strokeDasharray="4 4" dot={false} connectNulls />
+              <Area type="monotone" dataKey="actual" stroke="#E8177A" fill="url(#gradPink)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         )}

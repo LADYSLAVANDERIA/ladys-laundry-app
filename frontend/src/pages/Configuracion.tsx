@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { configApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { Store, CreditCard, Map, Landmark, Save, Eye, EyeOff, ExternalLink, ShieldCheck, Bot, CalendarOff } from 'lucide-react'
+import { Store, CreditCard, Map, Landmark, Save, Eye, EyeOff, ExternalLink, ShieldCheck, Bot, CalendarOff, FileText } from 'lucide-react'
 import ConfigLocal from './ConfigLocal'
 import MercadoPago from './MercadoPago'
 import ConfigBci from './ConfigBci'
 import ConfigFeriados from './ConfigFeriados'
 import ConfigSofia from './ConfigSofia'
+import ConfigFacttura from './ConfigFacttura'
 
 const inp = 'w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 
@@ -104,6 +105,7 @@ const TABS = [
   { id: 'bci',    label: 'Banco BCI',    icon: Landmark },
   { id: 'feriados', label: 'Feriados',   icon: CalendarOff },
   { id: 'sofia',  label: 'SofIA',        icon: Bot },
+  { id: 'facttura', label: 'Facturación', icon: FileText },
 ]
 
 export default function Configuracion() {
@@ -133,6 +135,7 @@ export default function Configuracion() {
       {tab === 'bci'    && <ConfigBci />}
       {tab === 'feriados' && <ConfigFeriados />}
       {tab === 'sofia'  && <ConfigSofia />}
+      {tab === 'facttura' && <ConfigFacttura />}
     </div>
   )
 }

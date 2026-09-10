@@ -344,6 +344,21 @@ export const facturacionApi = {
   borrarDoc:    (id: number) => factAx.delete(`/documento/${id}`),
 }
 
+const FACTTURA_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-facttura')
+const factturaAx = axios.create({ baseURL: FACTTURA_URL })
+factturaAx.interceptors.request.use(config => {
+  const token = useAuthStore.getState().token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+export const factturaApi = {
+  estado: () => factturaAx.get('/estado'),
+  config: (d: object) => factturaAx.put('/config', d),
+  token:  (d: object) => factturaAx.post('/token', d),
+  probar: () => factturaAx.get('/probar'),
+  emitir: (d: object = {}) => factturaAx.post('/emitir', d),
+}
+
 const CIERRE_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-cierre')
 const cierreAx = axios.create({ baseURL: CIERRE_URL })
 cierreAx.interceptors.request.use(config => {

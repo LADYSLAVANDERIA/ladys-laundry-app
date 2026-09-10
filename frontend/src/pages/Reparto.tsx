@@ -174,12 +174,12 @@ export default function Reparto() {
         </div>
       </div>
 
-      {!cargando && paradas.some(p => !p.secuencia) && (
+      {!cargando && paradas.some(p => !p.secuencia && p.estado !== 'COMPLETADA') && (
         <div className="flex items-start gap-3 rounded-xl px-4 py-3 border"
              style={{ background: '#FFF7E6', borderColor: '#F5C26B' }}>
           <AlertTriangle size={18} style={{ color: '#B7791F' }} className="shrink-0 mt-0.5" />
           <div className="text-sm" style={{ color: '#7A5A17' }}>
-            <b>La ruta no está ordenada.</b> Hay {paradas.filter(p => !p.secuencia).length} parada(s)
+            <b>La ruta no está ordenada.</b> Hay {paradas.filter(p => !p.secuencia && p.estado !== 'COMPLETADA').length} parada(s)
             sin posición: el conductor las vería en orden de número de pedido, no por cercanía.
             Aprieta <b>Armar recorrido</b> antes de que salga.
           </div>

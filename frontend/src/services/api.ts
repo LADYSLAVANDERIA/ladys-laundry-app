@@ -170,7 +170,7 @@ export const diasInhabilesApi = {
 const FER_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-feriados')
 const ferAx = axios.create({ baseURL: FER_URL })
 ferAx.interceptors.request.use(cfg => {
-  const t = localStorage.getItem('ladys_token')
+  const t = useAuthStore.getState().token
   if (t) cfg.headers.Authorization = `Bearer ${t}`
   return cfg
 })

@@ -438,4 +438,10 @@ export const marketingApi = {
   descartar:  (d: object) => mktAx.post('/descartar', d),
   deshacer:   (cliente_id: number) => mktAx.delete('/enviado', { params: { cliente_id } }),
   plantilla:  (segmento: string, texto: string) => mktAx.put('/plantilla', { segmento, texto }),
+  // Conversaciones perdidas: quisieron retiro y no se concretó
+  conversaciones:    () => mktAx.get('/conversaciones'),
+  convEscanear:      (dias = 60) => mktAx.post('/conversaciones/escanear', null, { params: { dias } }),
+  convEnviado:       (d: object) => mktAx.post('/conversaciones/enviado', d),
+  convDescartar:     (d: object) => mktAx.post('/conversaciones/descartar', d),
+  convDeshacer:      (id: number) => mktAx.delete('/conversaciones', { params: { id } }),
 }

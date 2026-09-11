@@ -7,7 +7,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard, RotateCcw } from 'lucide-react'
-import { fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa, tipoAviso, describirCambios, resumenItems} from '../utils'
+import { enZonaSinMinimo, fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa, tipoAviso, describirCambios, resumenItems} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -122,8 +122,12 @@ export default function OrdenDetalle() {
     // El pedido mínimo se aplicaba solo en Nueva Orden. Cuando la orden venía
     // agendada y se le cargaban los ítems acá, nadie cobraba el diferencial: la
     // OT 6407 quedó en $18.705 con mínimo a domicilio de $25.000.
-    const minimo = Number(o.retiro_domicilio || o.entrega_domicilio
-      ? (config.minimo_retiro ?? 0)
+    // Dentro de la zona sin mínimo (Concón hasta la rotonda, Reñaca hasta Jardín
+    // del Mar) el domicilio no lleva ajuste; fuera de ella rige minimo_retiro.
+    const esDom = !!(o.retiro_domicilio || o.entrega_domicilio)
+    const dirOrden = direcciones.find((d: any) => Number(d.id) === Number(o.dir_entrega_id || o.dir_recogida_id))
+    const minimo = Number(esDom
+      ? (enZonaSinMinimo(dirOrden, config) ? 0 : (config.minimo_retiro ?? 25000))
       : (config.minimo_venta_local || 14500))
     const suma = base.reduce((t: number, i: any) => t + Number(i.subtotal || 0), 0)
     const faltante = Math.max(0, minimo - suma)

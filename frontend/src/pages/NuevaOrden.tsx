@@ -6,7 +6,7 @@ import MapaDireccion from '../components/MapaDireccion'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Search, Save, UserPlus, MapPin, Truck, Store, Percent, AlertTriangle, CreditCard, Plus, X, Phone } from 'lucide-react'
-import { fmt, hoy, addDiasHabiles, diaSemana, ot, hora } from '../utils'
+import { enZonaSinMinimo, fmt, hoy, addDiasHabiles, diaSemana, ot, hora } from '../utils'
 
 const SERVICIO_AJUSTE = 78
 const RUTA_RET = ['RETIROS_Y_ENTREGAS', 'SOLO_RETIROS'], RUTA_ENT = ['RETIROS_Y_ENTREGAS', 'SOLO_ENTREGAS']
@@ -141,13 +141,17 @@ export default function NuevaOrden() {
   // El valor real vive en configuracion.minimo_retiro. Este numero solo actua si
   // esa clave desapareciera, y por eso tiene que ser el vigente: un respaldo
   // desactualizado cobra de menos sin que nadie lo note.
-  // Desde el 11-sep-2026 el domicilio no tiene mínimo (valor 0). Se lee con ??
-  // y no con || porque 0 es un valor válido y || lo cambiaría por el respaldo.
-  const minimo = Number(config.minimo_retiro ?? 0)
+  // Mínimo a domicilio FUERA de la zona sin mínimo. Se lee con ?? y no con ||
+  // porque 0 es un valor válido y || lo cambiaría por el respaldo.
+  const minimo = Number(config.minimo_retiro ?? 25000)
   // Mínimo de venta en el mesón. Aplica a cualquier pedido, con kilos o prendas.
   const minimoLocal = Number(config.minimo_venta_local || 14500)
   const domicilio = f.retiro_domicilio || f.entrega_domicilio
-  const minimoAplica = domicilio ? minimo : minimoLocal
+  // Dentro de la zona (Concón hasta la rotonda y Reñaca hasta Jardín del Mar) el
+  // domicilio no tiene mínimo. Fuera de ella rige minimo_retiro.
+  const dirSel = (cliente?.direcciones || []).find((d: any) => String(d.id) === String(f.dir_id))
+  const zonaSinMinimo = !!domicilio && enZonaSinMinimo(dirSel, config)
+  const minimoAplica = domicilio ? (zonaSinMinimo ? 0 : minimo) : minimoLocal
 
   // Si el pedido no llega al mínimo, se agrega una línea por la diferencia.
   // Va como ítem y no como un ajuste suelto para que quede en el ticket, en la
@@ -190,7 +194,7 @@ export default function NuevaOrden() {
         dir_recogida_id: f.retiro_domicilio ? Number(f.dir_id) : null, dir_entrega_id: f.entrega_domicilio ? Number(f.dir_id) : null,
         fecha_recogida: f.retiro_domicilio ? f.fecha_recogida : null, ruta_recogida_id: f.retiro_domicilio ? Number(f.ruta_recogida_id) : null,
         fecha_entrega: f.fecha_entrega || null, ruta_entrega_id: f.entrega_domicilio ? Number(f.ruta_entrega_id) : null,
-        origen: f.retiro_domicilio ? 'DOMICILIO' : 'LOCAL', es_membresia: usarMemb && !!memb, forzar,
+        origen: f.retiro_domicilio ? 'DOMICILIO' : 'LOCAL', es_membresia: usarMemb && !!memb, forzar: forzar || zonaSinMinimo,
         pago: (!usarMemb && pago.ahora && pago.forma_pago_id && total > 0 && !esPos(pago.forma_pago_id))
           ? { forma_pago_id: Number(pago.forma_pago_id), monto: Number(pago.monto || total) } : null,
       }

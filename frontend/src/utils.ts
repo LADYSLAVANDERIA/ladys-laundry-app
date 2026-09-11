@@ -249,3 +249,20 @@ export const resumenItems = (items: any[]) =>
   (items || [])
     .map((i: any) => `${String(i.nombre || '').replace(/^SERVICIO /i, '')} x${Number(i.cantidad)}`)
     .join(', ') || '—'
+
+// Zona de domicilio SIN pedido mínimo (desde el 11-sep-2026): Concón hasta la
+// Rotonda Concón y Reñaca hasta Jardín del Mar. Fuera de ella rige
+// configuracion.minimo_retiro. El rectángulo vive en
+// configuracion.domicilio_zona_sin_minimo; este valor es solo el respaldo.
+const ZONA_RESPALDO = { lat_min: -32.980, lat_max: -32.905, lng_min: -71.565, lng_max: -71.5069 }
+export const enZonaSinMinimo = (d: any, config: any = {}) => {
+  if (!d) return false
+  let z: any = ZONA_RESPALDO
+  try { if (config?.domicilio_zona_sin_minimo) z = { ...ZONA_RESPALDO, ...JSON.parse(config.domicilio_zona_sin_minimo) } } catch {}
+  const lat = Number(d.lat), lng = Number(d.lng)
+  if (d.lat != null && d.lng != null && !isNaN(lat) && !isNaN(lng) && lat && lng)
+    return lat >= z.lat_min && lat <= z.lat_max && lng >= z.lng_min && lng <= z.lng_max
+  // Sin coordenadas (el geocoder falla en calles poco comunes) se decide por el texto.
+  const t = `${d.comuna_geo || ''} ${d.ciudad || ''} ${d.sector || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  return /concon|renaca|jardin del mar/.test(t)
+}

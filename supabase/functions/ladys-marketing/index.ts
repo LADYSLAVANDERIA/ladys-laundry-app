@@ -25,7 +25,7 @@ const CORS = {
 const json = (d: unknown, s = 200) =>
   new Response(JSON.stringify(d), { status: s, headers: { "content-type": "application/json", ...CORS } });
 
-const SEGMENTOS = ["riesgo", "perdido", "ocasional"];
+const SEGMENTOS = ["riesgo", "perdido", "ocasional", "conversacion"];
 const EXCLUIDOS = [1925, 1003, 2004];
 
 async function conf(clave: string) {
@@ -79,6 +79,105 @@ async function lista(campana: string) {
     FROM uno
     ORDER BY array_position(ARRAY['riesgo','perdido','ocasional'], uno.segmento), uno.gasto DESC`;
 }
+
+
+// ── Conversaciones perdidas ─────────────────────────────────────────────────
+// Gente que escribió por WhatsApp queriendo un retiro y no terminó agendando:
+// casi siempre porque no llegaba al pedido mínimo. Son los más recuperables de
+// todos: ya querían el servicio. El escaneo lee GHL y guarda lo encontrado.
+
+const GHL = "https://services.leadconnectorhq.com";
+
+// Lo que dice el cliente cuando quiere un retiro
+const QUIERE = ["retiro", "retirar", "pasar a buscar", "pasen a buscar", "a domicilio",
+  "domicilio", "agendar", "agenda", "puedan venir", "vengan a buscar", "recoger"];
+// Lo que aparece cuando el pedido mínimo frena la conversación
+const MINIMO = ["minimo", "mínimo", "20.000", "25.000", "20000", "25000",
+  "no alcanza", "completar", "diferencia"];
+
+const sinTildes = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+async function escanear(dias: number) {
+  const pit = await conf("ghl_pit");
+  const loc = (await conf("ghl_location_id")) || "o1V9sCKjH5Ywd9PRURj0";
+  if (!pit) return { error: "falta ghl_pit en configuracion" };
+
+  const H = { Authorization: `Bearer ${pit}`, Version: "2021-07-28", Accept: "application/json" };
+  const corte = Date.now() - dias * 86400000;
+
+  const r = await fetch(
+    `${GHL}/conversations/search?locationId=${loc}&limit=100&sortBy=last_message_date&sort=desc`,
+    { headers: H });
+  if (!r.ok) return { error: `GHL ${r.status}` };
+  const convs = (await r.json()).conversations ?? [];
+
+  let revisadas = 0, guardadas = 0;
+  for (const c of convs) {
+    if (revisadas >= 80) break;
+    revisadas++;
+    const m = await fetch(`${GHL}/conversations/${c.id}/messages?limit=30`, { headers: H });
+    if (!m.ok) continue;
+    const msgs = (await m.json()).messages?.messages ?? [];
+
+    let quiso: any = null, freno: any = null;
+    for (const x of msgs) {
+      const t = sinTildes(String(x.body ?? ""));
+      if (!t) continue;
+      const f = new Date(x.dateAdded ?? 0).getTime();
+      if (f < corte) continue;
+      if (x.direction === "inbound" && !quiso && QUIERE.some(k => t.includes(sinTildes(k))))
+        quiso = x;
+      if (MINIMO.some(k => t.includes(sinTildes(k)))) freno = x;
+    }
+    if (!quiso) continue;
+
+    const tel = String(c.phone ?? "").replace(/\D/g, "");
+    if (tel.length < 8) continue;
+    const motivo = freno ? "minimo" : "sin_cierre";
+    const fecha = new Date(quiso.dateAdded).toISOString();
+    const extracto = String(quiso.body ?? "").slice(0, 300);
+    const nombre = c.fullName ?? c.contactName ?? "";
+
+    // ¿pidió y después sí compró? entonces no hay nada que recuperar
+    const [ya] = await SQL`
+      SELECT 1 FROM ordenes o JOIN clientes cl ON cl.id = o.cliente_id
+      WHERE right(regexp_replace(coalesce(cl.telefono,''),'\D','','g'), 8) = ${tel.slice(-8)}
+        AND coalesce(o.fecha_recogida, o.recibida_el::date, o.creado_en::date) >= ${fecha}::date
+        AND coalesce(o.estado,'') NOT ILIKE 'anul%' LIMIT 1`;
+    if (ya) continue;
+
+    await SQL`
+      INSERT INTO marketing_conversaciones
+        (telefono, nombre, contacto_ghl, cliente_id, fecha_conv, motivo, extracto)
+      VALUES (${c.phone}, ${nombre}, ${c.contactId ?? null},
+        (SELECT id FROM clientes WHERE right(regexp_replace(coalesce(telefono,''),'\D','','g'), 8)
+           = ${tel.slice(-8)} ORDER BY id DESC LIMIT 1),
+        ${fecha}, ${motivo}, ${extracto})
+      ON CONFLICT (tel8, fecha_conv) DO NOTHING`;
+    guardadas++;
+  }
+  return { revisadas, guardadas };
+}
+
+async function listaConversaciones() {
+  return await SQL`
+    SELECT mc.id, mc.telefono, mc.nombre, mc.cliente_id, mc.fecha_conv, mc.motivo,
+           mc.extracto, mc.estado, mc.mensaje, mc.enviado_en,
+           (current_date - mc.fecha_conv::date)::int AS dias,
+           coalesce(o.pedidos, 0) AS pedidos, coalesce(o.gasto, 0) AS gasto,
+           (SELECT min(x.creado_en) FROM ordenes x
+              WHERE x.cliente_id = mc.cliente_id AND mc.enviado_en IS NOT NULL
+                AND x.creado_en > mc.enviado_en
+                AND coalesce(x.estado,'') NOT ILIKE 'anul%') AS volvio_en
+    FROM marketing_conversaciones mc
+    LEFT JOIN LATERAL (
+      SELECT count(*)::int AS pedidos, round(sum(monto_total))::int AS gasto
+      FROM ordenes WHERE cliente_id = mc.cliente_id
+        AND coalesce(estado,'') NOT ILIKE 'anul%') o ON TRUE
+    ORDER BY (mc.estado IS NOT NULL), mc.fecha_conv DESC`;
+}
+
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -134,6 +233,42 @@ Deno.serve(async (req: Request) => {
       await SQL`
         INSERT INTO configuracion (clave, valor) VALUES (${"marketing_plantilla_" + b.segmento}, ${b.texto})
         ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor`;
+      return json({ ok: true });
+    }
+
+
+    // GET /conversaciones  → intentos de retiro que no se concretaron
+    if (req.method === "GET" && ruta === "/conversaciones") {
+      const items = await listaConversaciones();
+      return json({ items, plantilla: await conf("marketing_plantilla_conversacion") });
+    }
+
+    // POST /conversaciones/escanear?dias=  → releer GHL
+    if (req.method === "POST" && ruta === "/conversaciones/escanear") {
+      const dias = Number(url.searchParams.get("dias") || 60);
+      return json(await escanear(dias));
+    }
+
+    // POST /conversaciones/enviado | /conversaciones/descartar  { id, mensaje }
+    if (req.method === "POST" &&
+        (ruta === "/conversaciones/enviado" || ruta === "/conversaciones/descartar")) {
+      const b = await req.json();
+      if (!b.id) return json({ error: "Falta el id" }, 400);
+      const estado = ruta.endsWith("/enviado") ? "ENVIADO" : "DESCARTADO";
+      const [r] = await SQL`
+        UPDATE marketing_conversaciones
+        SET estado = ${estado}, mensaje = coalesce(${b.mensaje || null}, mensaje),
+            enviado_en = now(), usuario_id = ${usuario?.id || null}
+        WHERE id = ${b.id} RETURNING id, estado, enviado_en`;
+      return json({ ok: true, envio: r });
+    }
+
+    // DELETE /conversaciones?id=  → deshacer
+    if (req.method === "DELETE" && ruta === "/conversaciones") {
+      const id = Number(url.searchParams.get("id"));
+      if (!id) return json({ error: "Falta el id" }, 400);
+      await SQL`UPDATE marketing_conversaciones
+                SET estado = NULL, enviado_en = NULL WHERE id = ${id}`;
       return json({ ok: true });
     }
 

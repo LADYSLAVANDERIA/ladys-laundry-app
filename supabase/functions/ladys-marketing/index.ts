@@ -34,6 +34,8 @@ async function conf(clave: string) {
 }
 
 async function lista(campana: string) {
+  let z = { lat_min: -32.980, lat_max: -32.905, lng_min: -71.565, lng_max: -71.5069 };
+  try { const c = await conf("domicilio_zona_sin_minimo"); if (c) z = { ...z, ...JSON.parse(c) }; } catch { /* respaldo */ }
   return await SQL`
     WITH o AS (
       SELECT cliente_id, count(*)::int AS pedidos, round(sum(monto_total))::int AS gasto,
@@ -46,7 +48,13 @@ async function lista(campana: string) {
       SELECT o.*, (current_date - o.ultima)::int AS dias, cl.nombre, cl.apellido, cl.telefono,
              regexp_replace(coalesce(cl.telefono,''), '\\D', '', 'g') AS tel
       FROM o JOIN clientes cl ON cl.id = o.cliente_id
+      LEFT JOIN LATERAL (SELECT lat, lng FROM direcciones_clientes d WHERE d.cliente_id = cl.id
+                         ORDER BY d.es_principal DESC NULLS LAST, d.id DESC LIMIT 1) dir ON TRUE
       WHERE coalesce(cl.activo, true) AND NOT coalesce(cl.es_empresa, false)
+        -- El mensaje ofrece domicilio sin mínimo en Concón y Reñaca: quien tiene
+        -- su dirección ubicada fuera de esa zona no entra. Sin dirección, sí.
+        AND (dir.lat IS NULL OR (dir.lat BETWEEN ${z.lat_min} AND ${z.lat_max}
+                                 AND dir.lng BETWEEN ${z.lng_min} AND ${z.lng_max}))
         AND NOT coalesce(cl.es_ladys2, false) AND cl.id <> ALL(${EXCLUIDOS}::int[])),
     s AS (
       SELECT c.*, CASE

@@ -18,7 +18,7 @@ const menu = [
   { grupo: null, items: [
     { path: '/inicio',          label: 'Inicio',            icon: Home,            ver: [...TODOS_OPERATIVOS, 'ASISTENTE', 'CONDUCTOR'] },
     { path: '/dashboard',       label: 'Dashboard',         icon: LayoutDashboard, ver: TODOS_OPERATIVOS },
-    { path: '/marketing',       label: 'Marketing',         icon: Megaphone,       ver: [] },
+    { path: '/marketing',       label: 'Marketing',         icon: Megaphone,       ver: TODOS_OPERATIVOS },
   ]},
   { grupo: 'El día', items: [
     { path: '/ordenes/nueva',   label: 'Nueva orden',       icon: Plus,            ver: TODOS_OPERATIVOS },

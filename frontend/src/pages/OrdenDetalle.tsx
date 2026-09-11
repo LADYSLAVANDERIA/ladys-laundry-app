@@ -123,7 +123,7 @@ export default function OrdenDetalle() {
     // agendada y se le cargaban los ítems acá, nadie cobraba el diferencial: la
     // OT 6407 quedó en $18.705 con mínimo a domicilio de $25.000.
     const minimo = Number(o.retiro_domicilio || o.entrega_domicilio
-      ? (config.minimo_retiro || 25000)
+      ? (config.minimo_retiro ?? 0)
       : (config.minimo_venta_local || 14500))
     const suma = base.reduce((t: number, i: any) => t + Number(i.subtotal || 0), 0)
     const faltante = Math.max(0, minimo - suma)

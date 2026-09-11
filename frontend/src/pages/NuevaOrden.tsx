@@ -141,7 +141,9 @@ export default function NuevaOrden() {
   // El valor real vive en configuracion.minimo_retiro. Este numero solo actua si
   // esa clave desapareciera, y por eso tiene que ser el vigente: un respaldo
   // desactualizado cobra de menos sin que nadie lo note.
-  const minimo = Number(config.minimo_retiro || 25000)
+  // Desde el 11-sep-2026 el domicilio no tiene mínimo (valor 0). Se lee con ??
+  // y no con || porque 0 es un valor válido y || lo cambiaría por el respaldo.
+  const minimo = Number(config.minimo_retiro ?? 0)
   // Mínimo de venta en el mesón. Aplica a cualquier pedido, con kilos o prendas.
   const minimoLocal = Number(config.minimo_venta_local || 14500)
   const domicilio = f.retiro_domicilio || f.entrega_domicilio

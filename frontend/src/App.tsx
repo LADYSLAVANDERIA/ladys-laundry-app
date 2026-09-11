@@ -36,6 +36,7 @@ import Taller from './pages/Taller'
 import Estacion from './pages/Estacion'
 import Cotejo from './pages/Cotejo'
 import Conductor from './pages/Conductor'
+import Marketing from './pages/Marketing'
 
 function SoloToken({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -89,6 +90,7 @@ export default function App() {
         <Route path="/analisis" element={<PrivateRoute><Tablero /></PrivateRoute>} />
         <Route path="/transferencias" element={<PrivateRoute><Transferencias /></PrivateRoute>} />
         <Route path="/prepagos"       element={<PrivateRoute><Prepagos /></PrivateRoute>} />
+        <Route path="/marketing"     element={<PrivateRoute><Marketing /></PrivateRoute>} />
         <Route path="/membresias"    element={<PrivateRoute><Membresias /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

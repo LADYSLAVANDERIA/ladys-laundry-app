@@ -1,0 +1,136 @@
+// Ladys — Marketing: recuperar clientes que dejaron de venir.
+//
+// La lista se calcula en vivo desde las órdenes de los últimos 12 meses:
+//   riesgo    → 3+ pedidos, último hace 30 a 70 días  (el más fácil de recuperar)
+//   perdido   → 3+ pedidos, último hace más de 70 días
+//   ocasional → 2 pedidos, último hace 30+ días
+// Quedan fuera empresas, Ladys 2, Ultratug e inactivos. Un teléfono repetido en
+// dos fichas aparece una sola vez (la de más gasto).
+//
+// El envío es manual: la app abre WhatsApp con el texto listo y aquí solo se
+// registra que se mandó, para no repetirlo y para medir quién volvió.
+import postgres from "npm:postgres@3.4.4";
+import * as jose from "npm:jose@5.9.6";
+
+const SQL = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
+  prepare: false, max: 3, idle_timeout: 20,
+  connection: { search_path: "ladys, public", timezone: "America/Santiago" },
+});
+const SECRET = new TextEncoder().encode(Deno.env.get("JWT_SECRET") || "ladys_jwt_secret_super_seguro_2024");
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type",
+  "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+};
+const json = (d: unknown, s = 200) =>
+  new Response(JSON.stringify(d), { status: s, headers: { "content-type": "application/json", ...CORS } });
+
+const SEGMENTOS = ["riesgo", "perdido", "ocasional"];
+const EXCLUIDOS = [1925, 1003, 2004];
+
+async function conf(clave: string) {
+  const [r] = await SQL`SELECT valor FROM configuracion WHERE clave = ${clave}`;
+  return r?.valor || "";
+}
+
+async function lista(campana: string) {
+  return await SQL`
+    WITH o AS (
+      SELECT cliente_id, count(*)::int AS pedidos, round(sum(monto_total))::int AS gasto,
+             max(coalesce(fecha_recogida, recibida_el::date, creado_en::date)) AS ultima
+      FROM ordenes
+      WHERE coalesce(estado,'') NOT ILIKE 'anul%' AND coalesce(estado,'') <> 'PRE_ORDEN'
+        AND coalesce(fecha_recogida, recibida_el::date, creado_en::date) >= current_date - 365
+      GROUP BY 1),
+    c AS (
+      SELECT o.*, (current_date - o.ultima)::int AS dias, cl.nombre, cl.apellido, cl.telefono,
+             regexp_replace(coalesce(cl.telefono,''), '\\D', '', 'g') AS tel
+      FROM o JOIN clientes cl ON cl.id = o.cliente_id
+      WHERE coalesce(cl.activo, true) AND NOT coalesce(cl.es_empresa, false)
+        AND NOT coalesce(cl.es_ladys2, false) AND cl.id <> ALL(${EXCLUIDOS}::int[])),
+    s AS (
+      SELECT c.*, CASE
+          WHEN pedidos >= 3 AND dias BETWEEN 30 AND 70 THEN 'riesgo'
+          WHEN pedidos >= 3 AND dias > 70 THEN 'perdido'
+          WHEN pedidos = 2 AND dias >= 30 THEN 'ocasional' END AS seg_calc
+      FROM c),
+    e AS (SELECT * FROM marketing_envios WHERE campana = ${campana}),
+    base AS (
+      SELECT s.*, coalesce(e.segmento, s.seg_calc) AS segmento,
+             e.estado AS envio, e.creado_en AS enviado_en, e.mensaje AS mensaje_enviado
+      FROM s LEFT JOIN e ON e.cliente_id = s.cliente_id
+      WHERE (s.seg_calc IS NOT NULL OR e.id IS NOT NULL) AND length(s.tel) >= 8),
+    uno AS (
+      SELECT DISTINCT ON (right(tel, 8)) * FROM base
+      ORDER BY right(tel, 8), (envio IS NOT NULL) DESC, gasto DESC)
+    SELECT uno.cliente_id, uno.nombre, uno.apellido, uno.telefono, uno.pedidos, uno.gasto,
+           uno.ultima, uno.dias, uno.segmento, uno.envio, uno.enviado_en, uno.mensaje_enviado,
+           (SELECT min(creado_en) FROM ordenes x WHERE x.cliente_id = uno.cliente_id
+              AND uno.enviado_en IS NOT NULL AND x.creado_en > uno.enviado_en
+              AND coalesce(x.estado,'') NOT ILIKE 'anul%') AS volvio_en
+    FROM uno
+    ORDER BY array_position(ARRAY['riesgo','perdido','ocasional'], uno.segmento), uno.gasto DESC`;
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+  const url = new URL(req.url);
+  const ruta = url.pathname.replace(/^\/ladys-marketing/, "").replace(/\/$/, "") || "/";
+
+  try {
+    const h = req.headers.get("authorization") || "";
+    const tok = h.startsWith("Bearer ") ? h.slice(7) : h;
+    let usuario: any;
+    try { const { payload } = await jose.jwtVerify(tok, SECRET); usuario = payload; }
+    catch { return json({ error: "Token requerido" }, 401); }
+
+    const campana = url.searchParams.get("campana") || await conf("marketing_campana") || "reactivacion";
+
+    // GET /  → lista de la campaña + plantillas
+    if (req.method === "GET" && ruta === "/") {
+      const clientes = await lista(campana);
+      const plantillas: Record<string, string> = {};
+      for (const s of SEGMENTOS) plantillas[s] = await conf(`marketing_plantilla_${s}`);
+      return json({ campana, clientes, plantillas });
+    }
+
+    // POST /enviado { cliente_id, segmento, telefono, mensaje }
+    if (req.method === "POST" && (ruta === "/enviado" || ruta === "/descartar")) {
+      const b = await req.json();
+      if (!b.cliente_id) return json({ error: "Falta el cliente" }, 400);
+      const estado = ruta === "/enviado" ? "ENVIADO" : "DESCARTADO";
+      const [r] = await SQL`
+        INSERT INTO marketing_envios (campana, cliente_id, segmento, telefono, mensaje, estado, usuario_id)
+        VALUES (${campana}, ${b.cliente_id}, ${b.segmento || null}, ${b.telefono || null},
+                ${b.mensaje || null}, ${estado}, ${usuario?.id || null})
+        ON CONFLICT (campana, cliente_id) DO UPDATE
+          SET estado = EXCLUDED.estado, mensaje = coalesce(EXCLUDED.mensaje, marketing_envios.mensaje),
+              creado_en = now(), usuario_id = EXCLUDED.usuario_id
+        RETURNING cliente_id, estado, creado_en`;
+      return json({ ok: true, envio: r });
+    }
+
+    // DELETE /enviado?cliente_id=  → deshacer (vuelve a pendientes)
+    if (req.method === "DELETE" && ruta === "/enviado") {
+      const id = Number(url.searchParams.get("cliente_id"));
+      if (!id) return json({ error: "Falta el cliente" }, 400);
+      await SQL`DELETE FROM marketing_envios WHERE campana = ${campana} AND cliente_id = ${id}`;
+      return json({ ok: true });
+    }
+
+    // PUT /plantilla { segmento, texto }
+    if (req.method === "PUT" && ruta === "/plantilla") {
+      const b = await req.json();
+      if (!SEGMENTOS.includes(b.segmento) || !String(b.texto || "").trim())
+        return json({ error: "Segmento o texto inválido" }, 400);
+      await SQL`
+        INSERT INTO configuracion (clave, valor) VALUES (${"marketing_plantilla_" + b.segmento}, ${b.texto})
+        ON CONFLICT (clave) DO UPDATE SET valor = EXCLUDED.valor`;
+      return json({ ok: true });
+    }
+
+    return json({ error: "Ruta no encontrada" }, 404);
+  } catch (e) {
+    return json({ error: (e as Error).message }, 500);
+  }
+});

@@ -423,3 +423,19 @@ export const conciliarApi = {
   descartar:  (mp_id: string, nota: string) => concAx.post('/descartar', { mp_id, nota }),
   anular:     (id: number, motivo: string) => concAx.post('/anular-comprobante', { id, motivo }),
 }
+
+// Marketing: lista de clientes a recuperar y registro de los WhatsApp enviados.
+const MKT_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-marketing')
+const mktAx = axios.create({ baseURL: MKT_URL })
+mktAx.interceptors.request.use(cfg => {
+  const t = useAuthStore.getState().token
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
+export const marketingApi = {
+  lista:      () => mktAx.get('/'),
+  enviado:    (d: object) => mktAx.post('/enviado', d),
+  descartar:  (d: object) => mktAx.post('/descartar', d),
+  deshacer:   (cliente_id: number) => mktAx.delete('/enviado', { params: { cliente_id } }),
+  plantilla:  (segmento: string, texto: string) => mktAx.put('/plantilla', { segmento, texto }),
+}

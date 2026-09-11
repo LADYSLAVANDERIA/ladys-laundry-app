@@ -142,7 +142,7 @@ async function escanear(dias: number) {
     // ¿pidió y después sí compró? entonces no hay nada que recuperar
     const [ya] = await SQL`
       SELECT 1 FROM ordenes o JOIN clientes cl ON cl.id = o.cliente_id
-      WHERE right(regexp_replace(coalesce(cl.telefono,''),'\D','','g'), 8) = ${tel.slice(-8)}
+      WHERE right(regexp_replace(coalesce(cl.telefono,''),'\\D','','g'), 8) = ${tel.slice(-8)}
         AND coalesce(o.fecha_recogida, o.recibida_el::date, o.creado_en::date) >= ${fecha}::date
         AND coalesce(o.estado,'') NOT ILIKE 'anul%' LIMIT 1`;
     if (ya) continue;
@@ -151,7 +151,7 @@ async function escanear(dias: number) {
       INSERT INTO marketing_conversaciones
         (telefono, nombre, contacto_ghl, cliente_id, fecha_conv, motivo, extracto)
       VALUES (${c.phone}, ${nombre}, ${c.contactId ?? null},
-        (SELECT id FROM clientes WHERE right(regexp_replace(coalesce(telefono,''),'\D','','g'), 8)
+        (SELECT id FROM clientes WHERE right(regexp_replace(coalesce(telefono,''),'\\D','','g'), 8)
            = ${tel.slice(-8)} ORDER BY id DESC LIMIT 1),
         ${fecha}, ${motivo}, ${extracto})
       ON CONFLICT (tel8, fecha_conv) DO NOTHING`;

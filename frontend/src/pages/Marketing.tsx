@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { Megaphone, MessageCircle, Undo2, SkipForward, Pencil, Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { marketingApi } from '../services/api'
 import { fmt, telWa } from '../utils'
+import MarketingConversaciones from './MarketingConversaciones'
 
 // Recuperar clientes que dejaron de venir. El botón abre WhatsApp con el texto
 // listo; al tocarlo se registra como enviado, así nadie recibe dos veces el
@@ -32,6 +33,7 @@ const armar = (plantilla: string, c: any) =>
     .replace(/\{mes\}/g, mesDe(c.ultima))
 
 type Filtro = 'pendientes' | 'enviados' | 'volvieron'
+type Pestana = 'reactivar' | 'conversaciones'
 
 export default function Marketing() {
   const [clientes, setClientes] = useState<any[]>([])
@@ -43,6 +45,7 @@ export default function Marketing() {
   const [textoPl, setTextoPl] = useState('')
   const [editMsg, setEditMsg] = useState<Record<number, string>>({})
   const [abierto, setAbierto] = useState<number | null>(null)
+  const [pestana, setPestana] = useState<Pestana>('reactivar')
 
   const cargar = () => {
     setCargando(true)
@@ -109,10 +112,28 @@ export default function Marketing() {
         <div className="w-10 h-10 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center"><Megaphone size={20} /></div>
         <div className="flex-1">
           <h1 className="text-xl font-bold text-gray-800">Marketing</h1>
-          <p className="text-sm text-gray-500">Recuperar clientes que dejaron de venir</p>
+          <p className="text-sm text-gray-500">
+            {pestana === 'reactivar' ? 'Recuperar clientes que dejaron de venir'
+              : 'Retiros que se pidieron y no se concretaron'}
+          </p>
         </div>
-        <button onClick={cargar} className="p-2.5 border rounded-xl text-gray-500 hover:bg-gray-50"><RefreshCw size={16} /></button>
+        {pestana === 'reactivar' &&
+          <button onClick={cargar} className="p-2.5 border rounded-xl text-gray-500 hover:bg-gray-50"><RefreshCw size={16} /></button>}
       </div>
+
+      {/* Pestañas */}
+      <div className="flex bg-gray-100 rounded-xl p-1">
+        <button onClick={() => setPestana('reactivar')}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-medium ${pestana === 'reactivar' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}>
+          Reactivación
+        </button>
+        <button onClick={() => setPestana('conversaciones')}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-medium ${pestana === 'conversaciones' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}>
+          Conversaciones
+        </button>
+      </div>
+
+      {pestana === 'conversaciones' ? <MarketingConversaciones /> : (<>
 
       {/* Avance del día */}
       <div className="grid grid-cols-3 gap-2">
@@ -258,6 +279,7 @@ export default function Marketing() {
           })}
         </div>
       )}
+      </>)}
     </div>
   )
 }

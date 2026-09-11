@@ -445,3 +445,10 @@ export const marketingApi = {
   convDescartar:     (d: object) => mktAx.post('/conversaciones/descartar', d),
   convDeshacer:      (id: number) => mktAx.delete('/conversaciones', { params: { id } }),
 }
+
+// Descuentos manuales (en % o en $) sobre una orden. Solo admin y jefe de local.
+const DESC_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-descuentos')
+export const descuentosApi = {
+  aplicar: (d: { orden_id: number, tipo: 'PCT' | 'MONTO', valor: number, motivo: string }) =>
+    axios.post(DESC_URL, d, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }),
+}

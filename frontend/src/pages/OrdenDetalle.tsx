@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
-import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi} from '../services/api'
+import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi, descuentosApi } from '../services/api'
+import { useAuthStore } from '../store/authStore'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
@@ -31,6 +32,21 @@ export default function OrdenDetalle() {
   const [pos, setPos] = useState<any>(null)          // { mp_order_id, monto, estado }
   const [posError, setPosError] = useState('')
   const [modal, setModal] = useState<string | null>(null)
+  // Descuento manual: en % o en pesos, siempre con motivo (queda en el historial).
+  const perfil = useAuthStore(s => (s as any).user?.perfil)
+  const puedeDescontar = ['ADMINISTRADOR', 'JEFE_LOCAL'].includes(perfil)
+  const [desc, setDesc] = useState<any>(null)   // { tipo: 'MONTO' | 'PCT', valor, motivo }
+  const guardarDescuento = async (quitar = false) => {
+    if (!desc && !quitar) return
+    const valor = quitar ? 0 : Number(String(desc.valor).replace(/[^\d.,]/g, '').replace(',', '.'))
+    if (!quitar && !(valor > 0)) { toast.error('Escribe el monto o el porcentaje'); return }
+    if (!quitar && !String(desc.motivo || '').trim()) { toast.error('Escribe el motivo'); return }
+    try {
+      await descuentosApi.aplicar({ orden_id: Number(o.id), tipo: quitar ? 'MONTO' : desc.tipo, valor, motivo: quitar ? '' : desc.motivo })
+      toast.success(quitar ? 'Descuento quitado' : 'Descuento aplicado')
+      setDesc(null); load()
+    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo aplicar el descuento') }
+  }
   const [edit, setEdit] = useState<any>(null)
   const [kilos, setKilos] = useState(''); const [express, setExpress] = useState(false); const [prendas, setPrendas] = useState<Item[]>([])
   const [subiendo, setSubiendo] = useState(false); const [aviso, setAviso] = useState<any>(null); const [momento, setMomento] = useState('RECEPCION')
@@ -417,7 +433,39 @@ export default function OrdenDetalle() {
               ))}
               <div className="px-4 py-3 bg-gray-50 space-y-1 text-sm">
                 <div className="flex justify-between text-gray-500"><span>Subtotal</span><span>{fmt(o.subtotal)}</span></div>
-                {Number(o.descuento_monto) > 0 && <div className="flex justify-between text-green-600"><span>Descuento continuidad {Number(o.descuento_pct)}%</span><span>-{fmt(o.descuento_monto)}</span></div>}
+                {Number(o.descuento_monto) > 0 && <div className="flex justify-between text-green-600">
+                  <span>Descuento {Number(o.descuento_fijo) > 0 ? '' : `${Number(o.descuento_pct)}% `}{o.descuento_motivo ? `· ${o.descuento_motivo}` : Number(o.descuento_fijo) > 0 ? '' : '(continuidad)'}</span>
+                  <span>-{fmt(o.descuento_monto)}</span></div>}
+                {puedeDescontar && o.estado !== 'ANULADA' && !desc && (
+                  <div className="flex gap-3 text-xs">
+                    <button onClick={() => setDesc({ tipo: 'MONTO', valor: '', motivo: '' })} className="text-pink-600 hover:underline">
+                      {Number(o.descuento_monto) > 0 ? 'Cambiar descuento' : '+ Aplicar descuento'}</button>
+                    {Number(o.descuento_monto) > 0 && <button onClick={() => guardarDescuento(true)} className="text-gray-400 hover:underline">Quitar descuento</button>}
+                  </div>
+                )}
+                {desc && (
+                  <div className="bg-white border rounded-xl p-3 space-y-2">
+                    <div className="flex bg-gray-100 rounded-lg p-1 text-xs font-medium">
+                      {(['MONTO', 'PCT'] as const).map(t => (
+                        <button key={t} onClick={() => setDesc({ ...desc, tipo: t })}
+                          className={`flex-1 py-1.5 rounded-md ${desc.tipo === t ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}>
+                          {t === 'MONTO' ? 'En pesos ($)' : 'En porcentaje (%)'}</button>
+                      ))}
+                    </div>
+                    <input className={inp} inputMode="decimal" placeholder={desc.tipo === 'MONTO' ? 'Monto, ej: 77025' : 'Porcentaje, ej: 20'}
+                      value={desc.valor} onChange={e => setDesc({ ...desc, valor: e.target.value })} />
+                    <input className={inp} placeholder="Motivo (obligatorio)" value={desc.motivo} onChange={e => setDesc({ ...desc, motivo: e.target.value })} />
+                    {(() => {
+                      const v = Number(String(desc.valor).replace(/[^\d.,]/g, '').replace(',', '.')) || 0
+                      const d = desc.tipo === 'MONTO' ? Math.round(v) : Math.round(Number(o.subtotal) * v / 100)
+                      return v > 0 ? <p className="text-xs text-gray-500">Descuento {fmt(d)} · total queda en <b>{fmt(Number(o.subtotal) - d + Number(o.monto_delivery || 0))}</b></p> : null
+                    })()}
+                    <div className="flex gap-2">
+                      <button onClick={() => guardarDescuento(false)} className="flex-1 bg-pink-600 text-white rounded-xl py-2 text-sm font-medium">Aplicar</button>
+                      <button onClick={() => setDesc(null)} className="px-4 border rounded-xl text-sm">Cancelar</button>
+                    </div>
+                  </div>
+                )}
                 {Number(o.monto_delivery) > 0 && <div className="flex justify-between text-gray-500"><span>Delivery</span><span>{fmt(o.monto_delivery)}</span></div>}
                 <div className="flex justify-between text-lg font-bold border-t pt-1.5"><span>Total</span><span className="text-pink-600">{fmt(o.monto_total)}</span></div>
                 {Number(o.monto_abonado) > 0 && <div className="flex justify-between text-green-600"><span>Abonado</span><span>{fmt(o.monto_abonado)}</span></div>}
@@ -606,7 +654,7 @@ export default function OrdenDetalle() {
           </div>
         ))}
         <div style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4 }}>
-          {Number(o.descuento_monto) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Dcto continuidad</span><span>-{fmt(o.descuento_monto)}</span></div>}
+          {Number(o.descuento_monto) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{Number(o.descuento_fijo) > 0 ? 'Descuento' : 'Dcto continuidad'}</span><span>-{fmt(o.descuento_monto)}</span></div>}
           {Number(o.monto_delivery) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{fmt(o.monto_delivery)}</span></div>}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 13 }}><span>TOTAL</span><span>{fmt(o.monto_total)}</span></div>
           {Number(o.monto_abonado) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Pagado</span><span>{fmt(o.monto_abonado)}</span></div>}

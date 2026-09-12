@@ -233,8 +233,8 @@ export default function Conductor() {
                 {p.hora_estimada && <span className="text-xs text-gray-500">~{hhmm(p.hora_estimada)}</span>}
                 {!p.lat && <span className="text-[11px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin ubicar</span>}
               </div>
-              <p className={`font-semibold text-gray-900 truncate ${principal ? 'text-lg' : ''}`}>{nombreDe(p)}</p>
-              <p className={`text-gray-600 ${principal ? 'text-base' : 'text-sm truncate'}`}>{dirDe(p)}</p>
+              <p className={`font-semibold text-gray-900 break-words ${principal ? 'text-lg' : ''}`}>{nombreDe(p)}</p>
+              <p className={`text-gray-600 ${principal ? 'text-base' : 'text-sm break-words'}`}>{dirDe(p)}</p>
               {cobra && (
                 <p className="text-sm font-bold mt-1 flex items-center gap-1" style={{ color: '#b45309' }}>
                   <Banknote size={14} /> Cobrar {plata(p.saldo_pendiente)}

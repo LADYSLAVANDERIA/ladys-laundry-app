@@ -420,7 +420,7 @@ export default function OrdenDetalle() {
               </button>
             )}
             {o.estado !== 'ENTREGADA' && <button onClick={abrirEdicionItems} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Package size={14} /> Editar ítems</button>}
-            <button onClick={() => { setEdit({ ot_easylaundry: o.ot_easylaundry || '', fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos, retiro_domicilio: !!o.retiro_domicilio, entrega_domicilio: !!o.entrega_domicilio, dir_id: o.dir_entrega_id || o.dir_recogida_id || '' }); cargarDirecciones(); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
+            <button onClick={() => { setEdit({ ot_easylaundry: o.ot_easylaundry || '', fecha_recogida: o.fecha_recogida || '', ruta_recogida_id: o.ruta_recogida_id || '', fecha_entrega: o.fecha_entrega || '', ruta_entrega_id: o.ruta_entrega_id || '', observaciones: o.observaciones || '', bultos: o.bultos, retiro_domicilio: !!o.retiro_domicilio, entrega_domicilio: !!o.entrega_domicilio, dir_id: o.dir_entrega_id || o.dir_recogida_id || '' }); cargarDirecciones(); rutasApi.getAll().then(r => setRutas(r.data.filter((x:any)=>x.activo!==false))).catch(()=>toast.error('No pude cargar las rutas')); setModal('logistica') }} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border text-gray-600 text-sm"><Edit3 size={14} /> Editar entrega</button>
             <button onClick={() => prepararAviso(o.estado === 'LISTA' ? 'LISTA' : o.estado === 'PRE_ORDEN' ? 'INGRESO' : o.estado === 'ENTREGADA' ? 'ENTREGADA' : 'INGRESO')}
               className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-green-50 border border-green-200 text-green-700 text-sm font-medium"><Send size={14} /> Avisar al cliente</button>
             <button onClick={() => setModal('anular')} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm"><Ban size={14} /> Anular</button>
@@ -796,7 +796,7 @@ export default function OrdenDetalle() {
             <div className="flex items-center justify-between"><h2 className="font-bold">Registrar pago</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
             <p className="text-sm text-gray-500">Saldo pendiente: <strong className="text-pink-600">{fmt(o.saldo_pendiente)}</strong></p>
             <select value={pago.forma_pago_id} onChange={e => setPago({ ...pago, forma_pago_id: e.target.value })} className={inp}>
-              <option value="">Forma de pago…</option>{formas.map(f => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+              <option value="">Forma de pago…</option>{formas.filter((f: any) => ![3,6].includes(Number(f.id))).map((f: any) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
             </select>
             <input type="number" value={pago.monto} onChange={e => setPago({ ...pago, monto: e.target.value })} placeholder="Monto" className={inp} />
             <input value={pago.referencia || ''} onChange={e => setPago({ ...pago, referencia: e.target.value })}

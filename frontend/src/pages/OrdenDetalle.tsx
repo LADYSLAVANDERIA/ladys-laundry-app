@@ -24,7 +24,8 @@ export default function OrdenDetalle() {
   const [direcciones, setDirecciones] = useState<any[]>([])
   const cargarDirecciones = () => {
     if (!o?.cliente_id) return
-    clientesApi.getById(o.cliente_id).then(r => setDirecciones(r.data.direcciones || [])).catch(() => {})
+    clientesApi.getById(o.cliente_id).then(r => setDirecciones(r.data.direcciones || []))
+      .catch(() => toast.error('No pude cargar las direcciones del cliente'))
   }
   const [motivoVuelta, setMotivoVuelta] = useState('')
   const [generando, setGenerando] = useState(false)
@@ -175,11 +176,29 @@ export default function OrdenDetalle() {
         observaciones: edit.observaciones || null, bultos: Number(edit.bultos || 1),
         ot_easylaundry: edit.ot_easylaundry || null,
         retiro_domicilio: !!edit.retiro_domicilio, entrega_domicilio: !!edit.entrega_domicilio,
-        dir_recogida_id: edit.retiro_domicilio ? Number(edit.dir_id) || null : null,
-        dir_entrega_id: edit.entrega_domicilio ? Number(edit.dir_id) || null : null,
+      } as any
+      // La direccion solo se toca si se eligio una. Si no, se conserva la que ya
+      // tenia la orden.
+      //
+      // Antes esto exigia una direccion elegida y bloqueaba el guardado si el
+      // campo estaba vacio. Pero ese campo se carga aparte, despues de abrir la
+      // ventana: si esa carga fallaba o demoraba, quedaba vacio aunque la orden
+      // SI tuviera direccion, y todo el guardado se caia. El usuario apretaba
+      // guardar y no pasaba nada. Eso explico tres "no me deja" del mismo dia:
+      // la ruta que no se movia, el cambio a local y la entrega que no se
+      // dejaba editar. Era el mismo defecto, no tres.
+      const dir = Number(edit.dir_id) || null
+      if (dir) {
+        if (datos.retiro_domicilio)  datos.dir_recogida_id = dir
+        if (datos.entrega_domicilio) datos.dir_entrega_id = dir
       }
-      if ((datos.retiro_domicilio || datos.entrega_domicilio) && !edit.dir_id)
-        return toast.error('Elige la dirección del domicilio')
+      if (!datos.retiro_domicilio)  datos.dir_recogida_id = null
+      if (!datos.entrega_domicilio) datos.dir_entrega_id = null
+
+      if (datos.retiro_domicilio && !dir && !o.dir_recogida_id)
+        return toast.error('Esta orden es a domicilio y no tiene dirección: elige una')
+      if (datos.entrega_domicilio && !dir && !o.dir_entrega_id && !o.dir_recogida_id)
+        return toast.error('La entrega es a domicilio y no tiene dirección: elige una')
       const nombreRuta = (id: any) => rutas.find((r: any) => String(r.id) === String(id))?.nombre || '—'
       const cambios = describirCambios(o, datos, {
         fecha_recogida: 'Retiro', fecha_entrega: 'Entrega',

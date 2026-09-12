@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, Clock, Package, QrCode, RefreshCw, MessageSquare, Send } from 'lucide-react'
 import { tallerApi, tallerChatApi } from '../services/api'
@@ -132,23 +132,79 @@ function Conversacion() {
 export default function Taller() {
   const [d, setD] = useState<any>(null)
   const [cargando, setCargando] = useState(true)
+  const [visto, setVisto] = useState<number>(Date.now())   // última carga que SÍ trajo datos
+  const fallos = useRef(0)
 
+  // La pantalla del taller queda sola todo el día en un Android viejo. Si el
+  // WebView se suspende o se cae el wifi, el setInterval se congela y la
+  // pantalla sigue mostrando lo de hace horas SIN avisar: eso es lo que Catalina
+  // veía como "se queda pegada". Ahora: se marca la hora del último dato bueno,
+  // se avisa en pantalla si está viejo, se reintenta más seguido cuando falla y,
+  // tras varios fallos, se recarga la página entera (que es lo que ella hacía a
+  // mano).
   const cargar = () => {
     setCargando(true)
-    tallerApi.cola().then(r => setD(r.data)).catch(() => {}).finally(() => setCargando(false))
+    tallerApi.cola()
+      .then(r => { setD(r.data); setVisto(Date.now()); fallos.current = 0 })
+      .catch(() => {
+        fallos.current++
+        if (fallos.current >= 5) window.location.reload()
+      })
+      .finally(() => setCargando(false))
   }
-  // Se refresca solo: en el taller nadie va a estar apretando un botón.
-  useEffect(() => { cargar(); const t = setInterval(cargar, 60000); return () => clearInterval(t) }, [])
+
+  useEffect(() => {
+    cargar()
+    // Cada 20 s se evalúa si toca cargar: al minuto si todo va bien, y de
+    // inmediato si el último intento falló.
+    let ultima = Date.now()
+    const t = setInterval(() => {
+      const espera = fallos.current ? 20000 : 60000
+      if (Date.now() - ultima >= espera) { ultima = Date.now(); cargar() }
+    }, 20000)
+    // Al volver a estar visible o al recuperar la conexión, refrescar al toque.
+    const despertar = () => { if (document.visibilityState === 'visible') cargar() }
+    document.addEventListener('visibilitychange', despertar)
+    window.addEventListener('online', cargar)
+    window.addEventListener('focus', despertar)
+    // Recarga completa cada 6 horas: limpia cualquier cuelgue del WebView.
+    const limpieza = setTimeout(() => window.location.reload(), 6 * 3600 * 1000)
+    return () => {
+      clearInterval(t); clearTimeout(limpieza)
+      document.removeEventListener('visibilitychange', despertar)
+      window.removeEventListener('online', cargar)
+      window.removeEventListener('focus', despertar)
+    }
+  }, [])
+
+  // Cada 10 s se revisa si el dato quedó viejo, para pintar el aviso.
+  const [ahora, setAhora] = useState(Date.now())
+  useEffect(() => { const t = setInterval(() => setAhora(Date.now()), 10000); return () => clearInterval(t) }, [])
+  const minutosSinDatos = Math.floor((ahora - visto) / 60000)
+  const desactualizado = minutosSinDatos >= 3
 
   if (cargando && !d) return <p className="text-sm text-gray-400 py-10 text-center">Cargando el taller…</p>
   if (!d) return null
 
   return (
     <div className="max-w-3xl mx-auto space-y-4 pb-10">
+      {desactualizado && (
+        <div className="flex items-center gap-2 bg-red-600 text-white rounded-xl px-4 py-3 text-base font-semibold">
+          <AlertTriangle size={20} />
+          Sin conexión hace {minutosSinDatos} min: esto puede no estar al día.
+          <button onClick={() => window.location.reload()} className="ml-auto underline">Recargar</button>
+        </div>
+      )}
+
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">El taller</h1>
-          <p className="text-sm text-gray-500">{d.total} pedidos con ropa acá adentro</p>
+          <p className="text-sm text-gray-500">
+            {d.total} pedidos con ropa acá adentro ·{' '}
+            <span className={desactualizado ? 'text-red-600 font-semibold' : ''}>
+              al día {new Date(visto).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={cargar} className="p-2.5 rounded-xl border text-gray-500">

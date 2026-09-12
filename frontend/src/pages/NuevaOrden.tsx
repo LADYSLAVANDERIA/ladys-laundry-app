@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi, fichaApi, dirApi } from '../services/api'
 import ItemsPicker, { buildItems } from '../components/ItemsPicker'
@@ -123,18 +123,24 @@ export default function NuevaOrden() {
   // Ahora no depende de ninguna marca: se guarda cual fue el ultimo valor que
   // puso el sistema, y solo se reemplaza si la fecha actual sigue siendo ese
   // valor. Si difiere, es porque la escribio una persona y se respeta.
+  // Una vez que alguien escribe la fecha a mano, el sistema NO la vuelve a tocar.
+  // Punto. No compara, no deduce: se aparta.
+  //
+  // Los dos intentos anteriores fallaron por lo mismo. El primero uso una marca
+  // "fecha tocada" que se perdia en algunos caminos. El segundo comparaba contra
+  // el ultimo valor automatico guardado en estado, y ese estado se leia viejo:
+  // React congela el valor que el efecto vio al crearse, asi que la comparacion
+  // se hacia contra un dato desactualizado y la fecha del cliente se pisaba
+  // igual. Paso con la 6496 y despues con la 6538, donde se eligio el jueves 17
+  // y la orden nacio con el lunes 21.
+  //
+  // Una referencia no se queda atras: se lee siempre el valor del momento. Y la
+  // decision es binaria, que es lo unico que no tiene huecos.
   const [fechaTocada, setFechaTocada] = useState(false)
-  const [fechaAuto, setFechaAuto] = useState<string>('')
+  const fechaManual = useRef(false)
   useEffect(() => {
-    const propuesta = addDiasHabiles(f.fecha_recogida || hoy(), plazo)
-    setF((p: any) => {
-      const actual = p.fecha_entrega || ''
-      const laPusoElSistema = !actual || actual === fechaAuto
-      if (fechaTocada && !laPusoElSistema) return p
-      if (!laPusoElSistema) return p
-      return { ...p, fecha_entrega: propuesta }
-    })
-    setFechaAuto(propuesta)
+    if (fechaManual.current) return
+    setF((p: any) => ({ ...p, fecha_entrega: addDiasHabiles(p.fecha_recogida || hoy(), plazo) }))
   }, [plazo, f.fecha_recogida])
 
   const pct = Number(config.descuento_continuidad || 10)
@@ -396,12 +402,12 @@ export default function NuevaOrden() {
                   </div>
                 )}
                 <input type="date" value={f.fecha_entrega}
-                       onChange={e => { setFechaTocada(true); setF({ ...f, fecha_entrega: e.target.value, ruta_entrega_id: '' }) }}
+                       onChange={e => { fechaManual.current = true; setFechaTocada(true); setF((p: any) => ({ ...p, fecha_entrega: e.target.value, ruta_entrega_id: '' })) }}
                        className={inp} />
                 <p className="text-[11px] text-gray-400 mt-1">
                   {fechaTocada
                     ? <>Fecha puesta a mano. <button type="button" className="underline"
-                        onClick={() => { setFechaTocada(false); const a = addDiasHabiles(f.fecha_recogida || hoy(), plazo); setFechaAuto(a); setF({ ...f, fecha_entrega: a, ruta_entrega_id: '' }) }}>volver al plazo automático</button></>
+                        onClick={() => { fechaManual.current = false; setFechaTocada(false); const a = addDiasHabiles(f.fecha_recogida || hoy(), plazo); setF((p: any) => ({ ...p, fecha_entrega: a, ruta_entrega_id: '' })) }}>volver al plazo automático</button></>
                     : plazo === 0 ? 'Express: se entrega el mismo día.'
                     : `Propuesta por el servicio más lento de la orden: ${plazo} ${plazo === 1 ? 'día hábil' : 'días hábiles'}.`}
                 </p>

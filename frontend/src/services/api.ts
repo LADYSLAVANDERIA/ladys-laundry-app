@@ -103,6 +103,8 @@ dirHttp.interceptors.request.use(config => {
 })
 export const dirApi = {
   buscar:     (texto: string) => dirHttp.post('/buscar', { texto }),
+  // Ubica en el mapa las direcciones de las paradas de una fecha (botón del reparto).
+  ubicarRuta: (fecha: string) => dirHttp.post('/geocodificar-ruta', { fecha }),
   desdePunto: (d: object) => dirHttp.post('/desde-punto', d),
   crear:      (cid: number | string, d: object) => dirHttp.post(`/${cid}/direcciones`, d),
   actualizar: (id: number, d: object) => dirHttp.put(`/direccion/${id}`, d),

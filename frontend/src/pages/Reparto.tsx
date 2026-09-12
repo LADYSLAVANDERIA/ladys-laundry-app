@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { repartoApi } from '../services/api'
+import { dirApi, repartoApi } from '../services/api'
 import toast from 'react-hot-toast'
-import {
+import { MapPinned,
   Wand2, ChevronUp, ChevronDown, Navigation, Route, Clock, GripVertical,
   AlertTriangle, Check, X, Smartphone, RefreshCw, Package,
 } from 'lucide-react'
@@ -156,6 +156,26 @@ export default function Reparto() {
 
   const sinUbicar = paradas.filter(p => !p.lat).length
 
+  // Ubica las direcciones que quedaron sin pin. Se hace acá, en el reparto,
+  // porque es donde se nota: una parada sin ubicación queda fuera del recorrido.
+  const [ubicando, setUbicando] = useState(false)
+  const ubicarFaltantes = async () => {
+    setUbicando(true)
+    try {
+      const { data } = await dirApi.ubicarRuta(fecha)
+      const ok = (data.exactas || 0) + (data.por_calle || 0)
+      const fallidas = data.fallidas || []
+      if (ok) toast.success(`${ok} dirección(es) ubicada(s)`)
+      if (fallidas.length)
+        toast.error(`No se pudo ubicar: ${fallidas.map((f: any) => f.cliente || f.direccion).join(', ')}. Pon el pin a mano en la ficha del cliente.`,
+          { duration: 8000 })
+      if (!ok && !fallidas.length) toast('Todas las paradas ya estaban ubicadas')
+      cargar()
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'No se pudieron ubicar las direcciones')
+    } finally { setUbicando(false) }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -218,8 +238,13 @@ export default function Reparto() {
       {sinUbicar > 0 && (
         <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900">
           <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-          <span>{sinUbicar} parada(s) sin dirección ubicada. Quedan fuera del recorrido: hay que
-            ponerles el pin en la ficha del cliente para que entren.</span>
+          <div className="flex-1">
+            <p>{sinUbicar} parada(s) sin dirección ubicada. Quedan fuera del recorrido.</p>
+            <button onClick={ubicarFaltantes} disabled={ubicando}
+              className="mt-2 inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white rounded-xl px-3 py-2 text-sm font-medium">
+              <MapPinned size={16} /> {ubicando ? 'Ubicando…' : 'Ubicar las que faltan'}
+            </button>
+          </div>
         </div>
       )}
 

@@ -98,7 +98,16 @@ export default function OrdenPublica() {
           </div>
         )}
 
-        {o.observaciones && <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-sm text-yellow-800">{o.observaciones}</div>}
+        {/* Las observaciones son notas NUESTRAS -reagendamientos, mecanica de
+            promociones, instrucciones al taller- y el cliente las estaba leyendo
+            enteras. Lo que si le corresponde saber son las condiciones del
+            servicio, que antes no se mostraban. Estaban invertidas. */}
+        {o.condiciones && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900">
+            <p className="font-semibold mb-1">Antes de que lo retires</p>
+            {String(o.condiciones).split('\n').map((t: string, i: number) => <p key={i}>{t}</p>)}
+          </div>
+        )}
 
         {o.local?.whatsapp && (
           <a href={`https://wa.me/${o.local.whatsapp}?text=${encodeURIComponent(`Hola, consulto por mi orden ${ot(o.id)}`)}`} target="_blank" rel="noreferrer"

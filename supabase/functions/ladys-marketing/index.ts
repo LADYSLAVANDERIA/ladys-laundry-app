@@ -25,7 +25,7 @@ const CORS = {
 const json = (d: unknown, s = 200) =>
   new Response(JSON.stringify(d), { status: s, headers: { "content-type": "application/json", ...CORS } });
 
-const SEGMENTOS = ["riesgo", "perdido", "ocasional", "conversacion"];
+const SEGMENTOS = ["riesgo", "perdido", "ocasional", "conversacion", "activo", "unavez"];
 const EXCLUIDOS = [1925, 1003, 2004];
 
 async function conf(clave: string) {
@@ -58,16 +58,23 @@ async function lista(campana: string) {
         AND NOT coalesce(cl.es_ladys2, false) AND cl.id <> ALL(${EXCLUIDOS}::int[])),
     s AS (
       SELECT c.*, CASE
+          WHEN dias < 30 THEN 'activo'
           WHEN pedidos >= 3 AND dias BETWEEN 30 AND 70 THEN 'riesgo'
           WHEN pedidos >= 3 AND dias > 70 THEN 'perdido'
-          WHEN pedidos = 2 AND dias >= 30 THEN 'ocasional' END AS seg_calc
+          WHEN pedidos = 2 AND dias >= 30 THEN 'ocasional'
+          WHEN pedidos = 1 AND dias >= 30 THEN 'unavez' END AS seg_calc
       FROM c),
     e AS (SELECT * FROM marketing_envios WHERE campana = ${campana}),
+    -- Quien ya recibió OTRA campaña no vuelve a la lista: cambiar de campaña no
+    -- puede significar escribirle dos veces a la misma persona.
+    otras AS (SELECT DISTINCT right(regexp_replace(coalesce(telefono,''), '\\D', '', 'g'), 8) AS t8
+                FROM marketing_envios WHERE campana <> ${campana}),
     base AS (
       SELECT s.*, coalesce(e.segmento, s.seg_calc) AS segmento,
              e.estado AS envio, e.creado_en AS enviado_en, e.mensaje AS mensaje_enviado
       FROM s LEFT JOIN e ON e.cliente_id = s.cliente_id
-      WHERE (s.seg_calc IS NOT NULL OR e.id IS NOT NULL) AND length(s.tel) >= 8),
+      WHERE (s.seg_calc IS NOT NULL OR e.id IS NOT NULL) AND length(s.tel) >= 8
+        AND (e.id IS NOT NULL OR right(s.tel, 8) NOT IN (SELECT t8 FROM otras))),
     uno AS (
       SELECT DISTINCT ON (right(tel, 8)) * FROM base
       ORDER BY right(tel, 8), (envio IS NOT NULL) DESC, gasto DESC)
@@ -77,7 +84,7 @@ async function lista(campana: string) {
               AND uno.enviado_en IS NOT NULL AND x.creado_en > uno.enviado_en
               AND coalesce(x.estado,'') NOT ILIKE 'anul%') AS volvio_en
     FROM uno
-    ORDER BY array_position(ARRAY['riesgo','perdido','ocasional'], uno.segmento), uno.gasto DESC`;
+    ORDER BY array_position(ARRAY['activo','riesgo','perdido','ocasional','unavez'], uno.segmento), uno.gasto DESC`;
 }
 
 

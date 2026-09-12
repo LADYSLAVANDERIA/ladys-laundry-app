@@ -16,6 +16,8 @@ const SEG: Record<string, { titulo: string, detalle: string, color: string }> = 
   riesgo:    { titulo: 'En riesgo',  detalle: '3+ pedidos, no vuelven hace 30 a 70 días', color: 'bg-amber-100 text-amber-800' },
   perdido:   { titulo: 'Perdidos',   detalle: '3+ pedidos, no vuelven hace más de 70 días', color: 'bg-red-100 text-red-700' },
   ocasional: { titulo: 'Ocasionales', detalle: '2 pedidos, no vuelven hace 30+ días', color: 'bg-sky-100 text-sky-700' },
+  activo:    { titulo: 'Activos',     detalle: 'compraron hace menos de 30 días', color: 'bg-green-100 text-green-700' },
+  unavez:    { titulo: 'Una compra',  detalle: 'compraron una sola vez, hace 30+ días', color: 'bg-violet-100 text-violet-700' },
 }
 
 // Los nombres vienen en mayúsculas desde EasyLaundry: "MARIA ELENA" → "Maria".
@@ -155,7 +157,7 @@ export default function Marketing() {
 
       {/* Segmentos */}
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {['todos', 'riesgo', 'perdido', 'ocasional'].map(s => {
+        {['todos', 'activo', 'riesgo', 'perdido', 'ocasional', 'unavez'].map(s => {
           const k = cuenta(s)
           return (
             <button key={s} onClick={() => setSeg(s)}

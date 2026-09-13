@@ -424,6 +424,7 @@ export const conciliarApi = {
   imputar:    (mp_id: string, orden_id: number) => concAx.post('/imputar', { mp_id, orden_id }),
   descartar:  (mp_id: string, nota: string) => concAx.post('/descartar', { mp_id, nota }),
   anular:     (id: number, motivo: string) => concAx.post('/anular-comprobante', { id, motivo }),
+  confirmarBanco: (id: number) => concAx.post('/confirmar-banco', { id }),
 }
 
 // Marketing: lista de clientes a recuperar y registro de los WhatsApp enviados.

@@ -68,6 +68,14 @@ export default function Transferencias() {
     catch { toast.error('No se pudo descartar') }
   }
 
+  // Pago hecho a la cuenta del banco: el aviso automatico del BCI todavia no
+  // esta activo, asi que la unica prueba posible es mirar la cartola.
+  const confirmarBanco = async (id: number, orden: number) => {
+    if (!window.confirm(`Pedido ${orden}: ¿viste esta transferencia en la cartola del banco?\n\nSolo confirma si la viste con tus ojos.`)) return
+    try { await conciliarApi.confirmarBanco(id); toast.success('Confirmado'); cargarMp() }
+    catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo confirmar') }
+  }
+
   // Devolver la deuda: el comprobante era falso o estaba equivocado.
   const anularComprobante = async (id: number, orden: number) => {
     const motivo = window.prompt(`Anular el comprobante del pedido ${orden}. La deuda vuelve a quedar pendiente.\n¿Motivo?`, 'La plata nunca llegó')
@@ -179,8 +187,23 @@ export default function Transferencias() {
                 )}
                 {c.estado === 'POR_VERIFICAR' && (
                   <span className="text-sm text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg">
-                    Esperando que aparezca en Mercado Pago
+                    {c.canal === 'BANCO' ? 'Esperando la cartola del banco' : 'Esperando que aparezca en Mercado Pago'}
                   </span>
+                )}
+                {c.estado === 'ESPERA_BANCO' && (
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-1.5 text-sm text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg">
+                      <Landmark size={15} /> Fue al banco, revisa la cartola
+                    </span>
+                    <button onClick={() => confirmarBanco(c.id, c.orden_id)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border text-gray-600">
+                      <Check size={15} /> La vi, llegó
+                    </button>
+                    <button onClick={() => anularComprobante(c.id, c.orden_id)}
+                            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border text-gray-600">
+                      <X size={15} /> Devolver la deuda
+                    </button>
+                  </div>
                 )}
                 {c.estado === 'SIN_RESPALDO' && (
                   <div className="flex items-center gap-2">

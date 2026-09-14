@@ -5,7 +5,15 @@ import { Link } from 'react-router-dom'
 import { Check, X, RefreshCw, Landmark, FileText, Link2, CreditCard, MessageSquare, ShieldCheck, AlertTriangle, Image } from 'lucide-react'
 
 const plata = (n: any) => `$${Number(n || 0).toLocaleString('es-CL')}`
-const dia = (f: any) => f ? new Date(String(f) + 'T12:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'short' }) : '—'
+// La fecha llega a veces como AAAA-MM-DD y a veces como timestamp completo.
+// Pegarle 'T12:00:00' a un timestamp da Invalid Date, que es lo que se veía en
+// pantalla. Se corta a los 10 primeros caracteres cuando ya trae hora.
+const dia = (f: any) => {
+  if (!f) return '—'
+  const t = String(f)
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(t) ? t + 'T12:00:00' : t)
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-CL', { day: '2-digit', month: 'short' })
+}
 
 export default function Transferencias() {
   const [datos, setDatos] = useState<any>({ por_confirmar: [], sin_asignar: [], candidatos: [] })
@@ -49,8 +57,13 @@ export default function Transferencias() {
   }
   useEffect(() => { cargar(); cargarPos(); cargarMp() }, [])
 
-  const imputarMp = async (mpId: string) => {
-    const orden = Number(mpDestino[mpId])
+  // OJO: el <select> muestra el pedido sugerido, pero ese valor NO entra al
+  // estado hasta que alguien cambia la opción a mano. El botón leía el estado
+  // vacío y respondía "elige a qué pedido va" con el pedido ya elegido en
+  // pantalla. Lo que se ve tiene que ser lo que se manda: por eso la sugerencia
+  // viaja como respaldo.
+  const imputarMp = async (mpId: string, sugerida?: any) => {
+    const orden = Number(mpDestino[mpId] ?? sugerida ?? 0)
     if (!orden) { toast.error('Elige a qué pedido va'); return }
     setMpAsignando(mpId)
     try {
@@ -270,7 +283,7 @@ export default function Transferencias() {
                     </option>
                   ))}
                 </select>
-                <button onClick={() => imputarMp(t.mp_id)} disabled={mpAsignando === t.mp_id}
+                <button onClick={() => imputarMp(t.mp_id, t.sugerida?.id)} disabled={mpAsignando === t.mp_id}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50"
                         style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
                   <Link2 size={15} /> {mpAsignando === t.mp_id ? 'Imputando…' : 'Imputar'}

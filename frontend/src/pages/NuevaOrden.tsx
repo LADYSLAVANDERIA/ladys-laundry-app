@@ -149,9 +149,13 @@ export default function NuevaOrden() {
   // desactualizado cobra de menos sin que nadie lo note.
   // Mínimo a domicilio FUERA de la zona sin mínimo. Se lee con ?? y no con ||
   // porque 0 es un valor válido y || lo cambiaría por el respaldo.
-  const minimo = Number(config.minimo_retiro ?? 25000)
-  // Mínimo de venta en el mesón. Aplica a cualquier pedido, con kilos o prendas.
-  const minimoLocal = Number(config.minimo_venta_local || 14500)
+  const minimo = Number(config.minimo_retiro ?? 0)
+  // 14-sep-2026: se eliminó el pedido mínimo en TODAS PARTES. Estas claves quedan
+  // en 0 en configuracion y por eso el respaldo también es 0.
+  // OJO con el || : Number('0') es 0, que es falsy, así que `config.x || 14500`
+  // devolvía 14.500 aunque la base dijera 0. Tiene que ser ?? o el mínimo
+  // eliminado revive solo en la pantalla.
+  const minimoLocal = Number(config.minimo_venta_local ?? 0)
   const domicilio = f.retiro_domicilio || f.entrega_domicilio
   // Dentro de la zona (Concón hasta la rotonda y Reñaca hasta Jardín del Mar) el
   // domicilio no tiene mínimo. Fuera de ella rige minimo_retiro.

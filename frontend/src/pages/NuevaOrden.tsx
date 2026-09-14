@@ -109,7 +109,11 @@ export default function NuevaOrden() {
     }
     return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([dias, its]) => ({ dias, items: its }))
   }, [items, servicios, express])
-  const [dividir, setDividir] = useState(true)
+  // 14-sep-2026: la división por plazo pasa a ser SUGERENCIA, no decisión
+  // automática. Viene desmarcada: el operador ve la propuesta con sus partes y
+  // decide si separa. Antes venía marcada y la orden se partía sola, así que el
+  // mesón se encontraba con dos OT que no había pedido.
+  const [dividir, setDividir] = useState(false)
   const hayVariosPlazos = gruposPorPlazo.length > 1
 
   // La fecha propuesta se recalcula sola cuando cambian los servicios, PERO
@@ -413,17 +417,18 @@ export default function NuevaOrden() {
                   <div className="mb-2 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
                     <p className="text-xs text-amber-900">
                       <b>Esta orden tiene servicios con plazos distintos.</b> Si va todo junto,
-                      lo rápido espera por lo lento.
+                      lo rápido espera por lo lento: se entrega todo en la fecha más larga.
+                      {!dividir && <><br/>Sugerencia: separarla en {gruposPorPlazo.length} órdenes. Márcalo si corresponde.</>}
                       {dividir && pago.ahora && (
                         <><br/><b>Se crearán {gruposPorPlazo.length} órdenes separadas</b> y el
                         cobro de {fmt(total)} se repartirá entre ellas. Cóbralas todas juntas al cliente.</>
                       )}
                     </p>
-                    <label className="flex items-start gap-2 text-xs text-amber-900 cursor-pointer">
+                    <label className={`flex items-start gap-2 text-xs cursor-pointer rounded-lg px-2 py-1.5 ${dividir ? 'bg-amber-100 text-amber-900 font-medium' : 'text-amber-900'}`}>
                       <input type="checkbox" checked={dividir} onChange={e => setDividir(e.target.checked)} className="mt-0.5" />
-                      <span>Dividir en {gruposPorPlazo.length} órdenes, cada una con su fecha</span>
+                      <span>Dividir en {gruposPorPlazo.length} órdenes, cada una con su fecha{!dividir && ' — sugerido'}</span>
                     </label>
-                    {dividir && (
+                    {(
                       <div className="space-y-1 pt-1 border-t border-amber-200">
                         {gruposPorPlazo.map((g, n) => (
                           <p key={g.dias} className="text-[11px] text-amber-800">

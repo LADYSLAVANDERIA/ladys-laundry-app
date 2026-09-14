@@ -18,6 +18,18 @@ export default function OrdenDetalle() {
   const [o, setO] = useState<any>(null); const [local, setLocal] = useState<any>({})
   const [formas, setFormas] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([]); const [rutas, setRutas] = useState<any[]>([])
   const [pago, setPago] = useState<any>({ forma_pago_id: '', monto: '' })
+  // Revertir un pago mal registrado. Antes esto no existia y una OT marcada
+  // pagada por error se quedaba asi: no habia como mandarle al cliente los datos
+  // de transferencia. El motivo es obligatorio y queda en el historial.
+  const [revertir, setRevertir] = useState<any>(null)
+  const confirmarReverso = async () => {
+    if (!String(revertir?.motivo || '').trim()) return toast.error('Escribe el motivo: queda en el historial')
+    try {
+      await ordenesApi.revertirPago(o.id, revertir.id, revertir.motivo.trim())
+      toast.success('Pago revertido')
+      setRevertir(null); load()
+    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo revertir el pago') }
+  }
   const [cobro, setCobro] = useState<any>(null)
   const [config, setConfig] = useState<any>({})
   const [grupo, setGrupo] = useState<any>({ dividido: false, hermanas: [], total_grupo: 0 })
@@ -521,9 +533,13 @@ export default function OrdenDetalle() {
               <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
                 <div className="px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-500">PAGOS</div>
                 {o.pagos.map((p: any) => (
-                  <div key={p.id} className="flex justify-between px-4 py-2.5 border-b last:border-0 text-sm">
+                  <div key={p.id} className="flex items-center justify-between gap-2 px-4 py-2.5 border-b last:border-0 text-sm">
                     <span className="text-gray-600">{p.forma_nombre || 'Pago'} <span className="text-gray-400 text-xs">· {fechaHora(p.creado_en)}{opMercadoPago(p.referencia) ? ` · Operación ${opMercadoPago(p.referencia)}` : ''}</span></span>
-                    <span className="font-medium text-green-600">{fmt(p.monto)}</span>
+                    <span className="flex items-center gap-3">
+                      <span className="font-medium text-green-600">{fmt(p.monto)}</span>
+                      <button onClick={() => setRevertir({ id: p.id, monto: p.monto, motivo: '' })}
+                        className="text-xs text-gray-400 hover:text-red-600 hover:underline">Revertir</button>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -785,6 +801,21 @@ export default function OrdenDetalle() {
             <div className="flex gap-2">
               <button onClick={guardarComprobante} className="flex-1 py-3 rounded-xl bg-green-500 text-white font-semibold text-sm">Anotar comprobante</button>
               <button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {revertir && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-3">
+            <div className="flex items-center justify-between"><h2 className="font-bold">Revertir pago</h2><button onClick={() => setRevertir(null)}><X size={18} className="text-gray-400" /></button></div>
+            <p className="text-sm text-gray-600">Se va a deshacer un pago de <strong className="text-pink-600">{fmt(revertir.monto)}</strong>. La orden vuelve a quedar con saldo pendiente.</p>
+            <input value={revertir.motivo} onChange={e => setRevertir({ ...revertir, motivo: e.target.value })}
+              placeholder="Motivo (queda en el historial)" className={inp} />
+            <div className="flex gap-2">
+              <button onClick={confirmarReverso} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-semibold text-sm">Revertir</button>
+              <button onClick={() => setRevertir(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
             </div>
           </div>
         </div>

@@ -213,6 +213,37 @@ const registrarPago = async (req, res) => {
   } catch (e) { await c.query('ROLLBACK').catch(() => {}); fail(res, e, 400); } finally { c.release(); }
 };
 
+// ── REVERTIR UN PAGO ──────────────────────────────────────────────────────
+// Antes no existía: si alguien marcaba pagada una OT por error al crearla, no
+// había forma de deshacerlo desde la app y había que ir a la base de datos.
+// Eso dejaba órdenes cobradas que nadie pagó, y sin forma de mandarle al cliente
+// los datos de transferencia.
+// El pago NO se borra en silencio: queda escrito en el historial quién lo
+// revirtió, por cuánto y por qué. Un cobro que desaparece sin rastro es peor
+// que un cobro equivocado.
+const revertirPago = async (req, res) => {
+  const c = await db.connect();
+  try {
+    const motivo = String(req.body.motivo || '').trim();
+    if (!motivo) return res.status(400).json({ error: 'Escribe el motivo: queda en el historial de la orden' });
+    await c.query('BEGIN');
+    const { rows: [o] } = await c.query('SELECT * FROM ordenes WHERE id=$1 FOR UPDATE', [req.params.id]);
+    if (!o) throw new Error('Orden no encontrada');
+    const { rows: [p] } = await c.query('SELECT * FROM pagos WHERE id=$1 AND orden_id=$2', [req.params.pagoId, req.params.id]);
+    if (!p) throw new Error('Ese pago no existe en esta orden');
+
+    await c.query('DELETE FROM pagos WHERE id=$1', [p.id]);
+    const abonado = Math.max(0, Number(o.monto_abonado) - Number(p.monto));
+    const saldo = Number(o.monto_total) - abonado, ep = estadoPago(o.monto_total, abonado);
+    await c.query('UPDATE ordenes SET monto_abonado=$2, saldo_pendiente=$3, estado_pago=$4, pagada_el=CASE WHEN $4=\'PAGADA\' THEN pagada_el ELSE NULL END WHERE id=$1',
+      [o.id, abonado, saldo, ep]);
+    await historial(c, o.id, null,
+      `Pago revertido $${Math.round(Number(p.monto)).toLocaleString('es-CL')} · ${motivo}`, req.user.id);
+    await c.query('COMMIT');
+    res.json({ abonado, saldo, estado_pago: ep });
+  } catch (e) { await c.query('ROLLBACK').catch(() => {}); fail(res, e, 400); } finally { c.release(); }
+};
+
 // ── PROGRAMACIÓN DEL DÍA (retiros y entregas por ruta) ────────────────────
 const programacion = async (req, res) => {
   try {
@@ -312,4 +343,4 @@ const setConfig = async (req, res) => {
   } catch (e) { fail(res, e); }
 };
 
-module.exports = { listar, resumen, obtener, crear, actualizar, cambiarEstado, registrarPago, programacion, disponibilidad, solicitarRetiro, getConfigAll, setConfig, hoyChile };
+module.exports = { listar, resumen, obtener, crear, actualizar, cambiarEstado, registrarPago, revertirPago, programacion, disponibilidad, solicitarRetiro, getConfigAll, setConfig, hoyChile };

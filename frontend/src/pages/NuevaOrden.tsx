@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi, fichaApi, dirApi } from '../services/api'
+import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi, fichaApi, dirApi, descuentosApi } from '../services/api'
 import ItemsPicker, { buildItems } from '../components/ItemsPicker'
 import MapaDireccion from '../components/MapaDireccion'
 import type { Item } from '../components/ItemsPicker'
@@ -143,6 +143,13 @@ export default function NuevaOrden() {
     setF((p: any) => ({ ...p, fecha_entrega: addDiasHabiles(p.fecha_recogida || hoy(), plazo) }))
   }, [plazo, f.fecha_recogida])
 
+  // Descuento manual al CREAR la orden, en pesos o en %. Antes solo existía
+  // después, entrando al detalle de la OT: había que crearla mal y corregirla.
+  // Aplica igual a las órdenes del local y a las de domicilio: es una sola
+  // decisión de negocio, no dos.
+  const [descManual, setDescManual] = useState<any>({ tipo: 'MONTO', valor: '', motivo: '' })
+  const descManualValor = Math.max(0, Number(String(descManual.valor).replace(/[^\d]/g, '') || 0))
+
   const pct = Number(config.descuento_continuidad || 10)
   // El valor real vive en configuracion.minimo_retiro. Este numero solo actua si
   // esa clave desapareciera, y por eso tiene que ser el vigente: un respaldo
@@ -179,8 +186,11 @@ export default function NuevaOrden() {
 
   const subtotal = itemsConAjuste.reduce((s, i) => s + i.subtotal, 0)
   const descConvenio = Math.round(subtotal * pctConvenio / 100)
-  const descuento = (f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0) + descConvenio
-  const total = subtotal - descuento + Number(f.monto_delivery || 0)
+  const descManualMonto = descManualValor > 0
+    ? (descManual.tipo === 'PCT' ? Math.round(subtotal * Math.min(descManualValor, 100) / 100) : Math.min(descManualValor, subtotal))
+    : 0
+  const descuento = (f.aplicar_descuento ? Math.round(subtotal * pct / 100) : 0) + descConvenio + descManualMonto
+  const total = Math.max(0, subtotal - descuento + Number(f.monto_delivery || 0))
   const rutasRet = rutas.filter(r => r.dia_semana === diaSemana(f.fecha_recogida) && RUTA_RET.includes(r.tipo))
   const rutasEnt = rutas.filter(r => r.dia_semana === diaSemana(f.fecha_entrega) && RUTA_ENT.includes(r.tipo))
   const memb = cliente?.membresia
@@ -195,6 +205,10 @@ export default function NuevaOrden() {
     if (f.retiro_domicilio && !f.ruta_recogida_id) return toast.error('Elige la ruta de retiro')
     if (f.entrega_domicilio && !f.ruta_entrega_id) return toast.error('Elige la ruta de entrega')
     if (usarMemb && memb && total > Number(memb.saldo_actual)) return toast.error(`El total supera el saldo de la membresía (${fmt(memb.saldo_actual)})`)
+    // Un descuento sin motivo no se puede auditar despues: quien lo dio, por que
+    // y a quien. Por eso el motivo es obligatorio, igual que en el detalle.
+    if (descManualValor > 0 && !String(descManual.motivo || '').trim())
+      return toast.error('Escribe el motivo del descuento manual')
     setLoading(true)
     try {
       const body: any = {
@@ -249,6 +263,26 @@ export default function NuevaOrden() {
           ruta_entrega_id: partes.length > 1 ? null : body.ruta_entrega_id,
         })
         creadas.push(o.id)
+
+        // El descuento manual se aplica con el MISMO endpoint que usa el detalle
+        // de la orden: asi hay una sola logica de descuentos, un solo control de
+        // permisos y una sola entrada en el historial. Si la orden se partio por
+        // plazo, el descuento en pesos se reparte a prorrata para no regalarlo
+        // dos veces.
+        if (descManualValor > 0) {
+          const valorParte = descManual.tipo === 'PCT'
+            ? Math.min(descManualValor, 100)
+            : Math.round(descManualMonto * (sub / Math.max(subtotal, 1)))
+          if (valorParte > 0) {
+            try {
+              await descuentosApi.aplicar({ orden_id: o.id, tipo: descManual.tipo, valor: valorParte, motivo: descManual.motivo.trim() })
+            } catch (e: any) {
+              // Que falle el descuento no puede dejar al cliente sin su OT, pero
+              // tampoco puede pasar callado: la orden quedo con el precio lleno.
+              toast.error(`La orden ${ot(o.id)} se creó, pero el descuento no se pudo aplicar: ${e?.response?.data?.error || 'revísala a mano'}`)
+            }
+          }
+        }
 
         // Mientras convivan los dos sistemas, esta es la única forma de aparearlos
         // en el cotejo: cada uno le pone un número distinto a la misma orden.
@@ -469,6 +503,24 @@ export default function NuevaOrden() {
                 <span className="flex items-center gap-1.5"><input type="checkbox" checked={f.aplicar_descuento} onChange={e => setF({ ...f, aplicar_descuento: e.target.checked })} /><Percent size={12} /> Continuidad {pct}%</span>
                 <span>-{fmt(descuento)}</span>
               </label>
+              <div className="rounded-lg px-2 py-1.5 space-y-1.5 bg-amber-50/60">
+                <div className="flex items-center gap-1.5">
+                  <Percent size={12} className="text-amber-600" />
+                  <span className="text-xs font-medium text-amber-800">Descuento manual</span>
+                  <select value={descManual.tipo} onChange={e => setDescManual({ ...descManual, tipo: e.target.value })}
+                    className="text-xs border rounded px-1 py-0.5 bg-white">
+                    <option value="MONTO">$</option><option value="PCT">%</option>
+                  </select>
+                  <input value={descManual.valor} onChange={e => setDescManual({ ...descManual, valor: e.target.value })}
+                    placeholder="0" inputMode="numeric" className="w-20 text-xs border rounded px-1.5 py-0.5 text-right" />
+                  {descManualMonto > 0 && <span className="ml-auto text-xs font-semibold text-amber-800">−{fmt(descManualMonto)}</span>}
+                </div>
+                {descManualValor > 0 && (
+                  <input value={descManual.motivo} onChange={e => setDescManual({ ...descManual, motivo: e.target.value })}
+                    placeholder="Motivo (obligatorio, queda en el historial)"
+                    className="w-full text-xs border rounded px-1.5 py-1" />
+                )}
+              </div>
               {Number(f.monto_delivery) > 0 && <div className="flex justify-between"><span>Delivery</span><span>{fmt(f.monto_delivery)}</span></div>}
               <div className="flex justify-between text-xl font-bold border-t pt-2"><span>Total</span><span className="text-pink-600">{fmt(total)}</span></div>
             </div>

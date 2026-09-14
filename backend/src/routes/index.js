@@ -30,6 +30,7 @@ router.post('/ordenes',            auth, ordenesCtrl.crear);
 router.put ('/ordenes/:id',        auth, ordenesCtrl.actualizar);
 router.put ('/ordenes/:id/estado', auth, ordenesCtrl.cambiarEstado);
 router.post('/ordenes/:id/pago',   auth, ordenesCtrl.registrarPago);
+router.delete('/ordenes/:id/pago/:pagoId', auth, ordenesCtrl.revertirPago);
 // PROGRAMACIÓN / RETIROS / CONFIG
 router.get ('/programacion',           auth, ordenesCtrl.programacion);
 router.get ('/retiros/disponibilidad', auth, ordenesCtrl.disponibilidad);

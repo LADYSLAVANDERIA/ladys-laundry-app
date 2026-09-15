@@ -379,8 +379,30 @@ router.post('/prepagos/:id/consumir', auth, async (req, res) => {
         }
         const { rows } = await client.query('SELECT * FROM prepagos_cliente WHERE id=$1', [req.params.id]);
         await client.query('COMMIT');
+
+        // EL KILO EXTRA SE COBRA AL MOMENTO, no al cierre del ciclo.
+        // Si se acumulara todo el mes y el socio cambia o borra la tarjeta antes
+        // del cierre, no habría con qué cobrar. Cobrar apenas ocurre convierte
+        // una deuda de un mes en un cargo chico que ya está hecho.
+        // Va DESPUÉS del COMMIT y en su propio try: que la tarjeta rechace no
+        // puede impedir que la ropa del cliente entre a proceso. Si falla, queda
+        // registrado como RECHAZADO y la tarea diaria lo reintenta.
+        let cobroExtra = null;
+        if (exceso > 0) {
+          try {
+            const r = await fetch(`${process.env.SUPABASE_URL || 'https://vhjsizkbmabznupkfzji.supabase.co'}/functions/v1/ladys-excedentes/cobrar-ahora`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json',
+                         'x-api-key': process.env.WEBHOOK_KEY || 'ladys_webhook_2026' },
+              body: JSON.stringify({ prepago_id: Number(req.params.id), orden_id }),
+            });
+            cobroExtra = await r.json();
+          } catch (e) { cobroExtra = { error: String(e.message) }; }
+        }
+
         return res.json({ ...rows[0], kilos_cubiertos: Math.min(kg, Math.max(disponibles, 0)),
-          kilos_exceso: exceso, monto_exceso: Math.round(exceso * Number(prep[0].kilo_adicional)) });
+          kilos_exceso: exceso, monto_exceso: Math.round(exceso * Number(prep[0].kilo_adicional)),
+          cobro_extra: cobroExtra });
       }
       // ILIMITADO: no hay nada que descontar
       if (orden_id) {

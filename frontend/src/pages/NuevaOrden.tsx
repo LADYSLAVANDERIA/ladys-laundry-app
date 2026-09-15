@@ -298,12 +298,21 @@ export default function NuevaOrden() {
         // en el cotejo: cada uno le pone un número distinto a la misma orden.
         if (n === 0 && String(f.ot_easylaundry || '').trim())
           await ordenesApi.update(o.id, { ot_easylaundry: String(f.ot_easylaundry).trim() }).catch(() => {})
-        if (usarMemb && memb)
-          await api.post(`/prepagos/${memb.id}/consumir`, {
+        if (usarMemb && memb) {
+          const { data: mres } = await api.post(`/prepagos/${memb.id}/consumir`, {
             monto: sub - desc + envio, orden_id: o.id,
             // Los planes por kilo descuentan PESO, no plata.
             kilos: kilosParte,   // ya calculado arriba: los items de tipo KILO de esta parte
           })
+          // Si se paso del tope, el cobro del kilo extra se hace al toque contra
+          // su tarjeta. Se le dice al operador SIEMPRE, salga bien o mal: un
+          // cargo silencioso al cliente es lo peor que puede pasar acá.
+          const ce = mres?.cobro_extra
+          if (ce?.resultado === 'cobrado a la tarjeta')
+            toast.success(`Se pasó por ${ce.kilos} kg: ${ce.monto} cobrados a su tarjeta`, { duration: 7000 })
+          else if (ce && ce.resultado && !ce.sin_excedente)
+            toast.error(`Kilo extra NO cobrado (${ce.monto || ''}): ${ce.motivo || ce.resultado}. Queda anotado en la OT.`, { duration: 9000 })
+        }
       }
 
       toast.success(creadas.length > 1

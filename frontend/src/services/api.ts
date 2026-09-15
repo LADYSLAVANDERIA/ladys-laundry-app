@@ -206,6 +206,16 @@ talAx.interceptors.request.use(cfg => {
 })
 export const tallerApi = { cola: () => talAx.get('/') }
 
+// KPI de produccion: carga contra capacidad, esperas, pulso y rutas.
+const KPI_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-kpis')
+const kpiAx = axios.create({ baseURL: KPI_URL })
+kpiAx.interceptors.request.use(cfg => {
+  const t = useAuthStore.getState().token
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
+export const kpisApi = { produccion: () => kpiAx.get('/') }
+
 // El canal con el taller: preguntas hacia produccion y respuestas de vuelta.
 const PAN_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-pantalla')
 const panAx = axios.create({ baseURL: PAN_URL })

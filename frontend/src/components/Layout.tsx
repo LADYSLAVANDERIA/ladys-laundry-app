@@ -7,7 +7,7 @@ import BarraIndicadores from './BarraIndicadores'
 import {
   Home, LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
   DollarSign, ArrowLeftRight, PieChart, FileText, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
-  LogOut, Menu, X, ChevronRight, ChevronDown, CreditCard, Wallet, KeyRound, Shirt, Megaphone
+  LogOut, Menu, X, ChevronRight, ChevronDown, CreditCard, Wallet, KeyRound, Shirt, BarChart3, Megaphone
 } from 'lucide-react'
 
 // Quien ve cada pantalla. ADMINISTRADOR ve todo sin necesidad de listarse.
@@ -24,6 +24,7 @@ const menu = [
     { path: '/ordenes/nueva',   label: 'Nueva orden',       icon: Plus,            ver: TODOS_OPERATIVOS },
     { path: '/ordenes',         label: 'Pedidos',           icon: ClipboardList,   ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
     { path: '/taller',          label: 'El taller',         icon: Shirt,           ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
+    { path: '/kpis',            label: 'Producción KPI',    icon: BarChart3,       ver: [...TODOS_OPERATIVOS] },
     { path: '/produccion',      label: 'Producción',        icon: ScanLine,        ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
     { path: '/reparto',         label: 'Reparto del día',   icon: Navigation,      ver: [...TODOS_OPERATIVOS, 'CONDUCTOR'] },
     { path: '/programacion',    label: 'Programación',      icon: Calendar,        ver: TODOS_OPERATIVOS },

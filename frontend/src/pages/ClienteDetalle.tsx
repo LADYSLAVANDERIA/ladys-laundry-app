@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { clientesApi, fichaApi, serviciosApi, dirApi, planApi } from '../services/api'
+import { clientesApi, fichaApi, serviciosApi, dirApi, planApi, excedentesApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2, TrendingUp, Clock, Repeat, AlertTriangle, Truck, Zap, Smartphone, Copy, Navigation, Gift } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, waLink, telWa, ESTADO_COLOR, ESTADO_LABEL } from '../utils'
@@ -93,6 +93,49 @@ export default function ClienteDetalle() {
         {c.telefono && <a href={waLink(c.telefono, `Hola ${c.nombre}, te escribimos de Ladys Lavandería.`)} target="_blank" rel="noreferrer" className="p-2.5 border rounded-xl text-green-600 hover:bg-green-50"><MessageCircle size={16} /></a>}
         <button onClick={() => navigate(`/ordenes/nueva?cliente=${c.id}`)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}><Plus size={15} /> Nueva OT</button>
       </div>
+
+      {(extras.excedentes || []).filter((e: any) => e.estado !== 'COBRADO').map((e: any) => (
+        <div key={e.id} className="rounded-2xl border-2 border-red-300 bg-red-50 p-4 space-y-2">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={18} className="text-red-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="font-bold text-red-800">
+                Debe {fmt(e.monto)} por kilos extra del plan
+              </p>
+              <p className="text-xs text-red-700">
+                {Number(e.kilos_excedidos)} kg sobre su plan
+                {e.orden_id ? ` · pedido ${ot(e.orden_id)}` : ''} · {e.medio}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const { data } = await excedentesApi.pos(e.id)
+                  toast.success(`Cobro de ${data.monto} enviado a la máquina`, { duration: 7000 })
+                } catch (err: any) { toast.error(err?.response?.data?.error || 'No se pudo mandar a la máquina') }
+              }}
+              className="px-3 py-2 rounded-xl bg-pink-600 text-white text-xs font-semibold">
+              Cobrar en la máquina
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const { data } = await excedentesApi.link(e.id)
+                  // La ventana se abre antes de cualquier await posterior, o el
+                  // navegador la bloquea como popup.
+                  if (data.whatsapp) window.open(data.whatsapp, '_blank')
+                  else { await navigator.clipboard.writeText(data.url); toast.success('Link copiado') }
+                } catch (err: any) { toast.error(err?.response?.data?.error || 'No se pudo generar el link') }
+              }}
+              className="px-3 py-2 rounded-xl border border-red-300 text-red-700 text-xs font-semibold">
+              Mandarle el link de pago
+            </button>
+          </div>
+        </div>
+      ))}
+
 
       <div className="grid sm:grid-cols-4 gap-3">
         {[['Órdenes', c.stats?.total_ordenes || 0], ['Total gastado', fmt(c.stats?.total_gastado)], ['Saldo pendiente', fmt(c.stats?.saldo_total)], ['Última orden', c.stats?.ultima_orden ? fechaCorta(c.stats.ultima_orden) : '—']].map(([l, v], i) => (

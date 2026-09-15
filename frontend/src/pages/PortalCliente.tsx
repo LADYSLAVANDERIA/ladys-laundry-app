@@ -155,7 +155,10 @@ export default function PortalCliente() {
   const { id, token } = useParams()
   const [d, setD] = useState<any>(null)
   const [error, setError] = useState('')
+  // El socio abre en Movimientos: lo primero que quiere saber es cuántos kilos le
+  // quedan. Quien no tiene plan no ve esa pestaña y abre en Pedidos.
   const [tab, setTab] = useState<'pedidos' | 'movimientos' | 'resumen'>('pedidos')
+  const [tabElegida, setTabElegida] = useState(false)
   const [segs, setSegs] = useState<Record<number, any>>({})
   const [abierta, setAbierta] = useState<number | null>(null)
 
@@ -180,6 +183,15 @@ export default function PortalCliente() {
     return () => { vivo = false; clearInterval(t) }
   }, [d])
 
+  // Una sola vez, cuando llegan los datos: el socio arranca en Movimientos.
+  // Después manda lo que el cliente elija, así que no se le mueve la pestaña
+  // bajo los pies cada vez que el portal se refresca.
+  useEffect(() => {
+    if (!d || tabElegida) return
+    if (d.membresia) setTab('movimientos')
+    setTabElegida(true)
+  }, [d, tabElegida])
+
   if (error) return <div className="min-h-screen flex items-center justify-center p-8 text-center text-gray-500">{error}</div>
   if (!d) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-pink-500" size={32} /></div>
 
@@ -189,7 +201,7 @@ export default function PortalCliente() {
 
   // abre el pedido y lleva la pantalla hasta el mapa, para que no haya que buscarlo
   const irAlMapa = (id: number) => {
-    setTab('pedidos')
+    setTab('pedidos')   // el mapa vive dentro del pedido: hay que estar en esa pestaña
     setAbierta(id)
     setTimeout(() => {
       document.getElementById(`pedido-${id}`)
@@ -242,7 +254,12 @@ export default function PortalCliente() {
 
         {/* Pestañas */}
         <div className="flex gap-1.5">
-          {[['pedidos', `Pedidos${d.en_proceso ? ` (${d.en_proceso})` : ''}`], ...(m ? [['movimientos', 'Movimientos']] : []), ['resumen', 'Resumen']].map(([k, l]: any) => (
+          {/* Para un socio lo primero que importa son sus MOVIMIENTOS: cuántos
+              kilos le quedan y en qué se le fueron. Los pedidos vienen después.
+              Quien no tiene plan no ve la pestaña y arranca en Pedidos. */}
+          {[...(m ? [['movimientos', 'Movimientos']] : []),
+            ['pedidos', `Pedidos${d.en_proceso ? ` (${d.en_proceso})` : ''}`],
+            ['resumen', 'Resumen']].map(([k, l]: any) => (
             <button key={k} onClick={() => setTab(k)}
               className={`flex-1 py-2 rounded-xl text-sm font-medium ${tab === k ? 'text-white' : 'bg-white border text-gray-500'}`}
               style={tab === k ? { background: 'linear-gradient(135deg,#E8177A,#A87BC8)' } : {}}>{l}</button>

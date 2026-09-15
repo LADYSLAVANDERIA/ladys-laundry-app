@@ -216,6 +216,17 @@ kpiAx.interceptors.request.use(cfg => {
 })
 export const kpisApi = { produccion: () => kpiAx.get('/') }
 
+// Kilo extra del Club que quedo sin cobrar. Lleva x-api-key en vez de token de
+// usuario porque la misma funcion la llama la tarea diaria del servidor.
+const EXC_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-excedentes')
+const excAx = axios.create({ baseURL: EXC_URL, headers: { 'x-api-key': 'ladys_webhook_2026' } })
+export const excedentesApi = {
+  deOrden: (ordenId: number | string) => excAx.get(`/orden/${ordenId}`),
+  pos:     (excedente_id: number) => excAx.post('/pos', { excedente_id }),
+  estadoPos: (mpOrderId: string) => excAx.get(`/pos/${mpOrderId}`),
+  link:    (excedente_id: number) => excAx.post('/link', { excedente_id }),
+}
+
 // El canal con el taller: preguntas hacia produccion y respuestas de vuelta.
 const PAN_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-pantalla')
 const panAx = axios.create({ baseURL: PAN_URL })

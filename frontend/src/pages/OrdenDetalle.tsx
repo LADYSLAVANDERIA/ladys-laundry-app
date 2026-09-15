@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi, descuentosApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
+import { excedentesApi, ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
@@ -22,6 +22,10 @@ export default function OrdenDetalle() {
   // pagada por error se quedaba asi: no habia como mandarle al cliente los datos
   // de transferencia. El motivo es obligatorio y queda en el historial.
   const [revertir, setRevertir] = useState<any>(null)
+  // Kilo extra del Club que la tarjeta rechazo. No se deja en "cobralo a mano":
+  // se ofrece la maquina o el link de pago.
+  const [extra, setExtra] = useState<any[]>([])
+  const [extraPos, setExtraPos] = useState<any>(null)
   const confirmarReverso = async () => {
     if (!String(revertir?.motivo || '').trim()) return toast.error('Escribe el motivo: queda en el historial')
     try {
@@ -77,6 +81,9 @@ export default function OrdenDetalle() {
       const { data } = await ordenesApi.getById(id!)
       setO(data)
       setPago((p: any) => ({ ...p, monto: String(Math.round(Number(data.saldo_pendiente || 0))) }))
+      // Si el cliente es socio y se paso del tope, puede haber un kilo extra
+      // sin cobrar. No se muestra si no hay nada: el silencio es lo normal.
+      excedentesApi.deOrden(id!).then(r => setExtra(r.data?.excedentes || [])).catch(() => setExtra([]))
     } catch { toast.error('Orden no encontrada'); navigate('/ordenes') }
   }
   useEffect(() => {
@@ -803,6 +810,58 @@ export default function OrdenDetalle() {
               <button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {extra.length > 0 && (
+        <div className="no-print rounded-2xl border border-red-200 bg-red-50 p-4 space-y-3">
+          {extra.map((e: any) => (
+            <div key={e.id} className="space-y-2">
+              <p className="text-sm font-semibold text-red-800">
+                Kilo extra del Club sin cobrar: {fmt(e.monto)} ({e.kilos_excedidos} kg)
+              </p>
+              {e.motivo && <p className="text-xs text-red-700">{e.motivo}</p>}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      const { data } = await excedentesApi.pos(e.id)
+                      setExtraPos({ ...data, excedente_id: e.id })
+                      toast.success('Cobro enviado a la máquina')
+                    } catch (err: any) { toast.error(err?.response?.data?.error || 'No se pudo mandar a la máquina') }
+                  }}
+                  className="px-3 py-2 rounded-xl bg-pink-600 text-white text-xs font-semibold">
+                  Cobrar en la máquina
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const { data } = await excedentesApi.link(e.id)
+                      // La ventana se abre ANTES de cualquier await posterior o el
+                      // navegador la bloquea como popup.
+                      if (data.whatsapp) window.open(data.whatsapp, '_blank')
+                      else { await navigator.clipboard.writeText(data.url); toast.success('Link copiado') }
+                    } catch (err: any) { toast.error(err?.response?.data?.error || 'No se pudo generar el link') }
+                  }}
+                  className="px-3 py-2 rounded-xl border border-red-300 text-red-700 text-xs font-semibold">
+                  Mandarle el link de pago
+                </button>
+              </div>
+              {extraPos?.excedente_id === e.id && (
+                <p className="text-xs text-red-700">
+                  Esperando la tarjeta en la máquina…{' '}
+                  <button className="underline" onClick={async () => {
+                    try {
+                      const { data } = await excedentesApi.estadoPos(extraPos.mp_order_id)
+                      if (data.estado === 'PAGADA') {
+                        toast.success('Kilo extra cobrado'); setExtraPos(null); load()
+                      } else toast('Todavía no, sigue esperando')
+                    } catch { toast.error('No se pudo consultar') }
+                  }}>ya pagó, revisar</button>
+                </p>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

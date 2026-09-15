@@ -281,50 +281,51 @@ export default function ClienteDetalle() {
               )}
               <p className="text-xs text-gray-400 mt-1">Vence {fechaCorta(c.membresia.fecha_venc)}</p>
               <button onClick={() => navigate('/membresias')} className="mt-3 text-xs text-purple-600 font-medium">Ver movimientos →</button>
+
+              {/* Subir de plan va ACA, pegado al plan actual. Antes estaba en una
+                  tarjeta aparte a media página y no se encontraba. */}
+              {(extras.planes || []).filter((p: any) => Number(p.precio) > Number(extras.membresia?.precio_plan || c.membresia.precio_plan || 0)).length > 0 && (
+                <div className="mt-3 pt-3 border-t space-y-2">
+                  <p className="text-xs font-semibold text-gray-600">Subir de plan</p>
+                  <p className="text-[11px] text-gray-400">
+                    Paga solo la diferencia y el ciclo no se reinicia. Se le regala el lavado de
+                    un cobertor de 2 plazas, canjeable tras 2 meses pagados en el plan nuevo.
+                  </p>
+                  {(extras.planes || []).filter((p: any) => Number(p.precio) > Number(extras.membresia?.precio_plan || c.membresia.precio_plan || 0)).map((p: any) => {
+                    const dif = Number(p.precio) - Number(extras.membresia?.precio_plan || c.membresia.precio_plan || 0)
+                    return (
+                      <button key={p.id}
+                        onClick={async () => {
+                          if (!confirm(`¿Subir a ${p.nombre}? Cobra ahora la diferencia de ${fmt(dif)}.`)) return
+                          try {
+                            const { data } = await planApi.subir(extras.membresia.id, p.id, true)
+                            toast.success(`${data.plan_anterior} → ${data.plan_nuevo}. Cobra ${fmt(data.diferencia)}`, { duration: 8000 })
+                            if (data.aviso) toast(data.aviso, { duration: 9000 })
+                            load()
+                          } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo subir el plan') }
+                        }}
+                        className="w-full text-left p-2.5 rounded-xl border hover:border-purple-400 hover:bg-purple-50">
+                        <div className="flex justify-between items-center gap-2">
+                          <div>
+                            <p className="font-semibold text-xs">{p.nombre}</p>
+                            <p className="text-[11px] text-gray-500">
+                              {p.modalidad === 'ILIMITADO' ? 'Sin tope de kilos' : `${Number(p.kilos_incluidos)} kg al mes`}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-purple-600 text-sm">{fmt(p.precio)}</p>
+                            <p className="text-[10px] text-gray-400">paga {fmt(dif)} ahora</p>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           ) : <p className="text-sm text-gray-400">Sin membresía activa. <button onClick={() => navigate('/membresias')} className="text-purple-600 font-medium">Activar →</button></p>}
         </div>
       </div>
-
-      {extras.membresia && (extras.planes || []).some((p: any) => Number(p.precio) > Number(extras.membresia.precio_plan)) && (
-        <div className="bg-white rounded-2xl shadow-sm border p-4">
-          <p className="font-semibold text-gray-700 flex items-center gap-1.5 mb-1">
-            <Gift size={15} className="text-purple-500" /> Subir de plan
-          </p>
-          <p className="text-xs text-gray-400 mb-3">
-            Paga solo la diferencia y el ciclo no se reinicia. Se le regala el lavado de un
-            cobertor de 2 plazas, canjeable después de 2 meses pagados en el plan nuevo.
-          </p>
-          <div className="space-y-2">
-            {(extras.planes || []).filter((p: any) => Number(p.precio) > Number(extras.membresia.precio_plan)).map((p: any) => (
-              <button key={p.id}
-                onClick={async () => {
-                  if (!confirm(`¿Subir a ${p.nombre}? Cobra ahora la diferencia de ${fmt(Number(p.precio) - Number(extras.membresia.precio_plan))}.`)) return
-                  try {
-                    const { data } = await planApi.subir(extras.membresia.id, p.id, true)
-                    toast.success(`${data.plan_anterior} → ${data.plan_nuevo}. Cobra ${fmt(data.diferencia)}`, { duration: 8000 })
-                    if (data.aviso) toast(data.aviso, { duration: 9000 })
-                    load()
-                  } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo subir el plan') }
-                }}
-                className="w-full text-left p-3 rounded-xl border hover:border-purple-400 hover:bg-purple-50">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold text-sm">{p.nombre}</p>
-                    <p className="text-xs text-gray-500">
-                      {p.modalidad === 'ILIMITADO' ? 'Sin tope de kilos' : `${Number(p.kilos_incluidos)} kg al mes`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-purple-600">{fmt(p.precio)}</p>
-                    <p className="text-[11px] text-gray-400">paga {fmt(Number(p.precio) - Number(extras.membresia.precio_plan))} ahora</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {(extras.beneficios || []).length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border p-4">

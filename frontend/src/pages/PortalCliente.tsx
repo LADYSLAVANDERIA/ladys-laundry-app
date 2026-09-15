@@ -350,7 +350,14 @@ export default function PortalCliente() {
                       Este ciclo usaste {m.kilos_extra_ciclo} kg sobre tu plan, a {fmt(m.kilo_adicional)} por kilo.
                     </p>
                     <p className="text-xl font-bold text-amber-800 mt-1">{fmt(m.extra_ciclo)}</p>
-                    <p className="text-[11px] text-amber-600">Se cobra junto con tu próximo pedido.</p>
+                    {/* 15-sep-2026: decía "se cobra junto con tu próximo pedido", que
+                        era del diseño viejo de cobrar al cierre del ciclo. Ahora el kilo
+                        extra se cobra al momento: a la tarjeta del plan, en el local, o
+                        con el link que se manda por WhatsApp. Decirle al cliente que
+                        espere al próximo pedido lo hace ignorar el link que ya recibió. */}
+                    <p className="text-[11px] text-amber-600">
+                      Se cobra aparte: te llega el link de pago por WhatsApp, o lo pagas en el local.
+                    </p>
                   </div>
                 )}
                 {!m.sin_tope && m.restantes === 0 && m.extra_ciclo === 0 && (

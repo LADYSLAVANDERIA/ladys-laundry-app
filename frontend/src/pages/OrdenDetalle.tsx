@@ -447,6 +447,58 @@ export default function OrdenDetalle() {
         )}
         {o.estado === 'ANULADA' && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">Orden anulada{o.motivo_anulacion ? `: ${o.motivo_anulacion}` : ''}</div>}
 
+        {extra.length > 0 && (
+          <div className="no-print rounded-2xl border border-red-200 bg-red-50 p-4 space-y-3">
+            {extra.map((e: any) => (
+              <div key={e.id} className="space-y-2">
+                <p className="text-sm font-semibold text-red-800">
+                  Kilo extra del Club sin cobrar: {fmt(e.monto)} ({e.kilos_excedidos} kg)
+                </p>
+                {e.motivo && <p className="text-xs text-red-700">{e.motivo}</p>}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { data } = await excedentesApi.pos(e.id)
+                        setExtraPos({ ...data, excedente_id: e.id })
+                        toast.success('Cobro enviado a la máquina')
+                      } catch (err: any) { toast.error(err?.response?.data?.error || 'No se pudo mandar a la máquina') }
+                    }}
+                    className="px-3 py-2 rounded-xl bg-pink-600 text-white text-xs font-semibold">
+                    Cobrar en la máquina
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { data } = await excedentesApi.link(e.id)
+                        // La ventana se abre ANTES de cualquier await posterior o el
+                        // navegador la bloquea como popup.
+                        if (data.whatsapp) window.open(data.whatsapp, '_blank')
+                        else { await navigator.clipboard.writeText(data.url); toast.success('Link copiado') }
+                      } catch (err: any) { toast.error(err?.response?.data?.error || 'No se pudo generar el link') }
+                    }}
+                    className="px-3 py-2 rounded-xl border border-red-300 text-red-700 text-xs font-semibold">
+                    Mandarle el link de pago
+                  </button>
+                </div>
+                {extraPos?.excedente_id === e.id && (
+                  <p className="text-xs text-red-700">
+                    Esperando la tarjeta en la máquina…{' '}
+                    <button className="underline" onClick={async () => {
+                      try {
+                        const { data } = await excedentesApi.estadoPos(extraPos.mp_order_id)
+                        if (data.estado === 'PAGADA') {
+                          toast.success('Kilo extra cobrado'); setExtraPos(null); load()
+                        } else toast('Todavía no, sigue esperando')
+                      } catch { toast.error('No se pudo consultar') }
+                    }}>ya pagó, revisar</button>
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="grid md:grid-cols-3 gap-4">
           <div className="md:col-span-2 space-y-4">
             {/* Ítems */}
@@ -810,58 +862,6 @@ export default function OrdenDetalle() {
               <button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
             </div>
           </div>
-        </div>
-      )}
-
-      {extra.length > 0 && (
-        <div className="no-print rounded-2xl border border-red-200 bg-red-50 p-4 space-y-3">
-          {extra.map((e: any) => (
-            <div key={e.id} className="space-y-2">
-              <p className="text-sm font-semibold text-red-800">
-                Kilo extra del Club sin cobrar: {fmt(e.monto)} ({e.kilos_excedidos} kg)
-              </p>
-              {e.motivo && <p className="text-xs text-red-700">{e.motivo}</p>}
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={async () => {
-                    try {
-                      const { data } = await excedentesApi.pos(e.id)
-                      setExtraPos({ ...data, excedente_id: e.id })
-                      toast.success('Cobro enviado a la máquina')
-                    } catch (err: any) { toast.error(err?.response?.data?.error || 'No se pudo mandar a la máquina') }
-                  }}
-                  className="px-3 py-2 rounded-xl bg-pink-600 text-white text-xs font-semibold">
-                  Cobrar en la máquina
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      const { data } = await excedentesApi.link(e.id)
-                      // La ventana se abre ANTES de cualquier await posterior o el
-                      // navegador la bloquea como popup.
-                      if (data.whatsapp) window.open(data.whatsapp, '_blank')
-                      else { await navigator.clipboard.writeText(data.url); toast.success('Link copiado') }
-                    } catch (err: any) { toast.error(err?.response?.data?.error || 'No se pudo generar el link') }
-                  }}
-                  className="px-3 py-2 rounded-xl border border-red-300 text-red-700 text-xs font-semibold">
-                  Mandarle el link de pago
-                </button>
-              </div>
-              {extraPos?.excedente_id === e.id && (
-                <p className="text-xs text-red-700">
-                  Esperando la tarjeta en la máquina…{' '}
-                  <button className="underline" onClick={async () => {
-                    try {
-                      const { data } = await excedentesApi.estadoPos(extraPos.mp_order_id)
-                      if (data.estado === 'PAGADA') {
-                        toast.success('Kilo extra cobrado'); setExtraPos(null); load()
-                      } else toast('Todavía no, sigue esperando')
-                    } catch { toast.error('No se pudo consultar') }
-                  }}>ya pagó, revisar</button>
-                </p>
-              )}
-            </div>
-          ))}
         </div>
       )}
 

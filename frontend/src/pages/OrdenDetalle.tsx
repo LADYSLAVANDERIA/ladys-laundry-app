@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi, descuentosApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { excedentesApi, ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
+import { beneficiosApi, excedentesApi, ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
@@ -25,6 +25,7 @@ export default function OrdenDetalle() {
   // Kilo extra del Club que la tarjeta rechazo. No se deja en "cobralo a mano":
   // se ofrece la maquina o el link de pago.
   const [extra, setExtra] = useState<any[]>([])
+  const [regalos, setRegalos] = useState<any[]>([])   // cobertor del Club sin canjear
   const [extraPos, setExtraPos] = useState<any>(null)
   const confirmarReverso = async () => {
     if (!String(revertir?.motivo || '').trim()) return toast.error('Escribe el motivo: queda en el historial')
@@ -84,6 +85,9 @@ export default function OrdenDetalle() {
       // Si el cliente es socio y se paso del tope, puede haber un kilo extra
       // sin cobrar. No se muestra si no hay nada: el silencio es lo normal.
       excedentesApi.deOrden(id!).then(r => setExtra(r.data?.excedentes || [])).catch(() => setExtra([]))
+      if (data.cliente_id)
+        beneficiosApi.deCliente(data.cliente_id)
+          .then(r => setRegalos(r.data?.beneficios || [])).catch(() => setRegalos([]))
     } catch { toast.error('Orden no encontrada'); navigate('/ordenes') }
   }
   useEffect(() => {
@@ -446,6 +450,32 @@ export default function OrdenDetalle() {
           </div>
         )}
         {o.estado === 'ANULADA' && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">Orden anulada{o.motivo_anulacion ? `: ${o.motivo_anulacion}` : ''}</div>}
+
+        {regalos.length > 0 && (
+          <div className="no-print rounded-2xl border border-purple-200 bg-purple-50 p-4 space-y-2">
+            {regalos.map((g: any) => (
+              <div key={g.id} className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold text-purple-900">{g.descripcion}</p>
+                  <p className="text-xs text-purple-700">{g.motivo} · {g.en_que_va}</p>
+                </div>
+                {g.estado === 'DISPONIBLE' && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const { data } = await beneficiosApi.canjear(g.id, o.id)
+                        toast.success(`Regalo aplicado: ${fmt(data.descontado)} descontados`)
+                        load()
+                      } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo canjear') }
+                    }}
+                    className="px-3 py-2 rounded-xl bg-purple-600 text-white text-xs font-semibold">
+                    Canjear en este pedido
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {extra.length > 0 && (
           <div className="no-print rounded-2xl border border-red-200 bg-red-50 p-4 space-y-3">

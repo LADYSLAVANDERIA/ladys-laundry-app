@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { clubApi, clientesApi, prepagosApi, serviciosApi, ordenesApi } from '../services/api'
+import { clubApi, clientesApi, prepagosApi, serviciosApi, ordenesApi, planApi } from '../services/api'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { CreditCard, Plus, X, Save, Package, AlertCircle, Gift, BarChart2, RefreshCw, Scale, TrendingUp, Ban, Link2 } from 'lucide-react'
+import { CreditCard, Plus, X, Save, Package, AlertCircle, Gift, BarChart2, RefreshCw, Scale, TrendingUp, Ban, Link2, ArrowUpRight } from 'lucide-react'
 import { fmt, fechaCorta, fechaHora, ot } from '../utils'
 
 const hoy = () => new Date().toLocaleDateString('en-CA')
@@ -164,10 +164,12 @@ export default function Membresias() {
                       <span>Ciclo hasta {fechaCorta(m.ciclo_fin)}</span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 border-t divide-x">
+                  <div className="grid grid-cols-5 border-t divide-x">
                     <button onClick={() => { setSel(m); setForm({ kilos: '' }); setModal(kilos ? 'ot-kilos' : 'ot-saldo') }}
                       className="flex items-center justify-center gap-1.5 py-3 text-xs font-medium text-pink-600 hover:bg-pink-50"><Package size={14} /> Nueva OT</button>
                     <button onClick={() => verMovs(m)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-medium text-gray-600 hover:bg-gray-50"><BarChart2 size={14} /> Historial</button>
+                    <button onClick={() => { setSel(m); setModal('subir') }}
+                      className="flex items-center justify-center gap-1.5 py-3 text-xs font-medium text-purple-600 hover:bg-purple-50"><ArrowUpRight size={14} /> Subir de plan</button>
                     <button onClick={() => renovar(m)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-medium text-green-600 hover:bg-green-50"><RefreshCw size={14} /> Renovar</button>
                     <button onClick={() => cancelar(m)} className="flex items-center justify-center gap-1.5 py-3 text-xs font-medium text-red-500 hover:bg-red-50"><Ban size={14} /> Baja</button>
                   </div>
@@ -176,6 +178,55 @@ export default function Membresias() {
             })}
           </div>
         )}
+
+      {/* Subir de plan. El cobertor de regalo NO se entrega al tiro: queda
+          prometido y se canjea recién tras 2 meses pagados, para que nadie suba,
+          cobre el regalo y se devuelva al plan chico. */}
+      {modal === 'subir' && sel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-bold">Subir de plan · {sel.cliente}</h2>
+                <p className="text-xs text-gray-500">Hoy: {sel.plan} · {fmt(sel.precio_plan)}/mes</p>
+              </div>
+              <button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button>
+            </div>
+            <div className="space-y-2">
+              {planes.filter((p: any) => Number(p.precio) > Number(sel.precio_plan)).map((p: any) => (
+                <button key={p.id}
+                  onClick={async () => {
+                    try {
+                      const { data } = await planApi.subir(sel.id, p.id, true)
+                      toast.success(`${data.plan_anterior} → ${data.plan_nuevo}. Cobra la diferencia: ${fmt(data.diferencia)}`, { duration: 8000 })
+                      if (data.beneficio_id) toast(data.aviso, { duration: 9000 })
+                      setModal(null); load()
+                    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo subir el plan') }
+                  }}
+                  className="w-full text-left p-3 rounded-xl border hover:border-purple-400 hover:bg-purple-50">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-sm">{p.nombre}</p>
+                      <p className="text-xs text-gray-500">
+                        {p.modalidad === 'ILIMITADO' ? 'Sin tope de kilos' : `${Number(p.kilos_incluidos)} kg al mes`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-purple-600">{fmt(p.precio)}</p>
+                      <p className="text-[11px] text-gray-400">paga {fmt(Number(p.precio) - Number(sel.precio_plan))} ahora</p>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 bg-amber-50 border border-amber-200 rounded-xl p-3">
+              Se le regala el lavado de un cobertor de 2 plazas. Queda anotado y lo puede
+              canjear <b>después de 2 meses pagados</b> en el plan nuevo. El ciclo no se
+              reinicia: ya pagó este mes, así que paga solo la diferencia.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Nueva OT por kilos */}
       {modal === 'ot-kilos' && sel && (

@@ -441,6 +441,36 @@ router.post('/prepagos/:id/consumir', auth, async (req, res) => {
   } finally { client.release(); }
 });
 
+// ── SUBIR DE PLAN ──
+// La logica vive en la base (ladys.subir_de_plan): el ciclo no se reinicia, el
+// socio paga solo la diferencia y el cobertor de regalo queda PROMETIDO hasta
+// que cumpla 2 meses pagados en el plan nuevo.
+router.post('/prepagos/:id/subir-plan', auth, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT ladys.subir_de_plan($1,$2,$3,$4) AS r',
+      [req.params.id, Number(req.body.plan_id), req.user.id, req.body.con_regalo !== false]);
+    res.json(rows[0].r);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
+// Regalos abiertos de un cliente (prometidos y disponibles).
+router.get('/beneficios/cliente/:id', auth, async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      'SELECT * FROM ladys.beneficios_abiertos WHERE cliente_id=$1 ORDER BY id', [req.params.id]);
+    res.json({ beneficios: rows });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Canjear un regalo contra un pedido concreto.
+router.post('/beneficios/:id/canjear', auth, async (req, res) => {
+  try {
+    const { rows } = await db.query('SELECT ladys.canjear_beneficio($1,$2,$3) AS r',
+      [req.params.id, Number(req.body.orden_id), req.user.id]);
+    res.json(rows[0].r);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+});
+
 // Recargar saldo
 router.post('/prepagos/:id/recargar', auth, async (req, res) => {
   const client = await db.connect();

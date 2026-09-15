@@ -49,6 +49,14 @@ export const ordenesApi = {
   borrarFoto: (fotoId: number) => fotosApi.delete(`/${fotoId}`),
   aviso: (id: number | string, d: object) => api.post(`/ordenes/${id}/aviso`, d),
 }
+export const planApi = {
+  subir: (prepagoId: number, plan_id: number, con_regalo = true) =>
+    api.post(`/prepagos/${prepagoId}/subir-plan`, { plan_id, con_regalo }),
+}
+export const beneficiosApi = {
+  deCliente: (clienteId: number) => api.get(`/beneficios/cliente/${clienteId}`),
+  canjear: (id: number, orden_id: number) => api.post(`/beneficios/${id}/canjear`, { orden_id }),
+}
 export const programacionApi = { get: (fecha: string) => api.get('/programacion', { params: { fecha } }) }
 export const retirosApi = {
   disponibilidad: (fecha: string) => api.get('/retiros/disponibilidad', { params: { fecha } }),

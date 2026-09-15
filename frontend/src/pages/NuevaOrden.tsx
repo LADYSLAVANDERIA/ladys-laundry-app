@@ -268,7 +268,20 @@ export default function NuevaOrden() {
           kilos: kilosParte,
           observaciones: nota,
           monto_delivery: envio,
-          fecha_entrega: addDiasHabiles(f.fecha_recogida || hoy(), parte.dias),
+          // LA FECHA QUE ESCRIBE EL OPERADOR MANDA (15-sep-2026).
+          // Antes esta línea pisaba SIEMPRE lo que el operador hubiera puesto a
+          // mano: en la OT 6606 se escribió el 22 y la orden nació con el 21,
+          // calculado desde los días hábiles del servicio. Había que entrar a
+          // editarla para corregir lo que ya se había escrito bien.
+          // Si la fecha se tocó a mano, se respeta. La única excepción es una
+          // parte que necesite MÁS tiempo del prometido: ahí gana el plazo real,
+          // porque prometer una fecha que el taller no alcanza es peor que
+          // corregirla ahora.
+          fecha_entrega: (() => {
+            const calculada = addDiasHabiles(f.fecha_recogida || hoy(), parte.dias)
+            if (!fechaManual.current || !f.fecha_entrega) return calculada
+            return f.fecha_entrega >= calculada ? f.fecha_entrega : calculada
+          })(),
           // Cada parte se entrega en su fecha, así que la ruta se elige después.
           ruta_entrega_id: partes.length > 1 ? null : body.ruta_entrega_id,
         })

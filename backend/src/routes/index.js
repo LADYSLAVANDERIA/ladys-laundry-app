@@ -338,14 +338,61 @@ router.get('/prepagos/:id/movimientos', auth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Consumir saldo al crear orden con membresía
+// Consumir la membresía al crear la orden.
+//
+// HAY TRES MODALIDADES Y ANTES SOLO SE ENTENDÍA UNA (15-sep-2026).
+// El endpoint descontaba pesos de saldo_actual y punto. Los planes por KILOS
+// tienen saldo_actual en cero, así que respondía "Saldo insuficiente" y el mesón
+// no podía cargar el pedido de un socio: le pasó a Fernando Berndt con 12,05 kg
+// teniendo 10,55 disponibles.
+// · KILOS     → se descuentan kilos. Pasarse NO bloquea: los kilos de más quedan
+//               registrados y se cobran al cierre del ciclo, que es como está
+//               diseñado el Club (ladys-excedentes cobra contra la tarjeta).
+// · ILIMITADO → cubre todo, no se descuenta nada.
+// · SALDO     → el comportamiento de siempre, en pesos.
 router.post('/prepagos/:id/consumir', auth, async (req, res) => {
   const client = await db.connect();
   try {
     await client.query('BEGIN');
-    const { monto, orden_id } = req.body;
+    const { monto, orden_id, kilos } = req.body;
     const { rows: prep } = await client.query('SELECT * FROM prepagos_cliente WHERE id=$1 AND activo=TRUE', [req.params.id]);
     if (!prep[0]) return res.status(404).json({ error: 'Membresía no encontrada' });
+
+    const modalidad = String(prep[0].modalidad || 'SALDO');
+    if (modalidad === 'KILOS' || modalidad === 'ILIMITADO') {
+      const kg = Number(kilos) || 0;
+      if (modalidad === 'KILOS') {
+        if (kg <= 0) return res.status(400).json({ error: 'Falta el peso para descontar de la membresía' });
+        const disponibles = Number(prep[0].kilos_incluidos) - Number(prep[0].kilos_usados);
+        const exceso = Math.max(0, kg - disponibles);
+        await client.query('UPDATE prepagos_cliente SET kilos_usados = kilos_usados + $2 WHERE id=$1',
+          [req.params.id, kg]);
+        await client.query(
+          "INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,monto,orden_id) VALUES ($1,$2,'CONSUMO',$3,$4)",
+          [req.params.id, prep[0].cliente_id, kg, orden_id]);
+        if (orden_id) {
+          await client.query("UPDATE ordenes SET monto_abonado=monto_total, saldo_pendiente=0, estado_pago='PAGADA', pagada_el=NOW(), es_membresia=TRUE WHERE id=$1", [orden_id]);
+          await client.query("INSERT INTO ordenes_historial (orden_id,estado,nota,usuario_id) VALUES ($1,NULL,$2,$3)",
+            [orden_id, `Cubierto por el plan: ${kg} kg descontados` +
+              (exceso > 0 ? `. Se pasó por ${exceso.toFixed(2)} kg, que se cobran al cierre del ciclo a $${Math.round(Number(prep[0].kilo_adicional)).toLocaleString('es-CL')} el kilo.` : '.'),
+             req.user.id]);
+        }
+        const { rows } = await client.query('SELECT * FROM prepagos_cliente WHERE id=$1', [req.params.id]);
+        await client.query('COMMIT');
+        return res.json({ ...rows[0], kilos_cubiertos: Math.min(kg, Math.max(disponibles, 0)),
+          kilos_exceso: exceso, monto_exceso: Math.round(exceso * Number(prep[0].kilo_adicional)) });
+      }
+      // ILIMITADO: no hay nada que descontar
+      if (orden_id) {
+        await client.query("UPDATE ordenes SET monto_abonado=monto_total, saldo_pendiente=0, estado_pago='PAGADA', pagada_el=NOW(), es_membresia=TRUE WHERE id=$1", [orden_id]);
+        await client.query("INSERT INTO ordenes_historial (orden_id,estado,nota,usuario_id) VALUES ($1,NULL,$2,$3)",
+          [orden_id, 'Cubierto por el plan ilimitado del Club.', req.user.id]);
+      }
+      const { rows } = await client.query('SELECT * FROM prepagos_cliente WHERE id=$1', [req.params.id]);
+      await client.query('COMMIT');
+      return res.json({ ...rows[0], kilos_cubiertos: Number(kilos) || 0, kilos_exceso: 0, monto_exceso: 0 });
+    }
+
     if (prep[0].saldo_actual < monto) return res.status(400).json({ error: 'Saldo insuficiente' });
     await client.query('UPDATE prepagos_cliente SET saldo_actual=saldo_actual-$2 WHERE id=$1', [req.params.id, monto]);
     await client.query(

@@ -208,7 +208,13 @@ export default function NuevaOrden() {
     if (domicilio && !f.dir_id) return toast.error('Selecciona la dirección de domicilio')
     if (f.retiro_domicilio && !f.ruta_recogida_id) return toast.error('Elige la ruta de retiro')
     if (f.entrega_domicilio && !f.ruta_entrega_id) return toast.error('Elige la ruta de entrega')
-    if (usarMemb && memb && total > Number(memb.saldo_actual)) return toast.error(`El total supera el saldo de la membresía (${fmt(memb.saldo_actual)})`)
+    // Solo los planes en PESOS tienen saldo que alcance o no alcance. En los
+    // planes por kilos, pasarse NO bloquea: los kilos de mas se cobran al cierre
+    // del ciclo. Bloquear ahi dejaba al meson sin poder cargarle el pedido a un
+    // socio, que es exactamente lo contrario de lo que el socio pago.
+    if (usarMemb && memb && String(memb.modalidad || 'SALDO') === 'SALDO'
+        && total > Number(memb.saldo_actual))
+      return toast.error(`El total supera el saldo de la membresía (${fmt(memb.saldo_actual)})`)
     // Un descuento sin motivo no se puede auditar despues: quien lo dio, por que
     // y a quien. Por eso el motivo es obligatorio, igual que en el detalle.
     if (descManualValor > 0 && !String(descManual.motivo || '').trim())
@@ -293,7 +299,11 @@ export default function NuevaOrden() {
         if (n === 0 && String(f.ot_easylaundry || '').trim())
           await ordenesApi.update(o.id, { ot_easylaundry: String(f.ot_easylaundry).trim() }).catch(() => {})
         if (usarMemb && memb)
-          await api.post(`/prepagos/${memb.id}/consumir`, { monto: sub - desc + envio, orden_id: o.id })
+          await api.post(`/prepagos/${memb.id}/consumir`, {
+            monto: sub - desc + envio, orden_id: o.id,
+            // Los planes por kilo descuentan PESO, no plata.
+            kilos: kilosParte,   // ya calculado arriba: los items de tipo KILO de esta parte
+          })
       }
 
       toast.success(creadas.length > 1
@@ -553,7 +563,12 @@ export default function NuevaOrden() {
 
             {memb ? (
               <label className={`flex items-center gap-2 p-3 rounded-xl border text-sm cursor-pointer ${usarMemb ? 'bg-purple-50 border-purple-300 text-purple-700' : 'text-gray-600'}`}>
-                <input type="checkbox" checked={usarMemb} onChange={e => setUsarMemb(e.target.checked)} /><CreditCard size={14} /> Descontar de membresía (saldo {fmt(memb.saldo_actual)})
+                <input type="checkbox" checked={usarMemb} onChange={e => setUsarMemb(e.target.checked)} /><CreditCard size={14} />
+                {String(memb.modalidad) === 'ILIMITADO'
+                  ? 'Cubierto por su plan (ilimitado)'
+                  : String(memb.modalidad) === 'KILOS'
+                    ? `Descontar de su plan (le quedan ${(Number(memb.kilos_incluidos) - Number(memb.kilos_usados)).toFixed(2)} kg)`
+                    : `Descontar de membresía (saldo ${fmt(memb.saldo_actual)})`}
               </label>
             ) : null}
             {!usarMemb && (

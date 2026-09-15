@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi, fichaApi, dirApi, descuentosApi } from '../services/api'
+import api, { clientesApi, serviciosApi, rutasApi, ordenesApi, formasPagoApi, configApi, retirosApi, fichaApi, dirApi, descuentosApi, planApi } from '../services/api'
 import ItemsPicker, { buildItems } from '../components/ItemsPicker'
 import MapaDireccion from '../components/MapaDireccion'
 import type { Item } from '../components/ItemsPicker'
@@ -299,7 +299,7 @@ export default function NuevaOrden() {
         if (n === 0 && String(f.ot_easylaundry || '').trim())
           await ordenesApi.update(o.id, { ot_easylaundry: String(f.ot_easylaundry).trim() }).catch(() => {})
         if (usarMemb && memb) {
-          const { data: mres } = await api.post(`/prepagos/${memb.id}/consumir`, {
+          const { data: mres } = await planApi.consumir(memb.id, {
             monto: sub - desc + envio, orden_id: o.id,
             // Los planes por kilo descuentan PESO, no plata.
             kilos: kilosParte,   // ya calculado arriba: los items de tipo KILO de esta parte

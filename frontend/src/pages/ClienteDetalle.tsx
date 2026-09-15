@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { clientesApi, fichaApi, serviciosApi, dirApi } from '../services/api'
+import { clientesApi, fichaApi, serviciosApi, dirApi, planApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2, TrendingUp, Clock, Repeat, AlertTriangle, Truck, Zap, Smartphone, Copy, Navigation } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Plus, X, MapPin, Save, Percent, CreditCard, Package, Trash2, CheckCircle2, Circle, Building2, Tag, Pencil, Loader2, TrendingUp, Clock, Repeat, AlertTriangle, Truck, Zap, Smartphone, Copy, Navigation, Gift } from 'lucide-react'
 import { fmt, ot, fechaCorta, fechaHora, waLink, telWa, ESTADO_COLOR, ESTADO_LABEL } from '../utils'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import MapaDireccion from '../components/MapaDireccion'
@@ -12,12 +12,20 @@ const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:rin
 export default function ClienteDetalle() {
   const { id } = useParams(); const navigate = useNavigate()
   const [c, setC] = useState<any>(null); const [modal, setModal] = useState<string | null>(null)
+  // Excedentes, regalos y planes salen de ladys-membresias, no de la ficha:
+  // la API de producción es la función `ladys` y no tiene estos datos.
+  const [extras, setExtras] = useState<any>({ excedentes: [], beneficios: [], planes: [] })
   const [dir, setDir] = useState<any>({ ciudad: 'Concón' }); const [edit, setEdit] = useState<any>(null)
   const [precios, setPrecios] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([])
   const [ana, setAna] = useState<any>(null)
   const [nuevoPrecio, setNuevoPrecio] = useState<any>({}); const [guardando, setGuardando] = useState(false)
 
-  const load = async () => { try { const { data } = await clientesApi.getById(id!); setC(data); } catch { toast.error('Cliente no encontrado'); navigate('/clientes') } }
+  const load = async () => {
+    try {
+      const { data } = await clientesApi.getById(id!); setC(data)
+      planApi.ficha(Number(id)).then(r => setExtras(r.data)).catch(() => {})
+    } catch { toast.error('Cliente no encontrado'); navigate('/clientes') }
+  }
   const cargarPrecios = async () => { try { const { data } = await fichaApi.precios(id!); setPrecios(data) } catch { /* sin convenio */ } }
   useEffect(() => { load(); cargarPrecios(); fichaApi.analitica(id!).then(r => setAna(r.data)).catch(() => {}); serviciosApi.getAll().then(r => setServicios(r.data)).catch(() => {}) }, [id])
   if (!c) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
@@ -235,7 +243,61 @@ export default function ClienteDetalle() {
         </div>
       </div>
 
-      {(c.excedentes || []).length > 0 && (
+      {extras.membresia && (extras.planes || []).some((p: any) => Number(p.precio) > Number(extras.membresia.precio_plan)) && (
+        <div className="bg-white rounded-2xl shadow-sm border p-4">
+          <p className="font-semibold text-gray-700 flex items-center gap-1.5 mb-1">
+            <Gift size={15} className="text-purple-500" /> Subir de plan
+          </p>
+          <p className="text-xs text-gray-400 mb-3">
+            Paga solo la diferencia y el ciclo no se reinicia. Se le regala el lavado de un
+            cobertor de 2 plazas, canjeable después de 2 meses pagados en el plan nuevo.
+          </p>
+          <div className="space-y-2">
+            {(extras.planes || []).filter((p: any) => Number(p.precio) > Number(extras.membresia.precio_plan)).map((p: any) => (
+              <button key={p.id}
+                onClick={async () => {
+                  if (!confirm(`¿Subir a ${p.nombre}? Cobra ahora la diferencia de ${fmt(Number(p.precio) - Number(extras.membresia.precio_plan))}.`)) return
+                  try {
+                    const { data } = await planApi.subir(extras.membresia.id, p.id, true)
+                    toast.success(`${data.plan_anterior} → ${data.plan_nuevo}. Cobra ${fmt(data.diferencia)}`, { duration: 8000 })
+                    if (data.aviso) toast(data.aviso, { duration: 9000 })
+                    load()
+                  } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo subir el plan') }
+                }}
+                className="w-full text-left p-3 rounded-xl border hover:border-purple-400 hover:bg-purple-50">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold text-sm">{p.nombre}</p>
+                    <p className="text-xs text-gray-500">
+                      {p.modalidad === 'ILIMITADO' ? 'Sin tope de kilos' : `${Number(p.kilos_incluidos)} kg al mes`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-purple-600">{fmt(p.precio)}</p>
+                    <p className="text-[11px] text-gray-400">paga {fmt(Number(p.precio) - Number(extras.membresia.precio_plan))} ahora</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {(extras.beneficios || []).length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border p-4">
+          <p className="font-semibold text-gray-700 flex items-center gap-1.5 mb-2">
+            <Gift size={15} className="text-purple-500" /> Regalos del Club
+          </p>
+          {extras.beneficios.map((g: any) => (
+            <div key={g.id} className="text-sm border-t pt-2 first:border-0 first:pt-0">
+              <p className="text-gray-700">{g.descripcion}</p>
+              <p className="text-xs text-gray-400">{g.motivo} · {g.en_que_va}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(extras.excedentes || []).length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border p-4">
           <p className="font-semibold text-gray-700 flex items-center gap-1.5 mb-1">
             <CreditCard size={15} className="text-amber-500" /> Kilos extra de su plan
@@ -249,7 +311,7 @@ export default function ClienteDetalle() {
                 <th className="py-1">Fecha</th><th>Pedido</th><th>Kilos</th><th>Monto</th><th>Cómo se cobró</th>
               </tr></thead>
               <tbody>
-                {c.excedentes.map((e: any) => (
+                {extras.excedentes.map((e: any) => (
                   <tr key={e.id} className="border-t">
                     <td className="py-1.5">{fechaCorta(e.cobrado_en || e.creado_en)}</td>
                     <td>{e.orden_id ? <button className="text-pink-600" onClick={() => navigate(`/ordenes/${e.orden_id}`)}>{ot(e.orden_id)}</button> : <span className="text-gray-300">cierre de ciclo</span>}</td>

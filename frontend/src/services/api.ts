@@ -49,13 +49,30 @@ export const ordenesApi = {
   borrarFoto: (fotoId: number) => fotosApi.delete(`/${fotoId}`),
   aviso: (id: number | string, d: object) => api.post(`/ordenes/${id}/aviso`, d),
 }
+// Membresías, beneficios y reverso de pago. Van a su PROPIA edge function y no
+// a /api: la API de producción es la función `ladys`, no el Express del repo, y
+// meter esto ahí obligaría a redesplegar la función más grande del sistema.
+const MEMB_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-membresias')
+const membAx = axios.create({ baseURL: MEMB_URL })
+membAx.interceptors.request.use(cfg => {
+  const t = useAuthStore.getState().token
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
 export const planApi = {
-  subir: (prepagoId: number, plan_id: number, con_regalo = true) =>
-    api.post(`/prepagos/${prepagoId}/subir-plan`, { plan_id, con_regalo }),
+  ficha:  (clienteId: number) => membAx.get(`/ficha/${clienteId}`),
+  subir:  (prepago_id: number, plan_id: number, con_regalo = true) =>
+    membAx.post('/subir-plan', { prepago_id, plan_id, con_regalo }),
+  consumir: (prepago_id: number, d: object) => membAx.post('/consumir', { prepago_id, ...d }),
 }
 export const beneficiosApi = {
-  deCliente: (clienteId: number) => api.get(`/beneficios/cliente/${clienteId}`),
-  canjear: (id: number, orden_id: number) => api.post(`/beneficios/${id}/canjear`, { orden_id }),
+  deCliente: (clienteId: number) => membAx.get(`/ficha/${clienteId}`),
+  canjear: (beneficio_id: number, orden_id: number) =>
+    membAx.post('/canjear', { beneficio_id, orden_id }),
+}
+export const pagoApi = {
+  revertir: (orden_id: number, pago_id: number, motivo: string) =>
+    membAx.post('/revertir-pago', { orden_id, pago_id, motivo }),
 }
 export const programacionApi = { get: (fecha: string) => api.get('/programacion', { params: { fecha } }) }
 export const retirosApi = {

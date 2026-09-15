@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi, descuentosApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { beneficiosApi, excedentesApi, ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
+import { beneficiosApi, excedentesApi, pagoApi, ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
@@ -30,7 +30,7 @@ export default function OrdenDetalle() {
   const confirmarReverso = async () => {
     if (!String(revertir?.motivo || '').trim()) return toast.error('Escribe el motivo: queda en el historial')
     try {
-      await ordenesApi.revertirPago(o.id, revertir.id, revertir.motivo.trim())
+      await pagoApi.revertir(o.id, revertir.id, revertir.motivo.trim())
       toast.success('Pago revertido')
       setRevertir(null); load()
     } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo revertir el pago') }

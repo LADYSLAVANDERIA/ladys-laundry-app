@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { etapasApi } from '../services/api'
+import { etapasApi, ordenesApi } from '../services/api'
+import { waLink, mensajeSegunEtapa, linkOT, tipoAviso } from '../utils'
 import toast from 'react-hot-toast'
 import {
   Camera, CameraOff, Check, AlertTriangle, Package, Droplets,
-  Wind, Truck, Store, Keyboard, MessageCircle,
+  Wind, Truck, Store, Keyboard, MessageCircle, Send,
 } from 'lucide-react'
 
 // La etapa la define la estación: se elige una vez y se escanea sin volver a tocar nada.
@@ -31,6 +32,7 @@ export default function Produccion() {
   const [manual, setManual] = useState('')
   const [hechos, setHechos] = useState<any[]>([])
   const [bultos, setBultos] = useState<any>(null)   // pedido esperando cantidad de bultos
+  const [ficha, setFicha] = useState<any>(null)     // datos del cliente para poder avisarle
   const lector = useRef<any>(null)
   const ultimo = useRef<{ cod: string; t: number }>({ cod: '', t: 0 })
 
@@ -49,7 +51,16 @@ export default function Produccion() {
       else toast.success(`${data.cliente} · ${est.txt}`)
       setHechos(h => [{ ...data, hora: new Date() }, ...h].slice(0, 20))
       // al embalar preguntamos los bultos, que es el dato que se pierde si no se pide aquí
-      if (estacion === 'EMBOLSADO' && nBultos == null) setBultos(data)
+      if (estacion === 'EMBOLSADO' && nBultos == null) {
+        setBultos(data)
+        // El marcaje no trae telefono ni token, y sin eso no se puede armar el
+        // WhatsApp. Se pide la ficha aparte para no tener que salir de aca: antes
+        // habia solo un enlace que sacaba a Catalina del escaneo, y por eso el
+        // aviso simplemente no se mandaba.
+        ordenesApi.getById(data.orden_id)
+          .then(r => setFicha(r.data))
+          .catch(() => setFicha(null))
+      }
     } catch (e: any) {
       if (navigator.vibrate) navigator.vibrate([80, 50, 80])
       toast.error(e?.response?.data?.error || 'No se pudo marcar')
@@ -184,11 +195,29 @@ export default function Produccion() {
                 ))}
               </div>
             </div>
-            <a href={`#/ordenes/${bultos.orden_id}`}
-               className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border text-sm text-gray-600">
-              <MessageCircle size={15} /> Abrir el pedido para avisarle al cliente
-            </a>
-            <button onClick={() => setBultos(null)}
+            {ficha?.cliente_telefono ? (
+              <button
+                onClick={() => {
+                  const msg = mensajeSegunEtapa({ ...ficha, etapa: 'EMBOLSADO' }, linkOT(ficha.id, ficha.token_publico))
+                  // La ventana se abre ANTES del await: si se abre despues, el
+                  // navegador la toma como popup y la bloquea.
+                  window.open(waLink(ficha.cliente_telefono, msg), '_blank')
+                  ordenesApi.aviso(ficha.id, { tipo: tipoAviso({ ...ficha, etapa: 'EMBOLSADO' }), mensaje: msg })
+                    .then(() => toast.success('Avisado y anotado en la OT'))
+                    .catch(() => toast.error('Se abrio WhatsApp, pero no se pudo dejar el registro en la OT'))
+                }}
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white text-sm font-semibold"
+                style={{ background: '#16a34a' }}>
+                <Send size={15} /> Avisarle al cliente por WhatsApp
+              </button>
+            ) : (
+              <a href={`#/ordenes/${bultos.orden_id}`}
+                 className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border text-sm text-gray-600">
+                <MessageCircle size={15} />
+                {ficha ? 'Sin telefono: abrir el pedido' : 'Abrir el pedido para avisarle al cliente'}
+              </a>
+            )}
+            <button onClick={() => { setBultos(null); setFicha(null) }}
                     className="w-full py-3 rounded-xl text-white text-sm font-medium"
                     style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
               Listo, seguir escaneando

@@ -367,9 +367,14 @@ router.post('/prepagos/:id/consumir', auth, async (req, res) => {
         const exceso = Math.max(0, kg - disponibles);
         await client.query('UPDATE prepagos_cliente SET kilos_usados = kilos_usados + $2 WHERE id=$1',
           [req.params.id, kg]);
+        // CONSUMO_KILOS y no CONSUMO: es el tipo que el portal del socio traduce
+        // a "Pedido #X". Y los kilos van en la columna `kilos`, no en `monto`:
+        // con el tipo equivocado el movimiento salía como "CONSUMO" pelado, sin
+        // el número de pedido y sin los kilos.
         await client.query(
-          "INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,monto,orden_id) VALUES ($1,$2,'CONSUMO',$3,$4)",
-          [req.params.id, prep[0].cliente_id, kg, orden_id]);
+          `INSERT INTO prepago_movimientos (prepago_id,cliente_id,tipo,kilos,monto,orden_id,detalle)
+           VALUES ($1,$2,'CONSUMO_KILOS',$3,0,$4,$5)`,
+          [req.params.id, prep[0].cliente_id, kg, orden_id, `${kg} kg del plan`]);
         if (orden_id) {
           await client.query("UPDATE ordenes SET monto_abonado=monto_total, saldo_pendiente=0, estado_pago='PAGADA', pagada_el=NOW(), es_membresia=TRUE WHERE id=$1", [orden_id]);
           await client.query("INSERT INTO ordenes_historial (orden_id,estado,nota,usuario_id) VALUES ($1,NULL,$2,$3)",

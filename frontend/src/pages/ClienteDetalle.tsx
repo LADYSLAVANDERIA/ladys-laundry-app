@@ -208,14 +208,63 @@ export default function ClienteDetalle() {
           <p className="font-semibold text-gray-700 flex items-center gap-1.5 mb-3"><CreditCard size={15} className="text-purple-500" /> Membresía</p>
           {c.membresia ? (
             <div>
-              <p className="text-2xl font-bold text-purple-600">{fmt(c.membresia.saldo_actual)}</p>
-              <p className="text-xs text-gray-400">de {fmt(c.membresia.saldo_inicial)} · {c.membresia.plan}</p>
+              {/* Un plan por kilos no tiene saldo en pesos: mostrarlo en $0 hacía
+                  creer que la membresía estaba agotada. */}
+              {String(c.membresia.modalidad) === 'KILOS' ? (
+                <>
+                  <p className="text-2xl font-bold text-purple-600">
+                    {(Number(c.membresia.kilos_incluidos) - Number(c.membresia.kilos_usados)).toFixed(2)} kg
+                  </p>
+                  <p className="text-xs text-gray-400">de {Number(c.membresia.kilos_incluidos)} kg · {c.membresia.plan}</p>
+                </>
+              ) : String(c.membresia.modalidad) === 'ILIMITADO' ? (
+                <>
+                  <p className="text-2xl font-bold text-purple-600">Sin tope</p>
+                  <p className="text-xs text-gray-400">{c.membresia.plan}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold text-purple-600">{fmt(c.membresia.saldo_actual)}</p>
+                  <p className="text-xs text-gray-400">de {fmt(c.membresia.saldo_inicial)} · {c.membresia.plan}</p>
+                </>
+              )}
               <p className="text-xs text-gray-400 mt-1">Vence {fechaCorta(c.membresia.fecha_venc)}</p>
               <button onClick={() => navigate('/membresias')} className="mt-3 text-xs text-purple-600 font-medium">Ver movimientos →</button>
             </div>
           ) : <p className="text-sm text-gray-400">Sin membresía activa. <button onClick={() => navigate('/membresias')} className="text-purple-600 font-medium">Activar →</button></p>}
         </div>
       </div>
+
+      {(c.excedentes || []).length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border p-4">
+          <p className="font-semibold text-gray-700 flex items-center gap-1.5 mb-1">
+            <CreditCard size={15} className="text-amber-500" /> Kilos extra de su plan
+          </p>
+          <p className="text-xs text-gray-400 mb-3">
+            Cobros por encima de los kilos incluidos. No son el precio del pedido: ese lo cubrió la membresía.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead><tr className="text-gray-400 text-left">
+                <th className="py-1">Fecha</th><th>Pedido</th><th>Kilos</th><th>Monto</th><th>Cómo se cobró</th>
+              </tr></thead>
+              <tbody>
+                {c.excedentes.map((e: any) => (
+                  <tr key={e.id} className="border-t">
+                    <td className="py-1.5">{fechaCorta(e.cobrado_en || e.creado_en)}</td>
+                    <td>{e.orden_id ? <button className="text-pink-600" onClick={() => navigate(`/ordenes/${e.orden_id}`)}>{ot(e.orden_id)}</button> : <span className="text-gray-300">cierre de ciclo</span>}</td>
+                    <td>{String(Number(e.kilos_excedidos)).replace('.', ',')} kg</td>
+                    <td className="font-medium">{fmt(e.monto)}</td>
+                    <td className={e.estado === 'COBRADO' ? 'text-gray-600' : 'text-red-600 font-medium'}>
+                      {e.medio}{e.estado !== 'COBRADO' && e.motivo ? ` · ${e.motivo}` : ''}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {c.tipo === 'EMPRESA' && (
         <div className="bg-white rounded-2xl shadow-sm border p-4">

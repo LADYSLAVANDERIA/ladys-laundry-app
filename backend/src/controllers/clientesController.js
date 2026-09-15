@@ -28,7 +28,7 @@ const getById = async (req, res) => {
     const { rows } = await db.query('SELECT * FROM clientes WHERE id=$1 AND local_id=$2', [id, req.user.local_id]);
     const cli = rows[0];
     if (!cli) return res.status(404).json({ error: 'Cliente no encontrado' });
-    const [dirs, ords, sem, memb, st] = await Promise.all([
+    const [dirs, ords, sem, memb, exc, st] = await Promise.all([
       db.query('SELECT * FROM direcciones_clientes WHERE cliente_id=$1 ORDER BY es_principal DESC, id', [id]),
       db.query('SELECT id,estado,estado_pago,monto_total,saldo_pendiente,kilos,creado_en,fecha_entrega,es_membresia,origen,tipo_servicio FROM ordenes WHERE cliente_id=$1 ORDER BY creado_en DESC LIMIT 40', [id]),
       db.query(`WITH s AS (SELECT generate_series(date_trunc('week', date_trunc('month', $2::date)), date_trunc('week', $2::date), interval '1 week')::date AS ini)
@@ -37,11 +37,17 @@ const getById = async (req, res) => {
                   AND DATE(o.creado_en) BETWEEN GREATEST(s.ini, date_trunc('month',$2::date)::date) AND LEAST((s.ini+5)::date, $2::date)) AS con_orden
         FROM s ORDER BY s.ini`, [id, hoy]),
       db.query('SELECT pc.*, pp.nombre AS plan, pp.precio AS precio_plan FROM prepagos_cliente pc JOIN planes_prepago pp ON pc.plan_id=pp.id WHERE pc.cliente_id=$1 AND pc.activo=TRUE ORDER BY pc.id DESC LIMIT 1', [id]),
+      // Kilos extra que se le cobraron sobre su plan. Va aparte de las ordenes
+      // porque NO es el precio de un pedido: el pedido lo cubrio la membresia y
+      // quedo en cero. Un cargo a la tarjeta de alguien tiene que verse en su
+      // ficha y decir por que medio se hizo.
+      db.query('SELECT * FROM excedentes_del_cliente WHERE cliente_id=$1 ORDER BY id DESC LIMIT 24', [id]),
       db.query("SELECT COUNT(*) AS total_ordenes, COALESCE(SUM(monto_total),0) AS total_gastado, COALESCE(SUM(saldo_pendiente),0) AS saldo_total, MAX(creado_en) AS ultima_orden FROM ordenes WHERE cliente_id=$1 AND estado<>'ANULADA'", [id]),
     ]);
     const semanas = sem.rows.map(w => ({ ...w, vencida: w.fin < hoy, perdida: w.fin < hoy && !w.con_orden }));
     const perdidas = semanas.filter(w => w.perdida).length;
-    res.json({ ...cli, direcciones: dirs.rows, ordenes: ords.rows, membresia: memb.rows[0] || null, stats: st.rows[0],
+    res.json({ ...cli, direcciones: dirs.rows, ordenes: ords.rows, membresia: memb.rows[0] || null,
+      excedentes: exc.rows, stats: st.rows[0],
       continuidad_info: { activa: !!cli.continuidad, semanas, semanas_con_orden: semanas.filter(w => w.con_orden).length, semanas_perdidas: perdidas, elegible: !!cli.continuidad && perdidas === 0 } });
   } catch (e) { fail(res, e); }
 };

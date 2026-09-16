@@ -237,6 +237,7 @@ export default function NuevaOrden() {
         ? gruposPorPlazo
         : [{ dias: plazo, items: itemsConAjuste }]
       const creadas: number[] = []
+      let fechaGuardada = ''   // la que devuelve el servidor, para confirmarla en pantalla
       // Cuando la orden se parte por plazo, el pago tambien tiene que partirse.
       // Antes el cobro se aplicaba solo a la primera OT y la segunda quedaba
       // impaga sin que nadie lo notara: el cliente pagaba en el mesón creyendo
@@ -277,15 +278,30 @@ export default function NuevaOrden() {
           // parte que necesite MÁS tiempo del prometido: ahí gana el plazo real,
           // porque prometer una fecha que el taller no alcanza es peor que
           // corregirla ahora.
+          // LO QUE SE VE EN EL CAMPO ES LO QUE SE GUARDA (15-sep-2026, 2do intento).
+          // El intento anterior dependia de fechaManual, una marca interna que
+          // registra si el operador toco el campo. Si esa marca no se activa
+          // —porque el componente se remonta, porque el valor llega por otro
+          // camino, o por lo que sea— la fecha se recalculaba y se perdia lo
+          // escrito. Fallo primero en local y despues en domicilio.
+          // Ahora NO se consulta ninguna marca: se guarda el valor del campo,
+          // que es lo que el operador esta viendo. Sin huecos posibles.
+          // Dos excepciones, las unicas:
+          //  - Si la orden se DIVIDE, cada parte tiene su propia fecha y el campo
+          //    unico ya no la representa.
+          //  - Si lo escrito es ANTES de lo que el taller alcanza, gana el plazo
+          //    real: prometer algo imposible es peor que corregirlo aca.
           fecha_entrega: (() => {
             const calculada = addDiasHabiles(f.fecha_recogida || hoy(), parte.dias)
-            if (!fechaManual.current || !f.fecha_entrega) return calculada
+            if (partes.length > 1) return calculada
+            if (!f.fecha_entrega) return calculada
             return f.fecha_entrega >= calculada ? f.fecha_entrega : calculada
           })(),
           // Cada parte se entrega en su fecha, así que la ruta se elige después.
           ruta_entrega_id: partes.length > 1 ? null : body.ruta_entrega_id,
         })
         creadas.push(o.id)
+        if (!fechaGuardada) fechaGuardada = String(o.fecha_entrega || '').slice(0, 10)
 
         // El descuento manual se aplica con el MISMO endpoint que usa el detalle
         // de la orden: asi hay una sola logica de descuentos, un solo control de
@@ -331,7 +347,8 @@ export default function NuevaOrden() {
       toast.success(creadas.length > 1
         ? `${creadas.length} órdenes creadas: ${creadas.map(ot).join(', ')}${
             body.pago ? ' · el pago se repartió entre ellas' : ''}`
-        : `OT ${ot(creadas[0])} creada`, { duration: creadas.length > 1 ? 7000 : 4000 })
+        : `OT ${ot(creadas[0])} creada · entrega ${fechaGuardada || 'sin fecha'}`,
+        { duration: creadas.length > 1 ? 7000 : 5000 })
       // Con POS se abre el pedido y se manda el cobro a la máquina desde ahí,
       // que es el flujo que espera el terminal ("inicia el cobro desde el sistema").
       navigate(`/ordenes/${creadas[0]}?print=1${(!usarMemb && pago.ahora && esPos(pago.forma_pago_id)) ? '&cobrar=pos' : ''}`)

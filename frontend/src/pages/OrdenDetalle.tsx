@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import QRCode from 'qrcode'
 import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi, descuentosApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { beneficiosApi, excedentesApi, pagoApi, ordenesApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
+import { beneficiosApi, excedentesApi, pagoApi, ordenesApi, fichaApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
@@ -17,6 +17,11 @@ export default function OrdenDetalle() {
   const { id } = useParams(); const navigate = useNavigate(); const [params] = useSearchParams()
   const [o, setO] = useState<any>(null); const [local, setLocal] = useState<any>({})
   const [formas, setFormas] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([]); const [rutas, setRutas] = useState<any[]>([])
+  // Precios de convenio del cliente. Sin esto, editar los items de una orden
+  // recalculaba con el precio de LISTA aunque el cliente tuviera tarifa
+  // pactada: a Ultratug le cobraba el kilo a 2.900 en vez de los 3.100 del
+  // convenio. La pantalla de nueva orden ya los aplicaba; esta no.
+  const [convenio, setConvenio] = useState<any[]>([])
   const [pago, setPago] = useState<any>({ forma_pago_id: '', monto: '' })
   // Revertir un pago mal registrado. Antes esto no existia y una OT marcada
   // pagada por error se quedaba asi: no habia como mandarle al cliente los datos
@@ -77,6 +82,18 @@ export default function OrdenDetalle() {
     } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar') }
   }
 
+  const serviciosConPrecio = useMemo(() => {
+    if (!convenio.length) return servicios
+    const mapa = new Map(convenio.map((p: any) => [p.servicio_id, Number(p.precio)]))
+    return servicios.map((s: any) => {
+      const esp = mapa.get(s.id)
+      if (esp === undefined) return s
+      const campo = s.precio_lav_planch > 0 ? 'precio_lav_planch' : s.precio_lav_secado > 0 ? 'precio_lav_secado'
+        : s.precio_solo_planch > 0 ? 'precio_solo_planch' : 'precio_productos'
+      return { ...s, [campo]: esp, _convenio: true }
+    })
+  }, [servicios, convenio])
+
   const load = async () => {
     try {
       const { data } = await ordenesApi.getById(id!)
@@ -85,6 +102,8 @@ export default function OrdenDetalle() {
       // Si el cliente es socio y se paso del tope, puede haber un kilo extra
       // sin cobrar. No se muestra si no hay nada: el silencio es lo normal.
       excedentesApi.deOrden(id!).then(r => setExtra(r.data?.excedentes || [])).catch(() => setExtra([]))
+      if (data.cliente_id)
+        fichaApi.precios(data.cliente_id).then(r => setConvenio(r.data || [])).catch(() => setConvenio([]))
       if (data.cliente_id)
         beneficiosApi.deCliente(data.cliente_id)
           .then(r => setRegalos(r.data?.beneficios || [])).catch(() => setRegalos([]))
@@ -156,7 +175,7 @@ export default function OrdenDetalle() {
   }
   const guardarItems = async () => {
     const { buildItems } = await import('../components/ItemsPicker')
-    const base = buildItems(servicios, kilos, express, prendas)
+    const base = buildItems(serviciosConPrecio, kilos, express, prendas)
     if (!base.length) return toast.error('La orden debe tener al menos un ítem')
 
     // El pedido mínimo se aplicaba solo en Nueva Orden. Cuando la orden venía
@@ -933,7 +952,7 @@ export default function OrdenDetalle() {
         <div className="no-print fixed inset-0 z-50 flex items-start justify-center p-4 bg-black/60 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-2xl p-5 my-8 space-y-4">
             <div className="flex items-center justify-between"><h2 className="font-bold">Editar ítems de {ot(o.id)}</h2><button onClick={() => setModal(null)}><X size={18} className="text-gray-400" /></button></div>
-            <ItemsPicker servicios={servicios} kilos={kilos} setKilos={setKilos} express={express} setExpress={setExpress} prendas={prendas} setPrendas={setPrendas} />
+            <ItemsPicker servicios={serviciosConPrecio} kilos={kilos} setKilos={setKilos} express={express} setExpress={setExpress} prendas={prendas} setPrendas={setPrendas} />
             <div className="flex gap-2"><button onClick={guardarItems} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white font-semibold text-sm" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}><Save size={15} /> Guardar y recalcular</button><button onClick={() => setModal(null)} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button></div>
           </div>
         </div>

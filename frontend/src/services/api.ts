@@ -300,6 +300,8 @@ export const seguimientoApi = {
   posicion: (d: object) => segAx.post('/pos', d),
   iniciar: (parada_id: number) => segAx.post('/iniciar', { parada_id }),
   donde: (fecha?: string) => segAx.get('/donde', { params: { fecha } }),
+  // la ruta en vivo que se mira desde el local: posicion, rastro y paradas del dia
+  recorrido: (fecha?: string) => segAx.get('/recorrido', { params: { fecha } }),
 }
 
 const ETAPAS_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-etapas')

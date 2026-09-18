@@ -38,6 +38,7 @@ import Estacion from './pages/Estacion'
 import Cotejo from './pages/Cotejo'
 import Conductor from './pages/Conductor'
 import Marketing from './pages/Marketing'
+import RutaEnVivo from './pages/RutaEnVivo'
 
 function SoloToken({ children }: { children: React.ReactNode }) {
   const { token } = useAuthStore()
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="/gastos-mp"       element={<PrivateRoute><GastosMp /></PrivateRoute>} />
         <Route path="/rutas"           element={<PrivateRoute><Rutas /></PrivateRoute>} />
         <Route path="/reparto"         element={<PrivateRoute><Reparto /></PrivateRoute>} />
+        <Route path="/ruta-en-vivo"    element={<PrivateRoute><RutaEnVivo /></PrivateRoute>} />
         <Route path="/produccion"      element={<PrivateRoute><Produccion /></PrivateRoute>} />
         <Route path="/taller"          element={<PrivateRoute><Taller /></PrivateRoute>} />
         <Route path="/kpis"            element={<PrivateRoute><Kpis /></PrivateRoute>} />

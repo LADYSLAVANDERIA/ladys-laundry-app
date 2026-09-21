@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { dirApi, repartoApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { MapPinned,
@@ -16,6 +16,15 @@ const nombreDe = (p: any) => (p.es_empresa && p.razon_social)
   ? p.razon_social : [p.nombre, p.apellido].filter(Boolean).join(' ') || 'Sin nombre'
 const dirDe = (p: any) => [p.calle, p.depto, p.sector, p.ciudad].filter(Boolean).join(', ') || 'Sin dirección'
 
+// La mañana y la tarde son DOS viajes distintos: cada una sale del local y vuelve
+// al local. Nunca se dibujan ni se abren en Maps como un solo recorrido.
+const COLOR_RUTA = ['#4AAEE0', '#E8177A', '#A87BC8', '#16a34a']
+const esManana = (r: any) => {
+  const h = Number(String(r.inicio || '').slice(0, 2))
+  if (h) return h < 12
+  return /^AM|mañana/i.test(String(r.nombre || ''))
+}
+
 export default function Reparto() {
   const [fecha, setFecha] = useState(hoy())
   const [inicio, setInicio] = useState('19:00')
@@ -26,6 +35,51 @@ export default function Reparto() {
   const [cargando, setCargando] = useState(true)
   const [optimizando, setOptimizando] = useState(false)
   const [resumen, setResumen] = useState<any>(null)
+  const [tramoSel, setTramoSel] = useState<string>('')
+
+  // Las rutas del día, cada una con sus paradas en su propio orden.
+  const rutasDia = useMemo(() => {
+    const m: Record<string, any> = {}
+    paradas.forEach(p => {
+      const k = String(p.ruta_id ?? 'sin')
+      if (!m[k]) m[k] = { clave: k, id: p.ruta_id ?? null, nombre: p.ruta_nombre || 'Sin ruta asignada',
+                          inicio: p.ruta_inicio || '', paradas: [] as any[] }
+      m[k].paradas.push(p)
+    })
+    const lista = Object.values(m).sort((a: any, b: any) => {
+      const ha = a.inicio || (esManana(a) ? '09' : '14'), hb = b.inicio || (esManana(b) ? '09' : '14')
+      return String(ha).localeCompare(String(hb))
+    })
+    lista.forEach((r: any, i: number) => {
+      r.color = COLOR_RUTA[i % COLOR_RUTA.length]
+      r.manana = esManana(r)
+      r.enOrden = r.paradas.filter((p: any) => p.secuencia).sort((a: any, b: any) => a.secuencia - b.secuencia)
+    })
+    return lista as any[]
+  }, [paradas])
+
+  // Número de cada parada DENTRO de su ruta: la tarde parte de 1, no sigue la numeración de la mañana.
+  const numero = useMemo(() => {
+    const n: Record<number, number> = {}
+    rutasDia.forEach(r => r.enOrden.forEach((p: any, i: number) => { n[p.id] = i + 1 }))
+    return n
+  }, [rutasDia])
+
+  // Por defecto se mira la ruta que está en curso o la próxima; nunca las dos mezcladas.
+  useEffect(() => {
+    if (!rutasDia.length) { setTramoSel(''); return }
+    if (tramoSel === 'todas' || rutasDia.some(r => r.clave === tramoSel)) return
+    const ahora = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Santiago', hour12: false }).slice(0, 5)
+    const pendiente = (r: any) => r.paradas.some((p: any) => p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO')
+    const elegida = fecha === hoy()
+      ? (rutasDia.find(r => pendiente(r) && (!r.inicio || String(r.inicio).slice(0, 5) <= ahora)) ||
+         rutasDia.find(pendiente) || rutasDia[rutasDia.length - 1])
+      : rutasDia[0]
+    setTramoSel(elegida.clave)
+  }, [rutasDia, tramoSel, fecha])
+  useEffect(() => { setTramoSel('') }, [fecha])
+
+  const visibles = tramoSel === 'todas' ? rutasDia : rutasDia.filter(r => r.clave === tramoSel)
 
   const div = useRef<HTMLDivElement>(null)
   const mapa = useRef<any>(null)
@@ -70,37 +124,40 @@ export default function Reparto() {
         capa.current.push(m); caja.extend({ lat: base.lat, lng: base.lng }); cuantos++
       }
 
-      paradas.filter(p => p.lat && p.lng).forEach(p => {
-        const color = p.estado === 'COMPLETADA' ? '#16a34a'
-          : p.estado === 'FALLIDA' ? '#dc2626'
-          : p.tipo === 'RETIRO' ? '#4AAEE0' : '#E8177A'
-        const m = new g.maps.Marker({
-          position: { lat: p.lat, lng: p.lng }, map: mapa.current,
-          icon: pin(String(p.secuencia || '.'), color), title: nombreDe(p),
+      visibles.forEach(r => {
+        r.paradas.filter((p: any) => p.lat && p.lng).forEach((p: any) => {
+          const color = p.estado === 'COMPLETADA' ? '#16a34a'
+            : p.estado === 'FALLIDA' ? '#dc2626'
+            : p.tipo === 'RETIRO' ? '#4AAEE0' : '#E8177A'
+          const m = new g.maps.Marker({
+            position: { lat: p.lat, lng: p.lng }, map: mapa.current,
+            icon: pin(String(numero[p.id] || '.'), color), title: nombreDe(p),
+          })
+          m.addListener('click', () => {
+            globo.current.setContent(
+              `<div style="font-size:13px;line-height:1.4"><b>${numero[p.id] ? numero[p.id] + '. ' : ''}` +
+              `${nombreDe(p)}</b><br>${dirDe(p)}<br><small>${r.nombre} &middot; ` +
+              `${p.tipo === 'RETIRO' ? 'Retiro' : 'Entrega'} &middot; ~${hhmm(p.hora_estimada)}</small></div>`)
+            globo.current.open(mapa.current, m)
+          })
+          capa.current.push(m); caja.extend({ lat: p.lat, lng: p.lng }); cuantos++
         })
-        m.addListener('click', () => {
-          globo.current.setContent(
-            `<div style="font-size:13px;line-height:1.4"><b>${p.secuencia ? p.secuencia + '. ' : ''}` +
-            `${nombreDe(p)}</b><br>${dirDe(p)}<br><small>` +
-            `${p.tipo === 'RETIRO' ? 'Retiro' : 'Entrega'} &middot; ~${hhmm(p.hora_estimada)}</small></div>`)
-          globo.current.open(mapa.current, m)
-        })
-        capa.current.push(m); caja.extend({ lat: p.lat, lng: p.lng }); cuantos++
+
+        // Un trazado por ruta: sale del local, hace SUS paradas y vuelve al local.
+        const enRuta = r.enOrden.filter((p: any) => p.lat && p.lng).map((p: any) => ({ lat: p.lat, lng: p.lng }))
+        if (enRuta.length && base) {
+          capa.current.push(new g.maps.Polyline({
+            path: [{ lat: base.lat, lng: base.lng }, ...enRuta, { lat: base.lat, lng: base.lng }],
+            map: mapa.current, strokeColor: r.color, strokeOpacity: 0, strokeWeight: 3,
+            icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.85, scale: 3 },
+                      offset: '0', repeat: '12px' }],
+          }))
+        }
       })
 
-      const enRuta = paradas.filter(p => p.lat && p.lng && p.secuencia)
-        .sort((a, b) => a.secuencia - b.secuencia).map(p => ({ lat: p.lat, lng: p.lng }))
-      if (enRuta.length && base) {
-        capa.current.push(new g.maps.Polyline({
-          path: [{ lat: base.lat, lng: base.lng }, ...enRuta, { lat: base.lat, lng: base.lng }],
-          map: mapa.current, strokeColor: '#A87BC8', strokeOpacity: 0, strokeWeight: 3,
-          icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.7, scale: 3 },
-                    offset: '0', repeat: '12px' }],
-        }))
-      }
       if (cuantos > 1) mapa.current.fitBounds(caja, 35)
     })
-  }, [paradas, data])
+  }, [paradas, data, tramoSel, rutasDia])
 
   const optimizar = async () => {
     setOptimizando(true)
@@ -143,12 +200,13 @@ export default function Reparto() {
   }
 
   // toda la ruta abierta de una vez en el navegador del teléfono
-  const linkRutaCompleta = () => {
+  const linkRutaCompleta = (r: any) => {
     // Las paradas sin coordenadas también van: se mandan por dirección escrita.
     // Antes se descartaban y la ruta salía incompleta sin avisar.
-    const enRuta = paradas.filter(p => p.estado === 'PENDIENTE')
-      .sort((a, b) => a.secuencia - b.secuencia)
-      .map(p => (p.lat && p.lng) ? `${p.lat},${p.lng}` : dirDe(p))
+    // Una ruta por link: la mañana y la tarde son viajes distintos.
+    const enRuta = r.paradas.filter((p: any) => p.estado === 'PENDIENTE')
+      .sort((a: any, b: any) => a.secuencia - b.secuencia)
+      .map((p: any) => (p.lat && p.lng) ? `${p.lat},${p.lng}` : dirDe(p))
       .filter(Boolean)
     if (!enRuta.length) return ''
     return rutaCompletaMaps(enRuta)
@@ -227,11 +285,6 @@ export default function Reparto() {
           <span className="flex items-center gap-1.5 bg-white border rounded-xl px-3 py-2">
             <Clock size={15} className="text-gray-400" /> {resumen.min_total} min estimados
           </span>
-          <a href={linkRutaCompleta()} target="_blank" rel="noreferrer"
-             className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-white"
-             style={{ background: '#4AAEE0' }}>
-            <Navigation size={15} /> Abrir la ruta en Google Maps
-          </a>
         </div>
       )}
 
@@ -245,6 +298,37 @@ export default function Reparto() {
               <MapPinned size={16} /> {ubicando ? 'Ubicando…' : 'Ubicar las que faltan'}
             </button>
           </div>
+        </div>
+      )}
+
+      {rutasDia.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {rutasDia.map(r => (
+            <button key={r.clave} onClick={() => setTramoSel(r.clave)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border ${
+                      tramoSel === r.clave ? 'text-white border-transparent' : 'bg-white text-gray-600'}`}
+                    style={tramoSel === r.clave ? { background: r.color } : {}}>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: tramoSel === r.clave ? '#fff' : r.color }} />
+              {r.manana ? 'Mañana' : 'Tarde'} · {r.nombre} · {r.paradas.length}
+            </button>
+          ))}
+          {rutasDia.length > 1 && (
+            <button onClick={() => setTramoSel('todas')}
+                    className={`px-3 py-2 rounded-xl text-sm border ${
+                      tramoSel === 'todas' ? 'bg-gray-800 text-white border-transparent' : 'bg-white text-gray-500'}`}>
+              Comparar ambas
+            </button>
+          )}
+          {visibles.map(r => {
+            const link = linkRutaCompleta(r)
+            return link ? (
+              <a key={'m' + r.clave} href={link} target="_blank" rel="noreferrer"
+                 className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-white text-sm"
+                 style={{ background: r.color }}>
+                <Navigation size={15} /> {r.manana ? 'Mañana' : 'Tarde'} en Google Maps
+              </a>
+            ) : null
+          })}
         </div>
       )}
 
@@ -322,7 +406,7 @@ export default function Reparto() {
                      style={{ background: p.estado === 'COMPLETADA' ? '#16a34a'
                        : p.estado === 'FALLIDA' ? '#dc2626'
                        : p.tipo === 'RETIRO' ? '#4AAEE0' : '#E8177A' }}>
-                  {p.secuencia || '·'}
+                  {numero[p.id] || '·'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">

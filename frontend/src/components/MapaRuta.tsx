@@ -81,18 +81,26 @@ export default function MapaRuta({ base, paradas, miPos, alto = 300, onTocarPara
         caja.extend({ lat: p.lat, lng: p.lng })
       })
 
-      // el trazado sigue el orden del recorrido y vuelve al local
-      const enOrden = ubicadas.filter(p => p.secuencia).sort((a, b) => a.secuencia - b.secuencia)
-      if (enOrden.length && base) {
-        linea.current = new g.maps.Polyline({
+      // Un trazado por ruta: la mañana y la tarde son viajes distintos, cada uno
+      // sale del local y vuelve al local. Nunca se unen en una sola línea.
+      const lineas: any[] = []
+      const porRuta: Record<string, any[]> = {}
+      ubicadas.filter(p => p.secuencia).forEach(p => {
+        const k = String(p.ruta_id ?? 'sin'); (porRuta[k] ||= []).push(p)
+      })
+      Object.values(porRuta).forEach((grupo, i) => {
+        const enOrden = grupo.sort((a, b) => a.secuencia - b.secuencia)
+        if (!enOrden.length || !base) return
+        lineas.push(new g.maps.Polyline({
           path: [{ lat: base.lat, lng: base.lng },
                  ...enOrden.map(p => ({ lat: p.lat, lng: p.lng })),
                  { lat: base.lat, lng: base.lng }],
-          map: mapa.current, strokeColor: '#A87BC8', strokeOpacity: 0, strokeWeight: 4,
+          map: mapa.current, strokeColor: ['#A87BC8', '#4AAEE0', '#E8177A'][i % 3], strokeOpacity: 0, strokeWeight: 4,
           icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.8, scale: 3 },
                     offset: '0', repeat: '14px' }],
-        })
-      }
+        }))
+      })
+      linea.current = { setMap: (x: any) => lineas.forEach(l => l.setMap(x)) }
 
       if (marcas.current.length > 1) mapa.current.fitBounds(caja, 40)
       else if (marcas.current.length === 1) mapa.current.setZoom(16)

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { repartoApi, seguimientoApi } from '../services/api'
 import MapaRuta from '../components/MapaRuta'
+import Navegacion, { type PosGps } from '../components/Navegacion'
+import { desbloquearVoz } from '../lib/navegacion'
 import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
 import {
@@ -93,7 +95,9 @@ export default function Conductor() {
   const [verTodas, setVerTodas] = useState(false)
   const [vista, setVista] = useState<'lista' | 'mapa'>('lista')
   const [cerrando, setCerrando] = useState<any>(null)
-  const [miPos, setMiPos] = useState<{ lat: number; lng: number } | null>(null)
+  const [miPos, setMiPos] = useState<PosGps | null>(null)
+  // la parada hacia la que se navega dentro de la app (null = no se navega)
+  const [navegando, setNavegando] = useState<any>(null)
   const [enVivo, setEnVivo] = useState(false)
   const [ultimoEnvio, setUltimoEnvio] = useState<Date | null>(null)
   const watch = useRef<number | null>(null)
@@ -114,7 +118,11 @@ export default function Conductor() {
     try { wake.current = await (navigator as any).wakeLock?.request('screen') } catch { /* opcional */ }
     watch.current = navigator.geolocation.watchPosition(
       pos => {
-        setMiPos({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        setMiPos({
+          lat: pos.coords.latitude, lng: pos.coords.longitude,
+          rumbo: pos.coords.heading ?? null, velocidad: pos.coords.speed ?? null,
+          exactitud: pos.coords.accuracy ?? null,
+        })
         seguimientoApi.posicion({
           lat: pos.coords.latitude, lng: pos.coords.longitude,
           exactitud: Math.round(pos.coords.accuracy || 0),
@@ -122,7 +130,8 @@ export default function Conductor() {
         }).then(() => setUltimoEnvio(new Date())).catch(() => {})
       },
       () => toast.error('No pudimos leer tu ubicación'),
-      { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
+      // maximumAge corto: la navegación necesita la posición de ahora, no la de hace 10 s
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 },
     )
     setEnVivo(true)
   }
@@ -202,6 +211,21 @@ export default function Conductor() {
     } catch { toast.error('No se pudo guardar') }
   }
 
+  // "Ir" navega dentro de la app: así la pantalla sigue delante y el GPS no
+  // se corta. Sin coordenadas no hay cómo: se cae a Google Maps.
+  const navegarA = async (p: any) => {
+    desbloquearVoz()
+    if (!enVivo) await partirGps()
+    setNavegando(p)
+  }
+  const llegue = (p: any) => {
+    setNavegando(null)
+    setVista('lista')
+    setVerTodas(true)
+    setAbierta(p.id)
+    setTimeout(() => document.getElementById(`parada-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250)
+  }
+
   const Tarjeta = ({ p, principal = false }: { p: any; principal?: boolean }) => {
     const esRetiro = p.tipo === 'RETIRO'
     const abierto = abierta === p.id || principal
@@ -267,11 +291,19 @@ export default function Conductor() {
             {p.nota && <p className="text-sm text-gray-500 italic">Nota: {p.nota}</p>}
 
             <div className="grid grid-cols-3 gap-2">
-              <a href={linkNav(p)} target="_blank" rel="noreferrer"
-                 className="flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-white font-medium text-xs"
-                 style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-                <Navigation size={18} /> Ir
-              </a>
+              {p.lat && p.lng ? (
+                <button onClick={() => navegarA(p)}
+                        className="flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-white font-medium text-xs"
+                        style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                  <Navigation size={18} /> Ir
+                </button>
+              ) : (
+                <a href={linkNav(p)} target="_blank" rel="noreferrer"
+                   className="flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-white font-medium text-xs"
+                   style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                  <Navigation size={18} /> Ir
+                </a>
+              )}
               <a href={p.telefono ? `tel:+${soloNumeros(p.telefono)}` : undefined}
                  className={`flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-xs font-medium border ${p.telefono ? 'text-gray-700' : 'text-gray-300 pointer-events-none'}`}>
                 <Phone size={18} /> Llamar
@@ -440,6 +472,16 @@ export default function Conductor() {
           </>
         )}
       </div>
+
+      {navegando && (
+        <Navegacion
+          destino={{ id: navegando.id, lat: Number(navegando.lat), lng: Number(navegando.lng),
+                     nombre: nombreDe(navegando), direccion: dirDe(navegando), tipo: navegando.tipo }}
+          pos={miPos}
+          linkGoogle={linkNav(navegando)}
+          onLlegue={() => llegue(navegando)}
+          onSalir={() => setNavegando(null)} />
+      )}
 
       {cerrando && (
         <VentanaRetiro p={cerrando}

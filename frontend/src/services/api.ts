@@ -505,3 +505,11 @@ export const descuentosApi = {
   aplicar: (d: { orden_id: number, tipo: 'PCT' | 'MONTO', valor: number, motivo: string }) =>
     axios.post(DESC_URL, d, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` } }),
 }
+
+// Navegación del conductor dentro de la app: ruta por calles con maniobras
+// (ladys-navegacion, Google Routes API con la clave de servidor).
+const NAV_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-navegacion')
+export const navegacionApi = {
+  ruta: (d: { origen: { lat: number; lng: number }; destino: { lat: number; lng: number }; rumbo?: number | null; parada_id?: number; motivo?: string }) =>
+    axios.post(`${NAV_URL}/ruta`, d, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }, timeout: 20000 }),
+}

@@ -8,7 +8,7 @@
 // quieto y el mapa mentiría diciendo que está ahí parado. Por eso, pasados unos
 // minutos sin reportar, la camioneta se dibuja apagada y arriba dice "sin señal
 // desde las HH:MM": es información distinta a "está detenida".
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { seguimientoApi } from '../services/api'
 import toast from 'react-hot-toast'
 import {
@@ -67,6 +67,37 @@ export default function RutaEnVivo() {
     return () => { clearInterval(t); clearInterval(r) }
   }, [fecha])
 
+  // LA MAÑANA Y LA TARDE SON DOS VIAJES (Lufi, 21-sep): se mira un tramo a la vez,
+  // con sus paradas numeradas desde 1 y sólo el rastro de ese horario.
+  const [tramoSel, setTramoSel] = useState('')
+  const tramos = useMemo(() => {
+    const m: Record<string, any> = {}
+    ;(d?.paradas || []).forEach((p: any) => {
+      const k = p.tramo || 'Sin ruta'
+      if (!m[k]) m[k] = { clave: k, inicio: p.hora_inicio ? String(p.hora_inicio).slice(0, 5) : '',
+                          fin: p.hora_fin ? String(p.hora_fin).slice(0, 5) : '', paradas: [] as any[] }
+      m[k].paradas.push(p)
+    })
+    return Object.values(m).sort((a: any, b: any) => String(a.inicio).localeCompare(String(b.inicio))).map((t: any) => ({
+      ...t, manana: t.inicio ? Number(t.inicio.slice(0, 2)) < 12 : /^AM/i.test(t.clave),
+      pendientes: t.paradas.filter((p: any) => p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO').length,
+      paradas: t.paradas.map((p: any, i: number) => ({ ...p, n: i + 1 })),
+    })) as any[]
+  }, [d])
+  useEffect(() => {
+    if (!tramos.length) return
+    if (tramos.some(t => t.clave === tramoSel)) return
+    const ahora = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Santiago', hour12: false }).slice(0, 5)
+    const min = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5))
+    const t = fecha !== hoy() ? tramos[0]
+      : tramos.find(t => t.pendientes && t.inicio && min(ahora) >= min(t.inicio) - 60 && min(ahora) <= min(t.fin) + 150)
+        || tramos.find(t => t.pendientes) || tramos[tramos.length - 1]
+    setTramoSel(t.clave)
+  }, [tramos, tramoSel, fecha])
+  useEffect(() => { setTramoSel(''); encuadrado.current = false }, [fecha])
+  const tramo = tramos.find(t => t.clave === tramoSel) || null
+  const paradasT: any[] = tramo ? tramo.paradas : []
+
   const conductor = d?.conductores?.[0] || null
   const sinSenal = conductor ? Number(conductor.min_sin_reportar) >= SIN_SENAL_MIN : false
   const detenidaMin = minDesde(d?.resumen?.ultimo_movimiento)
@@ -101,16 +132,16 @@ export default function RutaEnVivo() {
       }
 
       // Las paradas del día, del color de su estado.
-      ;(d.paradas || []).filter((p: any) => p.lat && p.lng).forEach((p: any) => {
+      ;paradasT.filter((p: any) => p.lat && p.lng).forEach((p: any) => {
         const m = new g.maps.Marker({
           position: { lat: Number(p.lat), lng: Number(p.lng) }, map: mapa.current,
-          icon: pin(String(p.secuencia || '·'), COLOR[p.estado] || '#94a3b8'),
+          icon: pin(String(p.n), COLOR[p.estado] || '#94a3b8'),
           title: p.cliente, zIndex: p.estado === 'EN_CAMINO' ? 60 : 50,
         })
         m.addListener('click', () => {
           globo.current.setContent(
             `<div style="font-size:13px;line-height:1.45">` +
-            `<b>${p.secuencia ? p.secuencia + '. ' : ''}${p.cliente}</b><br>` +
+            `<b>${p.n}. ${p.cliente}</b><br>` +
             `${p.direccion || ''}${p.comuna ? ', ' + p.comuna : ''}<br><small>` +
             `${p.tipo === 'RETIRO' ? 'Retiro' : 'Entrega'} · pedido ${p.orden_id} · ` +
             `${p.llegada_real ? 'llegó ' + hhmm(p.llegada_real) : 'estimada ' + hora(p.hora_estimada)}` +
@@ -121,7 +152,14 @@ export default function RutaEnVivo() {
       })
 
       // El rastro: por dónde anduvo hoy de verdad, no por dónde debía andar.
-      const camino = (d.rastro || []).map((r: any) => ({ lat: Number(r.lat), lng: Number(r.lng) }))
+      // Sólo el rastro del horario de este tramo: la mañana no se dibuja encima de la tarde.
+      const aMin = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5))
+      const desdeT = tramo?.inicio ? aMin(tramo.inicio) - 60 : 0
+      const hastaT = tramo?.fin ? aMin(tramo.fin) + 150 : 24 * 60
+      const camino = (d.rastro || []).filter((r: any) => {
+        const h = new Date(r.momento).toLocaleTimeString('en-GB', { timeZone: 'America/Santiago', hour12: false }).slice(0, 5)
+        return aMin(h) >= desdeT && aMin(h) <= hastaT
+      }).map((r: any) => ({ lat: Number(r.lat), lng: Number(r.lng) }))
       if (trazo.current) trazo.current.setMap(null)
       if (camino.length > 1) {
         trazo.current = new g.maps.Polyline({
@@ -187,13 +225,16 @@ export default function RutaEnVivo() {
     })
 
     return () => { vivo = false; cancelAnimationFrame(cuadro.current) }
-  }, [d])
+  }, [d, tramoSel])
+
+  useEffect(() => { encuadrado.current = false }, [tramoSel])
 
   useEffect(() => () => { if (latido.current) clearInterval(latido.current) }, [])
 
   const r = d?.resumen
-  const faltan = (r?.pendientes || 0) + (r?.en_camino || 0)
-  const enCamino = (d?.paradas || []).find((p: any) => p.estado === 'EN_CAMINO')
+  const faltan = paradasT.filter(p => p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO').length
+  const hechasT = paradasT.filter(p => p.estado === 'COMPLETADA').length
+  const enCamino = paradasT.find((p: any) => p.estado === 'EN_CAMINO')
 
   return (
     <div className="space-y-4">
@@ -247,9 +288,22 @@ export default function RutaEnVivo() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Dato titulo="Salió a ruta" valor={hhmm(r?.salida)} />
         <Dato titulo="Kilómetros del día" valor={`${r?.km ?? 0} km`} />
-        <Dato titulo="Paradas hechas" valor={`${r?.hechas ?? 0} de ${r?.paradas_total ?? 0}`} />
+        <Dato titulo="Paradas hechas" valor={`${hechasT} de ${paradasT.length}`} />
         <Dato titulo="Le faltan" valor={`${faltan} parada${faltan === 1 ? '' : 's'}`} />
       </div>
+
+      {tramos.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {tramos.map(t => (
+            <button key={t.clave} onClick={() => setTramoSel(t.clave)}
+              className={`px-3 py-2 rounded-xl text-sm font-medium border ${tramoSel === t.clave ? 'text-white border-transparent' : 'bg-white text-gray-600'}`}
+              style={tramoSel === t.clave ? { background: t.manana ? '#4AAEE0' : '#E8177A' } : {}}>
+              {t.manana ? 'Mañana' : 'Tarde'} · {t.inicio}–{t.fin} · {t.paradas.length} parada{t.paradas.length === 1 ? '' : 's'}
+              {t.pendientes ? ` · ${t.pendientes} por hacer` : ' · terminada'}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="rounded-xl overflow-hidden border bg-white">
         <div ref={div} style={{ height: '58vh', minHeight: 340 }} />
@@ -257,22 +311,22 @@ export default function RutaEnVivo() {
 
       <div className="rounded-xl border bg-white overflow-hidden">
         <div className="px-4 py-2.5 text-sm font-medium border-b" style={{ color: '#1F2430' }}>
-          Paradas del día
+          Paradas {tramo ? `de la ${tramo.manana ? 'mañana' : 'tarde'}` : 'del día'}
         </div>
-        {(d?.paradas || []).length === 0 && (
+        {paradasT.length === 0 && (
           <div className="px-4 py-6 text-sm text-gray-400 flex items-center gap-2">
             <MapPin size={15} /> No hay paradas cargadas para esta fecha
           </div>
         )}
         <ul className="divide-y">
-          {(d?.paradas || []).map((p: any) => (
+          {paradasT.map((p: any) => (
             <li key={p.id} className="px-4 py-2.5 flex items-center gap-3 text-sm"
               style={{ background: p.estado === 'EN_CAMINO' ? '#FDF2F8' : undefined }}>
               <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0"
                 style={{ background: COLOR[p.estado] || '#94a3b8' }}>
                 {p.estado === 'COMPLETADA' ? <Check size={14} />
                   : p.estado === 'FALLIDA' ? <X size={14} />
-                  : (p.secuencia || '·')}
+                  : p.n}
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block truncate" style={{ color: '#1F2430' }}>

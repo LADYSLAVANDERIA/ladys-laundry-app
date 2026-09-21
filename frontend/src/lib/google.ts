@@ -52,30 +52,17 @@ export function pin(texto: string, color: string) {
   }
 }
 
-// La camioneta de Ladys. Antes el conductor era un círculo azul con una "R":
-// no se entendía que fuera un vehículo ni hacia dónde iba. Va apuntando según el
-// rumbo, así el cliente ve de qué lado viene.
-export function camioneta(rumbo = 0) {
+// La camioneta de Ladys vista de costado, blanca con el logo (Lufi, 21-sep: el
+// ícono anterior no se notaba). Mira hacia la izquierda o la derecha según el
+// rumbo, así se entiende hacia dónde va. La imagen vive en el sitio (/ruta/).
+export function camioneta(rumbo = 90, apagada = false) {
   const g = (window as any).google
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52">` +
-      `<g transform="rotate(${Math.round(rumbo)} 26 26)">` +
-        // Sombra suave, para que despegue del mapa.
-        `<ellipse cx="26" cy="41" rx="11" ry="3.5" fill="#000" opacity="0.18"/>` +
-        // Carrocería, apuntando hacia arriba (rumbo 0 = norte).
-        `<rect x="15" y="12" width="22" height="27" rx="6" fill="#E8177A" stroke="#fff" stroke-width="2.5"/>` +
-        // Parabrisas.
-        `<path d="M18 18 h16 v5 a2 2 0 0 1-2 2 H20 a2 2 0 0 1-2-2 z" fill="#EAF6FC"/>` +
-        // Costados de la caja.
-        `<rect x="18.5" y="28" width="15" height="7.5" rx="2" fill="#fff" opacity="0.92"/>` +
-        `<text x="26" y="34" font-family="Arial,Helvetica,sans-serif" font-size="5.5" ` +
-          `font-weight="bold" fill="#A87BC8" text-anchor="middle" letter-spacing="0.4">LADYS</text>` +
-      `</g>` +
-    `</svg>`
+  const haciaIzq = rumbo > 180 && rumbo < 360
+  const f = apagada ? 'camioneta-gris.png' : haciaIzq ? 'camioneta-izq.png' : 'camioneta-der.png'
   return {
-    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
-    scaledSize: new g.maps.Size(52, 52),
-    anchor: new g.maps.Point(26, 26),
+    url: `https://ladyslavanderia.cl/ruta/${f}`,
+    scaledSize: new g.maps.Size(88, 55),
+    anchor: new g.maps.Point(44, 50),
   }
 }
 

@@ -40,8 +40,18 @@ function cuando(d: number | null) {
 export default function Preparacion() {
   const [t, setT] = useState<any>(null)
   const [cargando, setCargando] = useState(false)
-  const [elegir, setElegir] = useState<null | { carga: any; maquina: 'LAVADORA' | 'SECADORA' }>(null)
+  const [elegir, setElegir] = useState<null | { carga: any; maquina: 'LAVADORA' | 'SECADORA'; orden: number }>(null)
   const [verTodos, setVerTodos] = useState(false)
+  // Confirmacion antes de toda accion: un toque al hacer scroll marco una carga
+  // como seca sin querer (OT 6573, 22-sep). Nada se guarda sin apretar OK.
+  const [pedir, setPedir] = useState<null | { titulo: string; detalle?: string; color: string; accion: () => void }>(null)
+  const [okListo, setOkListo] = useState(false)
+  useEffect(() => {
+    if (!pedir) return
+    setOkListo(false)
+    const i = setTimeout(() => setOkListo(true), 400) // evita que el mismo toque acepte
+    return () => clearTimeout(i)
+  }, [pedir])
 
   const cargar = () => {
     setCargando(true)
@@ -152,22 +162,24 @@ export default function Preparacion() {
                   </div>
                   {c.estado === 'LISTA' && (
                     <>
-                      <button onClick={() => { if (confirm(`¿Quitar la carga ${c.numero}?`)) hacer(preparacionApi.anular(c.id), 'Carga quitada') }}
+                      <button onClick={() => setPedir({ titulo: `¿Quitar la carga ${c.numero}?`, detalle: ot(p.id), color: '#dc2626',
+                                                        accion: () => hacer(preparacionApi.anular(c.id), 'Carga quitada') })}
                               className="p-2 rounded-lg text-gray-400" title="Quitar"><X size={16} /></button>
-                      <button onClick={() => setElegir({ carga: c, maquina: 'LAVADORA' })}
+                      <button onClick={() => setElegir({ carga: c, maquina: 'LAVADORA', orden: p.id })}
                               className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5" style={{ background: '#4AAEE0' }}>
                         <Droplets size={15} /> A lavadora
                       </button>
                     </>
                   )}
                   {(c.estado === 'LAVANDO' || c.estado === 'MOJADA') && (
-                    <button onClick={() => setElegir({ carga: c, maquina: 'SECADORA' })}
+                    <button onClick={() => setElegir({ carga: c, maquina: 'SECADORA', orden: p.id })}
                             className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5" style={{ background: '#A87BC8' }}>
                       <Wind size={15} /> A secadora
                     </button>
                   )}
                   {c.estado === 'SECANDO' && (
-                    <button onClick={() => hacer(preparacionApi.seco(c.id), `Carga ${c.numero} seca`)}
+                    <button onClick={() => setPedir({ titulo: `¿Carga ${c.numero} secado listo?`, detalle: `${ot(p.id)} · sale de S${c.secadora}`, color: '#16a34a',
+                                                      accion: () => hacer(preparacionApi.seco(c.id), `Carga ${c.numero} seca`) })}
                             className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5" style={{ background: '#16a34a' }}>
                       <Check size={15} /> Secado listo
                     </button>
@@ -182,7 +194,8 @@ export default function Preparacion() {
               <p className="text-xs text-gray-500 mb-1.5">Agregar carga</p>
               <div className="grid grid-cols-4 gap-2">
                 {Object.entries(TIPO).map(([k, v]) => (
-                  <button key={k} onClick={() => hacer(preparacionApi.carga(p.id, k), `Carga ${v.txt.toLowerCase()} agregada`)}
+                  <button key={k} onClick={() => setPedir({ titulo: `¿Agregar carga ${v.txt.toLowerCase()}?`, detalle: ot(p.id), color: v.color,
+                                                          accion: () => hacer(preparacionApi.carga(p.id, k), `Carga ${v.txt.toLowerCase()} agregada`) })}
                           className="py-2.5 rounded-xl border-2 text-xs font-semibold flex items-center justify-center gap-1"
                           style={{ borderColor: v.color, color: v.color }}>
                     <Plus size={13} /> {v.txt}
@@ -225,7 +238,8 @@ export default function Preparacion() {
                     {p.trabajo && p.trabajo !== 'LAVA' && <span className="text-amber-700 font-semibold"> · {p.trabajo}</span>}
                   </p>
                 </div>
-                <button onClick={() => hacer(preparacionApi.preparar(p.id), `${ot(p.id)} en preparación`)}
+                <button onClick={() => setPedir({ titulo: `¿Empezar a preparar ${ot(p.id)}?`, detalle: p.cliente, color: '#E8177A',
+                                                  accion: () => hacer(preparacionApi.preparar(p.id), `${ot(p.id)} en preparación`) })}
                         className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5 shrink-0"
                         style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
                   <PlayCircle size={15} /> Preparar
@@ -247,10 +261,12 @@ export default function Preparacion() {
               {maquinas.map((m: any) => (
                 <button key={m.n} disabled={!!m.carga}
                         onClick={() => {
-                          const c = elegir.carga, maq = elegir.maquina
+                          const c = elegir.carga, maq = elegir.maquina, o = elegir.orden, l = maq === 'LAVADORA' ? 'L' : 'S'
                           setElegir(null)
-                          hacer(maq === 'LAVADORA' ? preparacionApi.lavadora(c.id, m.n) : preparacionApi.secadora(c.id, m.n),
-                                `Carga ${c.numero} a ${maq === 'LAVADORA' ? 'L' : 'S'}${m.n}`)
+                          setPedir({ titulo: `¿Carga ${c.numero} a ${l}${m.n}?`, detalle: ot(o),
+                                     color: maq === 'LAVADORA' ? '#4AAEE0' : '#A87BC8',
+                                     accion: () => hacer(maq === 'LAVADORA' ? preparacionApi.lavadora(c.id, m.n) : preparacionApi.secadora(c.id, m.n),
+                                                         `Carga ${c.numero} a ${l}${m.n}`) })
                         }}
                         className="py-4 rounded-xl border-2 text-lg font-bold disabled:opacity-40"
                         style={!m.carga ? { borderColor: elegir.maquina === 'LAVADORA' ? '#4AAEE0' : '#A87BC8' } : {}}>
@@ -263,7 +279,10 @@ export default function Preparacion() {
                 <p className="flex items-center gap-1"><AlertTriangle size={12} /> Las grises figuran ocupadas. Si ya sacaste esa ropa:</p>
                 {maquinas.filter((m: any) => m.carga).map((m: any) => (
                   <button key={m.n}
-                          onClick={() => hacer(preparacionApi.liberar(elegir.maquina, m.n), `${elegir.maquina === 'LAVADORA' ? 'L' : 'S'}${m.n} liberada`)}
+                          onClick={() => { const maq = elegir.maquina, l = maq === 'LAVADORA' ? 'L' : 'S'
+                                            setElegir(null)
+                                            setPedir({ titulo: `¿Liberar ${l}${m.n}?`, detalle: `Tenía ${ot(m.carga.orden_id)} carga ${m.carga.numero}`, color: '#64748b',
+                                                       accion: () => hacer(preparacionApi.liberar(maq, m.n), `${l}${m.n} liberada`) }) }}
                           className="block w-full text-left px-3 py-2 rounded-lg border text-gray-600">
                     Liberar {elegir.maquina === 'LAVADORA' ? 'L' : 'S'}{m.n} (tenía {ot(m.carga.orden_id)} carga {m.carga.numero})
                   </button>
@@ -271,6 +290,26 @@ export default function Preparacion() {
               </div>
             )}
             <button onClick={() => setElegir(null)} className="w-full py-2.5 rounded-xl border text-sm text-gray-600">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmar ── */}
+      {pedir && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={() => setPedir(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div>
+              <p className="text-lg font-bold text-gray-800">{pedir.titulo}</p>
+              {pedir.detalle && <p className="text-sm text-gray-500 mt-0.5">{pedir.detalle}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setPedir(null)} className="py-3.5 rounded-xl border-2 text-base font-semibold text-gray-600">Cancelar</button>
+              <button disabled={!okListo}
+                      onClick={() => { const a = pedir.accion; setPedir(null); a() }}
+                      className="py-3.5 rounded-xl text-white text-base font-bold disabled:opacity-50" style={{ background: pedir.color }}>
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

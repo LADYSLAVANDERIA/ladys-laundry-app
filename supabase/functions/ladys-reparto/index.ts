@@ -124,7 +124,7 @@ async function traerDia(fecha: string) {
            -- camioneta. Antes de salir es normal (se esta procesando para su
            -- fecha); desde que la ruta sale se muestra aparte con alerta.
            (p.tipo = 'ENTREGA' AND p.estado <> 'COMPLETADA'
-             AND COALESCE(o.etapa, '') NOT IN ${SQL(LISTA)}) AS no_embolsada,
+             AND COALESCE(o.etapa, '') NOT IN ('EMBOLSADO','LISTO_RETIRO','ENTREGADO')) AS no_embolsada,
            -- La ruta ya salio: salida real anotada, alguna parada trabajada,
            -- dia pasado, o ya es la hora de inicio de la ruta.
            (EXISTS (SELECT 1 FROM reparto_salidas s WHERE s.fecha = p.fecha AND s.ruta_id = p.ruta_id)
@@ -202,7 +202,7 @@ async function recalcular(fecha: string, rutaId: number, cfg: any) {
   const ps = await SQL`
     SELECT p.id, p.estado, p.lat, p.lng,
            to_char(p.llegada_real AT TIME ZONE 'America/Santiago', 'HH24:MI') AS llegada,
-           (p.tipo = 'ENTREGA' AND COALESCE(o.etapa, '') NOT IN ${SQL(LISTA)}) AS no_embolsada
+           (p.tipo = 'ENTREGA' AND COALESCE(o.etapa, '') NOT IN ('EMBOLSADO','LISTO_RETIRO','ENTREGADO')) AS no_embolsada
     FROM reparto_paradas p
     JOIN ordenes o ON o.id = p.orden_id
     WHERE p.fecha = ${fecha}::date AND p.ruta_id = ${rutaId}

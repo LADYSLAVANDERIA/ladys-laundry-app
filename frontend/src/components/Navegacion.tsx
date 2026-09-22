@@ -34,21 +34,46 @@ const DESVIO_LECTURAS = 3    // lecturas seguidas fuera antes de recalcular
 const RECALC_MIN_MS = 20000  // no pedir rutas más seguido que esto
 const LLEGADA_M = 35
 
-// Cámara (22-sep-2026). Antes: norte fijo, zoom 17 y la camioneta al centro,
-// así que la mitad de la pantalla mostraba lo que ya había pasado.
-// Ahora el mapa gira con la camioneta (lo de adelante siempre arriba), la
-// camioneta va abajo para ver más camino por delante, y el zoom se acerca en
-// las esquinas y se abre cuando va rápido.
-// El giro se hace rotando el mapa con CSS: el giro nativo de Google exige un
-// Map ID vectorial que no tenemos. Costo: los nombres de calle giran con él.
-const ALTO_CAMIONETA = 0.72   // la camioneta a este % de alto del mapa
+// Cámara (22-sep-2026, v2). Mapa VECTORIAL de Google con la cámara nativa:
+// gira con la camioneta (lo de adelante siempre arriba), se inclina para ver
+// el camino en perspectiva, y los nombres de calle quedan derechos.
+// La camioneta va en el tercio de abajo: el centro de la cámara se pone unos
+// metros POR DELANTE de ella, así la pantalla muestra lo que viene.
+// (La v1 giraba el mapa con CSS; Google se confundía con el tamaño del mapa
+// girado y la camioneta quedaba pegada arriba. Descartado.)
+// DEMO_MAP_ID sirve para mapas vectoriales sin configurar nada en la nube.
+const MAP_ID = import.meta.env.VITE_GOOGLE_MAP_ID || 'DEMO_MAP_ID'
+const ALTO_CAMIONETA = 0.78   // la camioneta a este % del alto del mapa
+const INCLINACION = 50        // grados
 const VOLVER_SOLO_MS = 12000  // si el conductor movió el mapa, vuelve a seguirlo solo
-const ANIM_MS = 950           // cuánto dura el desplazamiento entre dos lecturas del GPS
+const ANIM_MS = 950           // cuánto dura el paso de una lectura del GPS a la siguiente
 
 function zoomPara(vel: number, distProx: number | null, resta: number | null) {
-  if ((distProx != null && distProx < 130) || (resta != null && resta < 180)) return 19
-  if (vel > 16) return 17      // sobre ~60 km/h
-  return 18
+  if ((distProx != null && distProx < 120) || (resta != null && resta < 150)) return 18.8
+  if (vel > 16) return 17.2   // sobre ~60 km/h: más lejos para anticipar
+  if (vel > 9) return 17.7
+  return 18.2
+}
+
+// Un punto a `m` metros de `p` en dirección `rumbo`.
+function avanzar(p: Punto, rumbo: number, m: number): Punto {
+  const R = 6371000, d = m / R, b = rumbo * Math.PI / 180
+  const la = p.lat * Math.PI / 180, lo = p.lng * Math.PI / 180
+  const la2 = Math.asin(Math.sin(la) * Math.cos(d) + Math.cos(la) * Math.sin(d) * Math.cos(b))
+  const lo2 = lo + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(la), Math.cos(d) - Math.sin(la) * Math.sin(la2))
+  return { lat: la2 * 180 / Math.PI, lng: lo2 * 180 / Math.PI }
+}
+const difAng = (a: number, b: number) => ((((b - a) % 360) + 540) % 360) - 180
+
+// La flecha de navegación como elemento HTML (se gira a mano contra la cámara).
+function crearFlecha() {
+  const el = document.createElement('div')
+  el.style.cssText = 'width:54px;height:54px;transform-origin:50% 50%;transform:translateY(50%);pointer-events:none'
+  el.innerHTML =
+    '<svg viewBox="0 0 54 54" width="54" height="54" style="display:block;transition:transform 300ms linear">' +
+    '<circle cx="27" cy="27" r="25" fill="#1a73e8" fill-opacity="0.18"/>' +
+    '<path d="M27 6 L42 44 L27 35 L12 44 Z" fill="#1a73e8" stroke="#fff" stroke-width="3.5" stroke-linejoin="round"/></svg>'
+  return el
 }
 
 function Icono({ m, size = 44 }: { m?: string; size?: number }) {
@@ -85,11 +110,13 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
   const [modo, setModo] = useState<'rumbo' | 'norte'>(() => {
     try { return localStorage.getItem('nav_modo') === 'norte' ? 'norte' : 'rumbo' } catch { return 'rumbo' }
   })
-  const [giro, setGiro] = useState(0)      // grados que se gira el mapa (acumulado, sin saltar de 359 a 0)
-  const [geo, setGeo] = useState({ left: 0, top: 0, lado: 0 })
-  const caja = useRef<HTMLDivElement>(null)
-  const rumboVista = useRef<number | null>(null)
-  const mostrado = useRef<Punto | null>(null)   // dónde está dibujada la flecha ahora
+  const [brujula, setBrujula] = useState(0)   // rumbo de la cámara, para dibujar la N
+  const flechaEl = useRef<HTMLDivElement | null>(null)
+  const vectorial = useRef(false)
+  const rumboVista = useRef<number | null>(null)  // hacia dónde va la camioneta
+  // lo que está dibujado ahora mismo (se anima desde aquí hacia la lectura nueva)
+  const cam = useRef<{ p: Punto; rumbo: number; zoom: number } | null>(null)
+  const meta = useRef<{ p: Punto; rumbo: number; zoom: number } | null>(null)
   const anim = useRef<number | null>(null)
   const siguiendoRef = useRef(siguiendo); siguiendoRef.current = siguiendo
   const modoRef = useRef(modo); modoRef.current = modo
@@ -150,9 +177,19 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
     if (!div.current) return
     cargarGoogle().then(g => {
       if (mapa.current) return
+      const inicio = pos ? { lat: pos.lat, lng: pos.lng } : { lat: destino.lat, lng: destino.lng }
       mapa.current = new g.maps.Map(div.current!, {
-        center: pos ? { lat: pos.lat, lng: pos.lng } : { lat: destino.lat, lng: destino.lng },
-        zoom: 18, styles: ESTILO, disableDefaultUI: true, gestureHandling: 'greedy', clickableIcons: false,
+        center: inicio, zoom: 18, heading: 0, tilt: INCLINACION,
+        mapId: MAP_ID, renderingType: g.maps.RenderingType?.VECTOR,
+        disableDefaultUI: true, gestureHandling: 'greedy', clickableIcons: false,
+        headingInteractionEnabled: true, tiltInteractionEnabled: true,
+      })
+      const verTipo = () => { vectorial.current = mapa.current.getRenderingType?.() === 'VECTOR' }
+      verTipo(); mapa.current.addListener('renderingtype_changed', verTipo)
+      mapa.current.addListener('dragstart', () => setSiguiendo(false))
+      mapa.current.addListener('heading_changed', () => {
+        const h = mapa.current.getHeading?.() || 0
+        setBrujula(h); girarFlecha()
       })
       pinDestino.current = new g.maps.Marker({
         position: { lat: destino.lat, lng: destino.lng }, map: mapa.current, zIndex: 60,
@@ -160,40 +197,74 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
                 fillOpacity: 1, strokeColor: '#fff', strokeWeight: 4 },
       })
     })
+    return () => { if (anim.current) cancelAnimationFrame(anim.current) }
   }, [])
 
-  // El mapa es un cuadrado más grande que la pantalla, centrado en el punto
-  // donde va la camioneta, para que al girarlo nunca se vean esquinas vacías.
-  useEffect(() => {
-    const el = caja.current
-    if (!el) return
-    const medir = () => {
-      const w = el.clientWidth, h = el.clientHeight
-      const ax = w / 2, ay = h * ALTO_CAMIONETA
-      const r = Math.ceil(Math.hypot(ax, Math.max(ay, h - ay))) + 4
-      setGeo({ left: ax - r, top: ay - r, lado: 2 * r })
-    }
-    medir()
-    const ro = new ResizeObserver(medir); ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  // girar: hacia el lado más corto, y sin temblar por diferencias chicas
-  const giroRef = useRef(0)
-  const ponerGiro = (v: number) => { giroRef.current = v; setGiro(v) }
-  const girarA = (dir: number) => {
-    rumboVista.current = dir
-    const d = ((((-dir - giroRef.current) % 360) + 540) % 360) - 180
-    if (Math.abs(d) < 4) return
-    ponerGiro(giroRef.current + d)
+  // la flecha siempre apunta hacia donde va la camioneta, descontando el giro del mapa
+  function girarFlecha() {
+    const svg = flechaEl.current?.firstElementChild as HTMLElement | null
+    if (!svg) return
+    const h = mapa.current?.getHeading?.() || 0
+    svg.style.transform = `rotate(${(rumboVista.current ?? 0) - h}deg)`
   }
-  const enderezar = () => ponerGiro(Math.round(giroRef.current / 360) * 360)
+
+  // Mueve la cámara al estado `c`: centro por delante de la camioneta para
+  // que ésta quede abajo, girada y con inclinación.
+  function ponerCamara(c: { p: Punto; rumbo: number; zoom: number }) {
+    const m = mapa.current
+    if (!m || !div.current) return
+    const h = div.current.clientHeight || 600
+    const rumboCam = modoRef.current === 'rumbo' ? c.rumbo : 0
+    const incl = vectorial.current ? INCLINACION : 0
+    // metros por píxel en el centro; la perspectiva estira lo de abajo un poco
+    const mpp = 156543.03392 * Math.cos(c.p.lat * Math.PI / 180) / Math.pow(2, c.zoom)
+    const px = (ALTO_CAMIONETA - 0.5) * h
+    const adelante = px * mpp * (incl ? 0.95 / Math.cos(incl * Math.PI / 180) * 0.8 : 1)
+    const centro = avanzar(c.p, rumboCam, adelante)
+    if (vectorial.current) m.moveCamera({ center: centro, heading: rumboCam, tilt: incl, zoom: c.zoom })
+    else { m.setCenter(centro); if (Math.abs(m.getZoom() - Math.round(c.zoom)) > 0.1) m.setZoom(Math.round(c.zoom)) }
+  }
+
+  // anima de lo dibujado a la meta nueva, cuadro a cuadro
+  function animar() {
+    if (anim.current) cancelAnimationFrame(anim.current)
+    const desde = cam.current, hacia = meta.current
+    if (!hacia) return
+    if (!desde) { cam.current = hacia; dibujar(); return }
+    const t0 = performance.now()
+    const dr = difAng(desde.rumbo, hacia.rumbo)
+    const paso = (t: number) => {
+      const k = Math.min(1, (t - t0) / ANIM_MS)
+      cam.current = {
+        p: { lat: desde.p.lat + (hacia.p.lat - desde.p.lat) * k, lng: desde.p.lng + (hacia.p.lng - desde.p.lng) * k },
+        rumbo: (desde.rumbo + dr * k + 360) % 360,
+        zoom: desde.zoom + (hacia.zoom - desde.zoom) * k,
+      }
+      dibujar()
+      anim.current = k < 1 ? requestAnimationFrame(paso) : null
+    }
+    anim.current = requestAnimationFrame(paso)
+  }
+  function dibujar() {
+    const c = cam.current, g = (window as any).google
+    if (!c || !g || !mapa.current) return
+    if (!flecha.current) {
+      flechaEl.current = crearFlecha()
+      const AM = g.maps.marker?.AdvancedMarkerElement
+      flecha.current = AM
+        ? new AM({ map: mapa.current, position: c.p, content: flechaEl.current, zIndex: 99 })
+        : new g.maps.Marker({ map: mapa.current, position: c.p, zIndex: 99 })
+    }
+    if ('position' in flecha.current && !flecha.current.setPosition) flecha.current.position = c.p
+    else flecha.current.setPosition(c.p)
+    if (siguiendoRef.current) ponerCamara(c)
+    girarFlecha()
+  }
 
   useEffect(() => {
     try { localStorage.setItem('nav_modo', modo) } catch { /* */ }
-    if (modo === 'norte' || !siguiendo) enderezar()
-    else if (rumboVista.current != null) girarA(rumboVista.current)
-  }, [modo, siguiendo])
+    if (siguiendo && cam.current) ponerCamara(cam.current)
+  }, [modo])
 
   // si el conductor movió el mapa, a los 12 s sin tocarlo vuelve a seguir la camioneta
   useEffect(() => {
@@ -201,7 +272,7 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
     const g = (window as any).google
     let t = window.setTimeout(() => recentrar(), VOLVER_SOLO_MS)
     const reset = () => { window.clearTimeout(t); t = window.setTimeout(() => recentrar(), VOLVER_SOLO_MS) }
-    const ls = ['dragstart', 'drag', 'zoom_changed'].map(ev => mapa.current.addListener(ev, reset))
+    const ls = ['dragstart', 'drag'].map(ev => mapa.current.addListener(ev, reset))
     return () => { window.clearTimeout(t); ls.forEach(l => g?.maps.event.removeListener(l)) }
   }, [siguiendo])
 
@@ -267,39 +338,13 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
       let dir: number | null = null
       if (enCamino && ruta && ruta.total - e.s > 8) dir = rumboDe(e.p, puntoEn(ruta, e.s + 30))
       else if (vel > 2 && pos.rumbo != null) dir = pos.rumbo
-      else if (e) dir = rumboVista.current ?? e.dir
-      if (dir == null) dir = rumboVista.current ?? 0
-      if (modoRef.current === 'rumbo' && siguiendoRef.current && (vel > 0.8 || rumboVista.current == null || enCamino)) girarA(dir)
-      else if (rumboVista.current == null) rumboVista.current = dir
-
-      const icono = { path: 'M 0,-3.2 L 2.4,2.6 L 0,1.3 L -2.4,2.6 Z', scale: 7.5, rotation: dir,
-                      anchor: new g.maps.Point(0, 0), fillColor: '#1a73e8', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }
-      if (!flecha.current) {
-        flecha.current = new g.maps.Marker({ map: mapa.current, position: donde, icon: icono, zIndex: 99 })
-        mostrado.current = donde
-        if (siguiendoRef.current) mapa.current.setCenter(donde)
-      } else {
-        flecha.current.setIcon(icono)
-        // deslizar de la lectura anterior a esta, en vez de saltar
-        const desde = mostrado.current || donde
-        if (anim.current) cancelAnimationFrame(anim.current)
-        const t0 = performance.now()
-        const paso = (t: number) => {
-          const k = Math.min(1, (t - t0) / ANIM_MS)
-          const p = { lat: desde.lat + (donde.lat - desde.lat) * k, lng: desde.lng + (donde.lng - desde.lng) * k }
-          mostrado.current = p
-          flecha.current?.setPosition(p)
-          if (siguiendoRef.current) mapa.current?.setCenter(p)
-          anim.current = k < 1 ? requestAnimationFrame(paso) : null
-        }
-        anim.current = requestAnimationFrame(paso)
-      }
-      // acercarse en las esquinas, abrirse cuando va rápido
-      if (siguiendoRef.current) {
-        const sg = ruta && e ? siguiente(ruta, e.s) : null
-        const z = zoomPara(vel, sg?.prox ? sg.distProx : null, sg ? sg.resta : null)
-        if (mapa.current.getZoom() !== z) mapa.current.setZoom(z)
-      }
+      else dir = rumboVista.current ?? (e ? e.dir : 0)
+      const d: number = dir ?? 0
+      const rumboNuevo = rumboVista.current != null && Math.abs(difAng(rumboVista.current, d)) < 3 ? rumboVista.current : d
+      rumboVista.current = rumboNuevo
+      const sg = ruta && e ? siguiente(ruta, e.s) : null
+      meta.current = { p: donde, rumbo: rumboNuevo, zoom: zoomPara(vel, sg?.prox ? sg.distProx : null, sg ? sg.resta : null) }
+      animar()
     }
   }, [pos, ruta])
 
@@ -307,12 +352,9 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
 
   function recentrar() {
     setSiguiendo(true)
-    const p = mostrado.current || (pos ? { lat: pos.lat, lng: pos.lng } : null)
-    if (mapa.current && p) { mapa.current.setZoom(18); mapa.current.setCenter(p) }
+    siguiendoRef.current = true
+    if (cam.current) ponerCamara(cam.current)
   }
-  // tocar el mapa mientras sigue a la camioneta: se suelta, se endereza al
-  // norte y ya se puede arrastrar y hacer zoom normal
-  const soltar = () => setSiguiendo(false)
 
   const info = useMemo(() => (ruta && estado ? siguiente(ruta, estado.s) : null), [ruta, estado])
   const restaMin = ruta && info ? Math.max(1, Math.round((ruta.seg * (info.resta / Math.max(1, ruta.total))) / 60)) : null
@@ -354,19 +396,14 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
       </div>
 
       {/* mapa */}
-      <div ref={caja} className="relative flex-1 min-h-0 overflow-hidden bg-[#f5f5f5]">
-        <div ref={div} className="absolute"
-             style={{ left: geo.left, top: geo.top, width: geo.lado, height: geo.lado,
-                      transform: `rotate(${giro}deg)`, transformOrigin: '50% 50%',
-                      transition: 'transform 900ms linear', willChange: 'transform' }} />
-        {siguiendo && <div className="absolute inset-0 z-10" onPointerDown={soltar} />}
-        <button onClick={() => setModo(m => (m === 'rumbo' ? 'norte' : 'rumbo'))}
-                className="absolute top-3 right-3 z-20 bg-white rounded-full w-12 h-12 shadow-lg flex flex-col items-center justify-center"
+      <div className="relative flex-1 min-h-0 overflow-hidden bg-[#f5f5f5]">
+        <div ref={div} className="absolute inset-0" />
+        <button onClick={() => (siguiendo ? setModo(m => (m === 'rumbo' ? 'norte' : 'rumbo')) : recentrar())}
+                className="absolute top-3 right-3 z-20 bg-white rounded-full w-12 h-12 shadow-lg flex items-center justify-center"
                 aria-label={modo === 'rumbo' ? 'Poner el norte arriba' : 'Girar con la camioneta'}>
-          <span style={{ transform: `rotate(${giro}deg)`, transition: 'transform 900ms linear' }}
-                className="flex flex-col items-center leading-none">
-            <span className="text-[10px] font-bold text-red-600">N</span>
-            <Navigation2 size={16} className={modo === 'rumbo' ? 'text-gray-400' : 'text-red-600'} fill="currentColor" />
+          <span style={{ transform: `rotate(${-brujula}deg)` }} className="flex flex-col items-center leading-none">
+            <Navigation2 size={16} className={modo === 'rumbo' ? 'text-red-600' : 'text-gray-500'} fill="currentColor" />
+            <span className="text-[10px] font-bold text-gray-700">N</span>
           </span>
         </button>
         {pidiendo && ruta && (

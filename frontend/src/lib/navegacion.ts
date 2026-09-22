@@ -140,3 +140,16 @@ export function desbloquearVoz() {
     window.speechSynthesis?.speak(u)
   } catch { /* nada */ }
 }
+
+// El punto de la ruta que queda a `s` metros del inicio. Sirve para mirar un
+// poco más adelante y que el mapa gire con la calle, no con cada saltito del GPS.
+export function puntoEn(r: Ruta, s: number): Punto {
+  if (!r.pts.length) return { lat: 0, lng: 0 }
+  if (s <= 0) return r.pts[0]
+  if (s >= r.total) return r.pts[r.pts.length - 1]
+  let i = r.acum.findIndex(a => a > s)
+  if (i < 1) i = 1
+  const a = r.acum[i - 1], b = r.acum[i], t = b > a ? (s - a) / (b - a) : 0
+  const p = r.pts[i - 1], q = r.pts[i]
+  return { lat: p.lat + (q.lat - p.lat) * t, lng: p.lng + (q.lng - p.lng) * t }
+}

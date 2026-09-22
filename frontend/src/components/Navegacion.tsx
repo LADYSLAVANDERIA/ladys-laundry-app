@@ -11,12 +11,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw,
-  MapPin, Volume2, VolumeX, X, Check, LocateFixed, ExternalLink, Loader2, Merge,
+  MapPin, Volume2, VolumeX, X, Check, LocateFixed, ExternalLink, Loader2, Merge, Navigation2,
 } from 'lucide-react'
 import { cargarGoogle, ESTILO } from '../lib/google'
 import { navegacionApi } from '../services/api'
 import {
-  armarRuta, proyectar, siguiente, distTxt, distVoz, hablar, metros, type Ruta, type Punto,
+  armarRuta, proyectar, siguiente, distTxt, distVoz, hablar, metros, rumbo as rumboDe, puntoEn, type Ruta, type Punto,
 } from '../lib/navegacion'
 
 export type PosGps = { lat: number; lng: number; rumbo?: number | null; velocidad?: number | null; exactitud?: number | null }
@@ -33,6 +33,23 @@ const DESVIO_M = 45          // fuera del camino a partir de aquí
 const DESVIO_LECTURAS = 3    // lecturas seguidas fuera antes de recalcular
 const RECALC_MIN_MS = 20000  // no pedir rutas más seguido que esto
 const LLEGADA_M = 35
+
+// Cámara (22-sep-2026). Antes: norte fijo, zoom 17 y la camioneta al centro,
+// así que la mitad de la pantalla mostraba lo que ya había pasado.
+// Ahora el mapa gira con la camioneta (lo de adelante siempre arriba), la
+// camioneta va abajo para ver más camino por delante, y el zoom se acerca en
+// las esquinas y se abre cuando va rápido.
+// El giro se hace rotando el mapa con CSS: el giro nativo de Google exige un
+// Map ID vectorial que no tenemos. Costo: los nombres de calle giran con él.
+const ALTO_CAMIONETA = 0.72   // la camioneta a este % de alto del mapa
+const VOLVER_SOLO_MS = 12000  // si el conductor movió el mapa, vuelve a seguirlo solo
+const ANIM_MS = 950           // cuánto dura el desplazamiento entre dos lecturas del GPS
+
+function zoomPara(vel: number, distProx: number | null, resta: number | null) {
+  if ((distProx != null && distProx < 130) || (resta != null && resta < 180)) return 19
+  if (vel > 16) return 17      // sobre ~60 km/h
+  return 18
+}
 
 function Icono({ m, size = 44 }: { m?: string; size?: number }) {
   const x = String(m || '')
@@ -65,6 +82,17 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
   const [siguiendo, setSiguiendo] = useState(true)
   const [llegaste, setLlegaste] = useState(false)
   const [estado, setEstado] = useState<{ s: number; lado: number; idx: number; p: Punto; dir: number } | null>(null)
+  const [modo, setModo] = useState<'rumbo' | 'norte'>(() => {
+    try { return localStorage.getItem('nav_modo') === 'norte' ? 'norte' : 'rumbo' } catch { return 'rumbo' }
+  })
+  const [giro, setGiro] = useState(0)      // grados que se gira el mapa (acumulado, sin saltar de 359 a 0)
+  const [geo, setGeo] = useState({ left: 0, top: 0, lado: 0 })
+  const caja = useRef<HTMLDivElement>(null)
+  const rumboVista = useRef<number | null>(null)
+  const mostrado = useRef<Punto | null>(null)   // dónde está dibujada la flecha ahora
+  const anim = useRef<number | null>(null)
+  const siguiendoRef = useRef(siguiendo); siguiendoRef.current = siguiendo
+  const modoRef = useRef(modo); modoRef.current = modo
 
   const ultimoPedido = useRef(0)
   const fuera = useRef(0)
@@ -124,9 +152,8 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
       if (mapa.current) return
       mapa.current = new g.maps.Map(div.current!, {
         center: pos ? { lat: pos.lat, lng: pos.lng } : { lat: destino.lat, lng: destino.lng },
-        zoom: 17, styles: ESTILO, disableDefaultUI: true, gestureHandling: 'greedy', clickableIcons: false,
+        zoom: 18, styles: ESTILO, disableDefaultUI: true, gestureHandling: 'greedy', clickableIcons: false,
       })
-      mapa.current.addListener('dragstart', () => setSiguiendo(false))
       pinDestino.current = new g.maps.Marker({
         position: { lat: destino.lat, lng: destino.lng }, map: mapa.current, zIndex: 60,
         icon: { path: g.maps.SymbolPath.CIRCLE, scale: 11, fillColor: destino.tipo === 'RETIRO' ? '#4AAEE0' : '#E8177A',
@@ -134,6 +161,49 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
       })
     })
   }, [])
+
+  // El mapa es un cuadrado más grande que la pantalla, centrado en el punto
+  // donde va la camioneta, para que al girarlo nunca se vean esquinas vacías.
+  useEffect(() => {
+    const el = caja.current
+    if (!el) return
+    const medir = () => {
+      const w = el.clientWidth, h = el.clientHeight
+      const ax = w / 2, ay = h * ALTO_CAMIONETA
+      const r = Math.ceil(Math.hypot(ax, Math.max(ay, h - ay))) + 4
+      setGeo({ left: ax - r, top: ay - r, lado: 2 * r })
+    }
+    medir()
+    const ro = new ResizeObserver(medir); ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // girar: hacia el lado más corto, y sin temblar por diferencias chicas
+  const giroRef = useRef(0)
+  const ponerGiro = (v: number) => { giroRef.current = v; setGiro(v) }
+  const girarA = (dir: number) => {
+    rumboVista.current = dir
+    const d = ((((-dir - giroRef.current) % 360) + 540) % 360) - 180
+    if (Math.abs(d) < 4) return
+    ponerGiro(giroRef.current + d)
+  }
+  const enderezar = () => ponerGiro(Math.round(giroRef.current / 360) * 360)
+
+  useEffect(() => {
+    try { localStorage.setItem('nav_modo', modo) } catch { /* */ }
+    if (modo === 'norte' || !siguiendo) enderezar()
+    else if (rumboVista.current != null) girarA(rumboVista.current)
+  }, [modo, siguiendo])
+
+  // si el conductor movió el mapa, a los 12 s sin tocarlo vuelve a seguir la camioneta
+  useEffect(() => {
+    if (siguiendo || !mapa.current) return
+    const g = (window as any).google
+    let t = window.setTimeout(() => recentrar(), VOLVER_SOLO_MS)
+    const reset = () => { window.clearTimeout(t); t = window.setTimeout(() => recentrar(), VOLVER_SOLO_MS) }
+    const ls = ['dragstart', 'drag', 'zoom_changed'].map(ev => mapa.current.addListener(ev, reset))
+    return () => { window.clearTimeout(t); ls.forEach(l => g?.maps.event.removeListener(l)) }
+  }, [siguiendo])
 
   // dibujar la ruta nueva
   useEffect(() => {
@@ -189,20 +259,60 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
     // la flecha: pegada al camino si va sobre él, y apuntando hacia donde avanza
     if (g && mapa.current) {
       const enCamino = e && e.lado < 25
-      const donde = enCamino ? e.p : { lat: pos.lat, lng: pos.lng }
-      const dir = pos.velocidad && pos.velocidad > 2 && pos.rumbo != null ? pos.rumbo : (e ? e.dir : 0)
-      const icono = { path: g.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 7, rotation: dir,
-                      fillColor: '#1a73e8', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }
-      if (!flecha.current) flecha.current = new g.maps.Marker({ map: mapa.current, position: donde, icon: icono, zIndex: 99 })
-      else { flecha.current.setPosition(donde); flecha.current.setIcon(icono) }
-      if (siguiendo) mapa.current.panTo(donde)
+      const donde: Punto = enCamino ? e.p : { lat: pos.lat, lng: pos.lng }
+      const vel = pos.velocidad || 0
+      // rumbo: sobre la ruta, hacia un punto 30 m más adelante (gira con la
+      // calle, no con el ruido del GPS); fuera de ella, el del GPS si se mueve;
+      // detenido, se queda con el último para que el mapa no baile.
+      let dir: number | null = null
+      if (enCamino && ruta && ruta.total - e.s > 8) dir = rumboDe(e.p, puntoEn(ruta, e.s + 30))
+      else if (vel > 2 && pos.rumbo != null) dir = pos.rumbo
+      else if (e) dir = rumboVista.current ?? e.dir
+      if (dir == null) dir = rumboVista.current ?? 0
+      if (modoRef.current === 'rumbo' && siguiendoRef.current && (vel > 0.8 || rumboVista.current == null || enCamino)) girarA(dir)
+      else if (rumboVista.current == null) rumboVista.current = dir
+
+      const icono = { path: 'M 0,-3.2 L 2.4,2.6 L 0,1.3 L -2.4,2.6 Z', scale: 7.5, rotation: dir,
+                      anchor: new g.maps.Point(0, 0), fillColor: '#1a73e8', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }
+      if (!flecha.current) {
+        flecha.current = new g.maps.Marker({ map: mapa.current, position: donde, icon: icono, zIndex: 99 })
+        mostrado.current = donde
+        if (siguiendoRef.current) mapa.current.setCenter(donde)
+      } else {
+        flecha.current.setIcon(icono)
+        // deslizar de la lectura anterior a esta, en vez de saltar
+        const desde = mostrado.current || donde
+        if (anim.current) cancelAnimationFrame(anim.current)
+        const t0 = performance.now()
+        const paso = (t: number) => {
+          const k = Math.min(1, (t - t0) / ANIM_MS)
+          const p = { lat: desde.lat + (donde.lat - desde.lat) * k, lng: desde.lng + (donde.lng - desde.lng) * k }
+          mostrado.current = p
+          flecha.current?.setPosition(p)
+          if (siguiendoRef.current) mapa.current?.setCenter(p)
+          anim.current = k < 1 ? requestAnimationFrame(paso) : null
+        }
+        anim.current = requestAnimationFrame(paso)
+      }
+      // acercarse en las esquinas, abrirse cuando va rápido
+      if (siguiendoRef.current) {
+        const sg = ruta && e ? siguiente(ruta, e.s) : null
+        const z = zoomPara(vel, sg?.prox ? sg.distProx : null, sg ? sg.resta : null)
+        if (mapa.current.getZoom() !== z) mapa.current.setZoom(z)
+      }
     }
   }, [pos, ruta])
 
-  const recentrar = () => {
+  useEffect(() => () => { if (anim.current) cancelAnimationFrame(anim.current) }, [])
+
+  function recentrar() {
     setSiguiendo(true)
-    if (mapa.current && pos) { mapa.current.setZoom(17); mapa.current.panTo(estado?.lado != null && estado.lado < 25 ? estado.p : pos) }
+    const p = mostrado.current || (pos ? { lat: pos.lat, lng: pos.lng } : null)
+    if (mapa.current && p) { mapa.current.setZoom(18); mapa.current.setCenter(p) }
   }
+  // tocar el mapa mientras sigue a la camioneta: se suelta, se endereza al
+  // norte y ya se puede arrastrar y hacer zoom normal
+  const soltar = () => setSiguiendo(false)
 
   const info = useMemo(() => (ruta && estado ? siguiente(ruta, estado.s) : null), [ruta, estado])
   const restaMin = ruta && info ? Math.max(1, Math.round((ruta.seg * (info.resta / Math.max(1, ruta.total))) / 60)) : null
@@ -244,24 +354,37 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
       </div>
 
       {/* mapa */}
-      <div className="relative flex-1 min-h-0">
-        <div ref={div} className="absolute inset-0" />
+      <div ref={caja} className="relative flex-1 min-h-0 overflow-hidden bg-[#f5f5f5]">
+        <div ref={div} className="absolute"
+             style={{ left: geo.left, top: geo.top, width: geo.lado, height: geo.lado,
+                      transform: `rotate(${giro}deg)`, transformOrigin: '50% 50%',
+                      transition: 'transform 900ms linear', willChange: 'transform' }} />
+        {siguiendo && <div className="absolute inset-0 z-10" onPointerDown={soltar} />}
+        <button onClick={() => setModo(m => (m === 'rumbo' ? 'norte' : 'rumbo'))}
+                className="absolute top-3 right-3 z-20 bg-white rounded-full w-12 h-12 shadow-lg flex flex-col items-center justify-center"
+                aria-label={modo === 'rumbo' ? 'Poner el norte arriba' : 'Girar con la camioneta'}>
+          <span style={{ transform: `rotate(${giro}deg)`, transition: 'transform 900ms linear' }}
+                className="flex flex-col items-center leading-none">
+            <span className="text-[10px] font-bold text-red-600">N</span>
+            <Navigation2 size={16} className={modo === 'rumbo' ? 'text-gray-400' : 'text-red-600'} fill="currentColor" />
+          </span>
+        </button>
         {pidiendo && ruta && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-white/95 rounded-full px-3 py-1.5 text-sm shadow flex items-center gap-2">
+          <div className="absolute z-20 top-3 left-1/2 -translate-x-1/2 bg-white/95 rounded-full px-3 py-1.5 text-sm shadow flex items-center gap-2">
             <Loader2 size={14} className="animate-spin" /> Recalculando…
           </div>
         )}
         {error && ruta && (
-          <div className="absolute top-3 left-3 right-3 bg-amber-100 text-amber-900 rounded-xl px-3 py-2 text-sm shadow">{error}</div>
+          <div className="absolute z-20 top-16 left-3 right-3 bg-amber-100 text-amber-900 rounded-xl px-3 py-2 text-sm shadow">{error}</div>
         )}
         {!siguiendo && (
           <button onClick={recentrar}
-                  className="absolute bottom-4 right-4 bg-white rounded-full px-4 py-3 shadow-lg flex items-center gap-2 text-sm font-semibold text-blue-700">
+                  className="absolute z-20 bottom-4 right-4 bg-white rounded-full px-4 py-3 shadow-lg flex items-center gap-2 text-sm font-semibold text-blue-700">
             <LocateFixed size={18} /> Centrar
           </button>
         )}
         {pos && (pos.exactitud || 0) > 60 && (
-          <div className="absolute bottom-4 left-4 bg-white/95 rounded-full px-3 py-1.5 text-xs shadow text-gray-600">
+          <div className="absolute z-20 bottom-4 left-4 bg-white/95 rounded-full px-3 py-1.5 text-xs shadow text-gray-600">
             GPS débil (±{Math.round(pos.exactitud || 0)} m)
           </div>
         )}

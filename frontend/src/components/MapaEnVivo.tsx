@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import axios from 'axios'
 import { Truck, Clock, MapPin } from 'lucide-react'
 import { cargarGoogle, ESTILO, pin, camioneta, rumboEntre } from '../lib/google'
+import { decodificar, metros } from '../lib/navegacion'
 
 const SEG = (import.meta.env.VITE_API_URL || 'https://vhjsizkbmabznupkfzji.supabase.co/functions/v1/ladys/api')
   .replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-seguimiento')
@@ -41,7 +42,8 @@ export default function MapaEnVivo({ datos }: { datos: any }) {
   const ruta = useRef<any>(null)
   const donde = useRef<any>(null)     // dónde está dibujada la camioneta ahora
   const cuadro = useRef<number>(0)    // animación en curso
-  const rutaDe = useRef<string>('')   // para no pedir dos veces la misma ruta
+  const rutaDe = useRef<string>('')   // la última ruta dibujada
+  const tocado = useRef(false)        // si el cliente movió el mapa, no se lo reencuadramos
 
   useEffect(() => {
     if (!div.current || !datos?.destino) return
@@ -58,6 +60,7 @@ export default function MapaEnVivo({ datos }: { datos: any }) {
           fullscreenControl: false, zoomControl: false,
           gestureHandling: 'greedy',
         })
+        mapa.current.addListener('dragstart', () => { tocado.current = true })
         new g.maps.Marker({ position: destino, map: mapa.current,
           icon: pin('C', '#E8177A'), title: 'Tu dirección' })
       }
@@ -108,43 +111,43 @@ export default function MapaEnVivo({ datos }: { datos: any }) {
         cuadro.current = requestAnimationFrame(paso)
       }
 
-      // ── La ruta que vamos a seguir ──
-      // Se pide una vez por posición redondeada: el camino por calles cambia
-      // poco entre una medición y la siguiente, y cada consulta se paga.
-      const firma = pos.lat.toFixed(3) + ',' + pos.lng.toFixed(3)
-      if (rutaDe.current !== firma) {
-        rutaDe.current = firma
-        const pintar = (camino: any[], porCalles: boolean) => {
-          if (!vivo) return
-          if (ruta.current) ruta.current.setMap(null)
-          ruta.current = new g.maps.Polyline({
-            path: camino, map: mapa.current, geodesic: true,
-            strokeColor: '#A87BC8', strokeOpacity: porCalles ? 0.9 : 0,
-            strokeWeight: 5, zIndex: 20,
-            // Sin ruta por calles se dibuja punteada: así se entiende que es la
-            // dirección, no el camino exacto.
-            icons: porCalles ? undefined : [{
-              icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.85, strokeColor: '#A87BC8', scale: 3 },
-              offset: '0', repeat: '12px' }],
-          })
+      // ── La ruta que va a seguir la camioneta ──
+      // (22-sep-2026) La calcula el servidor con Routes API y tráfico en vivo,
+      // pasando por las paradas que hace antes. Antes se pedía desde aquí a una
+      // API que la clave no tenía, fallaba callado y quedaba una recta punteada.
+      // Se dibuja desde donde está la camioneta ahora: lo ya recorrido se corta.
+      const poly = datos.ruta?.polyline as string | undefined
+      let camino: any[] = [pos, destino]
+      if (poly) {
+        const pts = decodificar(poly)
+        let k = 0, mejor = Infinity
+        for (let i = 0; i < Math.min(pts.length, 200); i++) {
+          const d = metros(pos, pts[i]); if (d < mejor) { mejor = d; k = i }
         }
-        try {
-          new g.maps.DirectionsService().route({
-            origin: pos, destination: destino, travelMode: g.maps.TravelMode.DRIVING,
-          }, (res: any, estado: string) => {
-            if (estado === 'OK' && res?.routes?.[0]) pintar(res.routes[0].overview_path, true)
-            else pintar([pos, destino], false)
-          })
-        } catch { pintar([pos, destino], false) }
+        camino = [pos, ...pts.slice(k + 1)]
       }
-
-      const caja = new g.maps.LatLngBounds()
-      caja.extend(pos); caja.extend(destino)
-      mapa.current.fitBounds(caja, 45)
-      // fitBounds acerca demasiado cuando los dos puntos estan casi juntos
-      g.maps.event.addListenerOnce(mapa.current, 'idle', () => {
-        if (mapa.current.getZoom() > 15) mapa.current.setZoom(15)
+      if (!ruta.current) {
+        ruta.current = new g.maps.Polyline({ map: mapa.current, zIndex: 20, strokeWeight: 6 })
+      }
+      ruta.current.setOptions({
+        path: camino, strokeColor: poly ? '#1a73e8' : '#A87BC8', strokeOpacity: poly ? 0.9 : 0,
+        // sin ruta del servidor (Google caído) queda punteada: es la dirección, no el camino
+        icons: poly ? [] : [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.85, strokeColor: '#A87BC8', scale: 3 },
+                              offset: '0', repeat: '12px' }],
       })
+
+      // encuadre: al abrir y cada vez que cambia la ruta, salvo que el cliente
+      // haya movido el mapa con el dedo
+      const firma = poly ? poly.slice(0, 40) : 'recta'
+      if (!tocado.current && rutaDe.current !== firma) {
+        rutaDe.current = firma
+        const caja = new g.maps.LatLngBounds()
+        camino.forEach((p: any) => caja.extend(p)); caja.extend(destino)
+        mapa.current.fitBounds(caja, 45)
+        g.maps.event.addListenerOnce(mapa.current, 'idle', () => {
+          if (mapa.current.getZoom() > 16) mapa.current.setZoom(16)
+        })
+      }
     })
 
     return () => {
@@ -171,7 +174,9 @@ export default function MapaEnVivo({ datos }: { datos: any }) {
           <Clock size={15} style={{ color: '#2b7fa8' }} />
           <span style={{ color: '#2b7fa8' }}>
             Llegamos en unos <b>{datos.eta_min} min</b>
+            {datos.llegada && <> · a las <b>{new Date(datos.llegada).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' })}</b></>}
             {datos.paradas_antes > 0 && ` · ${datos.paradas_antes} parada(s) antes que tú`}
+            {datos.eta_fuente === 'trafico' && <span className="block text-[11px] opacity-80">Calculado con el tráfico de este momento</span>}
           </span>
         </div>
       )}

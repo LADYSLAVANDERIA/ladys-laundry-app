@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { seguimientoApi } from '../services/api'
 import { Truck, MapPin, Clock, CheckCircle2, PackageCheck } from 'lucide-react'
-import { cargarGoogle, ESTILO, pin } from '../lib/google'
+import MapaEnVivo from '../components/MapaEnVivo'
 
 function haceCuanto(iso: string) {
   const s = Math.round((Date.now() - new Date(iso).getTime()) / 1000)
@@ -16,10 +16,6 @@ export default function SeguirPedido() {
   const { id, token } = useParams()
   const [d, setD] = useState<any>(null)
   const [error, setError] = useState('')
-  const div = useRef<HTMLDivElement>(null)
-  const mapa = useRef<any>(null)
-  const pinAuto = useRef<any>(null)
-  const pinCasa = useRef<any>(null)
 
   const cargar = () => {
     seguimientoApi.seguir(id!, token!)
@@ -32,41 +28,6 @@ export default function SeguirPedido() {
     const t = setInterval(cargar, 15000)   // se refresca solo cada 15 segundos
     return () => clearInterval(t)
   }, [id, token])
-
-  useEffect(() => {
-    if (!div.current || !d?.destino) return
-    cargarGoogle().then(g => {
-      const destino = { lat: d.destino.lat, lng: d.destino.lng }
-      if (!mapa.current) {
-        mapa.current = new g.maps.Map(div.current!, {
-          center: destino, zoom: 14, styles: ESTILO,
-          mapTypeControl: false, streetViewControl: false,
-          fullscreenControl: false, zoomControl: false, gestureHandling: 'greedy',
-        })
-      }
-      if (!pinCasa.current) {
-        pinCasa.current = new g.maps.Marker({
-          position: destino, map: mapa.current, icon: pin('C', '#E8177A'), title: 'Tu direccion',
-        })
-      }
-      if (d.conductor) {
-        const pos = { lat: d.conductor.lat, lng: d.conductor.lng }
-        if (!pinAuto.current) {
-          pinAuto.current = new g.maps.Marker({
-            position: pos, map: mapa.current, icon: pin('R', '#4AAEE0'),
-            title: 'Repartidor', zIndex: 90,
-          })
-        } else pinAuto.current.setPosition(pos)
-        const caja = new g.maps.LatLngBounds()
-        caja.extend(pos); caja.extend(destino)
-        mapa.current.fitBounds(caja, 50)
-        // con los dos puntos casi encima, fitBounds acerca de mas
-        g.maps.event.addListenerOnce(mapa.current, 'idle', () => {
-          if (mapa.current.getZoom() > 15) mapa.current.setZoom(15)
-        })
-      }
-    })
-  }, [d])
 
   if (error) return <div className="min-h-screen flex items-center justify-center p-6 text-gray-500">{error}</div>
   if (!d) return <div className="min-h-screen flex items-center justify-center text-gray-400">Cargando…</div>
@@ -109,7 +70,7 @@ export default function SeguirPedido() {
           </div>
         ) : (
           <>
-            <div ref={div} className="rounded-2xl overflow-hidden shadow-sm bg-white" style={{ height: 320 }} />
+            <div className="rounded-2xl overflow-hidden shadow-sm bg-white"><MapaEnVivo datos={d} /></div>
             {d.conductor ? (
               <div className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-white"

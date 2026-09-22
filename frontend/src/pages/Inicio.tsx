@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { clientesApi, ordenesApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
-import { Search, UserPlus, FilePlus, Calendar, ClipboardList, Phone, X } from 'lucide-react'
+import { Search, UserPlus, FilePlus, Calendar, ClipboardList, Phone, X, Navigation, MapPinned, ScanLine } from 'lucide-react'
 
 const plata = (v: any) => '$' + Math.round(Number(v) || 0).toLocaleString('es-CL')
 const soloDigitos = (s: string) => s.replace(/\D/g, '')
@@ -43,7 +43,12 @@ export default function Inicio() {
     return () => clearTimeout(tarea)
   }, [q])
 
+  // Lo que se usa manejando o en el apuro va arriba, a un toque (Lufi, 22-sep):
+  // la vista del conductor, la ruta en vivo y producción.
+  const verConductor = isAdmin() || ['JEFE_LOCAL', 'CONDUCTOR'].includes(user?.perfil || '')
   const accesos = [
+    { icon: MapPinned,     label: 'Ruta en vivo',   a: '/ruta-en-vivo',  ver: ['JEFE_LOCAL', 'ASISTENTE'] },
+    { icon: ScanLine,      label: 'Producción',     a: '/produccion',    ver: ['JEFE_LOCAL', 'ASISTENTE'] },
     { icon: FilePlus,      label: 'Nueva orden',    a: '/ordenes/nueva', ver: ['JEFE_LOCAL'] },
     { icon: UserPlus,      label: 'Nuevo cliente',  a: '/clientes/nuevo', ver: ['JEFE_LOCAL'] },
     { icon: Calendar,      label: 'Programación',   a: '/programacion',  ver: ['JEFE_LOCAL'] },
@@ -122,6 +127,20 @@ export default function Inicio() {
             </div>
           )}
         </div>
+      )}
+
+      {verConductor && (
+        <button onClick={() => navigate('/conductor')}
+                className="w-full rounded-2xl p-5 flex items-center gap-4 text-white active:scale-[0.98] transition-transform shadow-md"
+                style={{ background: 'linear-gradient(135deg,#1a73e8,#4AAEE0)' }}>
+          <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
+            <Navigation size={28} className="text-white" />
+          </div>
+          <div className="text-left">
+            <p className="text-lg font-bold leading-tight">Vista conductor</p>
+            <p className="text-sm opacity-90">Volver a la ruta y la navegación</p>
+          </div>
+        </button>
       )}
 
       <div className="grid grid-cols-2 gap-3">

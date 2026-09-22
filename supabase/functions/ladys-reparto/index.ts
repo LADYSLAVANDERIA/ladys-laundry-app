@@ -26,6 +26,8 @@ function km(aLat: number, aLng: number, bLat: number, bLng: number) {
 }
 // la calle nunca es línea recta: factor de rodeo urbano
 const RODEO = 1.35;
+// etapas en que la ropa ya esta embolsada y puede subir a la camioneta
+const LISTA = ["EMBOLSADO", "LISTO_RETIRO", "ENTREGADO"];
 
 // ── arma las paradas del día a partir de las órdenes ──
 async function sincronizar(fecha: string) {
@@ -116,7 +118,21 @@ async function traerDia(fecha: string) {
            o.ot_easylaundry, o.token_publico,
            c.id AS cliente_id, c.nombre, c.apellido, c.razon_social, c.telefono, c.es_empresa,
            TRIM(CONCAT_WS(' ', d.calle, d.numero)) AS calle,
-           d.otro AS depto, d.sector, d.ciudad, d.geo_precision
+           d.otro AS depto, d.sector, d.ciudad, d.geo_precision,
+           o.etapa AS etapa_orden,
+           -- Entrega cuya ropa todavia no esta embolsada: no puede ir en la
+           -- camioneta. Antes de salir es normal (se esta procesando para su
+           -- fecha); desde que la ruta sale se muestra aparte con alerta.
+           (p.tipo = 'ENTREGA' AND p.estado <> 'COMPLETADA'
+             AND COALESCE(o.etapa, '') NOT IN ${SQL(LISTA)}) AS no_embolsada,
+           -- La ruta ya salio: salida real anotada, alguna parada trabajada,
+           -- dia pasado, o ya es la hora de inicio de la ruta.
+           (EXISTS (SELECT 1 FROM reparto_salidas s WHERE s.fecha = p.fecha AND s.ruta_id = p.ruta_id)
+            OR EXISTS (SELECT 1 FROM reparto_paradas q
+                        WHERE q.fecha = p.fecha AND q.ruta_id = p.ruta_id
+                          AND (q.inicio_trayecto IS NOT NULL OR q.estado IN ('COMPLETADA','EN_CAMINO','FALLIDA')))
+            OR p.fecha < CURRENT_DATE
+            OR (p.fecha = CURRENT_DATE AND r.hora_inicio IS NOT NULL AND LOCALTIME >= r.hora_inicio)) AS ruta_salio
     FROM reparto_paradas p
     JOIN ordenes o  ON o.id = p.orden_id
     JOIN clientes c ON c.id = o.cliente_id
@@ -184,11 +200,13 @@ async function recalcular(fecha: string, rutaId: number, cfg: any) {
   if (!s) return null;
 
   const ps = await SQL`
-    SELECT id, estado, lat, lng,
-           to_char(llegada_real AT TIME ZONE 'America/Santiago', 'HH24:MI') AS llegada
-    FROM reparto_paradas
-    WHERE fecha = ${fecha}::date AND ruta_id = ${rutaId}
-    ORDER BY (secuencia = 0), secuencia, id`;
+    SELECT p.id, p.estado, p.lat, p.lng,
+           to_char(p.llegada_real AT TIME ZONE 'America/Santiago', 'HH24:MI') AS llegada,
+           (p.tipo = 'ENTREGA' AND COALESCE(o.etapa, '') NOT IN ${SQL(LISTA)}) AS no_embolsada
+    FROM reparto_paradas p
+    JOIN ordenes o ON o.id = p.orden_id
+    WHERE p.fecha = ${fecha}::date AND p.ruta_id = ${rutaId}
+    ORDER BY (p.secuencia = 0), p.secuencia, p.id`;
 
   const base = { lat: Number(cfg.lat), lng: Number(cfg.lng) };
   const salida = aMin(s.hora);
@@ -196,10 +214,13 @@ async function recalcular(fecha: string, rutaId: number, cfg: any) {
   let ant = base;
   const cambios: any[] = [];
   let sinUbicar = 0;
+  const noEmbolsadas: number[] = [];
 
   for (const p of ps) {
     // una parada fallida o reprogramada no se visita: no suma tiempo
     if (p.estado === "FALLIDA" || p.estado === "REPROGRAMADA") continue;
+    // una entrega sin embolsar no va en la camioneta: no suma tiempo
+    if (p.estado !== "COMPLETADA" && p.no_embolsada) { noEmbolsadas.push(p.id); continue; }
     const ubicada = p.lat !== null && p.lng !== null;
     if (!ubicada) { if (p.estado !== "COMPLETADA") sinUbicar++; continue; }
     const aqui = { lat: Number(p.lat), lng: Number(p.lng) };
@@ -234,6 +255,7 @@ async function recalcular(fecha: string, rutaId: number, cfg: any) {
   const regreso = (km(ant.lat, ant.lng, base.lat, base.lng) * RODEO / cfg.vel_kmh) * 60;
   return {
     ruta_id: rutaId, salida: s.hora, recalculadas: cambios.length, sin_ubicar: sinUbicar,
+    no_embolsadas: noEmbolsadas.length,
     proxima: cambios[0]?.hora || null, termina: fmt(reloj + regreso),
   };
 }
@@ -332,6 +354,7 @@ Deno.serve(async (req: Request) => {
 
       const candidatas = todas.filter((p: any) =>
         p.lat !== null && p.estado !== "COMPLETADA" &&
+        !(p.no_embolsada && p.ruta_salio) &&
         (soloRuta === null || Number(p.ruta_id) === soloRuta));
 
       // Sin nada que optimizar igual hay que numerar: pueden quedar paradas

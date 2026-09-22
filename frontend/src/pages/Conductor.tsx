@@ -7,7 +7,7 @@ import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
 import {
   Navigation, Phone, MessageCircle, Check, X, MapPin, Package,
-  ChevronDown, ChevronUp, RefreshCw, LogOut, Banknote, Play, Radio, Map, List,
+  ChevronDown, ChevronUp, RefreshCw, LogOut, Banknote, Play, Radio, Map, List, AlertTriangle,
 } from 'lucide-react'
 
 const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
@@ -188,9 +188,15 @@ export default function Conductor() {
     })
   }, [todas, rutaSel])
 
+  // Entregas sin embolsar en una ruta que ya salio: no van en la camioneta.
+  // Salen de la lista de trabajo y se muestran aparte con alerta roja; vuelven
+  // solas si produccion las embolsa (22-sep, OT 6547: Alexandra fue sin el cobertor).
+  const noCargar = useMemo(() => paradas.filter(p => p.no_embolsada && p.ruta_salio), [paradas])
+  const enCamioneta = useMemo(() => paradas.filter(p => !(p.no_embolsada && p.ruta_salio)), [paradas])
+
   // La que va EN_CAMINO manda, pero solo dentro de su propia ruta.
-  const pendientes = useMemo(() => paradas.filter(p => p.estado === 'EN_CAMINO' || p.estado === 'PENDIENTE')
-    .sort((a, b) => (a.estado === 'EN_CAMINO' ? -1 : 0) - (b.estado === 'EN_CAMINO' ? -1 : 0)), [paradas])
+  const pendientes = useMemo(() => enCamioneta.filter(p => p.estado === 'EN_CAMINO' || p.estado === 'PENDIENTE')
+    .sort((a, b) => (a.estado === 'EN_CAMINO' ? -1 : 0) - (b.estado === 'EN_CAMINO' ? -1 : 0)), [enCamioneta])
   const actual = pendientes[0]
   const hechas = paradas.filter(p => p.estado === 'COMPLETADA').length
   const fallidas = paradas.filter(p => p.estado === 'FALLIDA').length
@@ -267,6 +273,9 @@ export default function Conductor() {
                 </span>
                 {p.hora_estimada && <span className="text-xs text-gray-500">~{hhmm(p.hora_estimada)}</span>}
                 {!p.lat && <span className="text-[11px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin ubicar</span>}
+                {p.no_embolsada && !p.ruta_salio && (
+                  <span className="text-[11px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full">aún no embolsado</span>
+                )}
               </div>
               <p className={`font-semibold text-gray-900 break-words ${principal ? 'text-lg' : ''}`}>{nombreDe(p)}</p>
               <p className={`text-gray-600 ${principal ? 'text-base' : 'text-sm break-words'}`}>{dirDe(p)}</p>
@@ -434,7 +443,7 @@ export default function Conductor() {
 
         {vista === 'mapa' && !!paradas.length && (
           <div className="space-y-2">
-            <MapaRuta base={data?.base} paradas={paradas} miPos={miPos} alto={420}
+            <MapaRuta base={data?.base} paradas={enCamioneta} miPos={miPos} alto={420}
                       onTocarParada={p => { setVista('lista'); setVerTodas(true); setAbierta(p.id); setTimeout(() => document.getElementById(`parada-${p.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250) }} />
             <div className="flex flex-wrap gap-3 text-xs text-gray-500 px-1">
               <span className="flex items-center gap-1">
@@ -468,6 +477,27 @@ export default function Conductor() {
           </>
         )}
 
+        {!cargando && noCargar.length > 0 && vista === 'lista' && (
+          <div className="rounded-2xl border-2 p-4 space-y-2" style={{ borderColor: '#dc2626', background: '#FEF2F2' }}>
+            <p className="font-bold flex items-center gap-2" style={{ color: '#b91c1c' }}>
+              <AlertTriangle size={18} /> No está embolsado: no lo cargues
+            </p>
+            <p className="text-xs" style={{ color: '#7f1d1d' }}>
+              {noCargar.length === 1 ? 'Esta entrega no va' : `Estas ${noCargar.length} entregas no van`} en esta ruta.
+              Si producción la embolsa antes, vuelve sola a tu lista.
+            </p>
+            {noCargar.map(p => (
+              <div key={p.id} className="bg-white rounded-xl border border-red-200 px-3 py-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[12px] font-bold font-mono px-1.5 py-0.5 rounded bg-gray-900 text-white">OT {p.orden_id}</span>
+                  <span className="font-semibold text-gray-800">{nombreDe(p)}</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">{dirDe(p)} · está en {String(p.etapa_orden || '—').toLowerCase().replace('_', ' ')}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
         {!cargando && paradas.length > 0 && vista === 'lista' && (
           <>
             <button onClick={() => setVerTodas(!verTodas)}
@@ -477,7 +507,7 @@ export default function Conductor() {
             </button>
             {verTodas && (
               <div className="space-y-2">
-                {paradas.filter(p => p.id !== actual?.id).map(p => <Tarjeta key={p.id} p={p} />)}
+                {enCamioneta.filter(p => p.id !== actual?.id).map(p => <Tarjeta key={p.id} p={p} />)}
               </div>
             )}
           </>

@@ -244,6 +244,7 @@ export default function Reparto() {
       } else {
         setCalculo(c => ({ ...c, [String(rutaSel.id)]: r }))
         toast.success(`Salida ${r.salida}: ${r.recalculadas} parada(s) recalculadas · vuelve ~${r.termina}`)
+        if (r.no_embolsadas) toast.error(`${r.no_embolsadas} entrega(s) sin embolsar: NO van en la camioneta. Quedan marcadas en rojo.`, { duration: 9000 })
         if (r.sin_ubicar) toast.error(`${r.sin_ubicar} parada(s) sin ubicación quedaron sin hora: ubícalas primero.`, { duration: 7000 })
       }
       cargar()
@@ -449,6 +450,18 @@ export default function Reparto() {
                     {salidas[String(p.ruta_id)] && (
                       <span className="ml-2 font-normal text-gray-500">· salió {salidas[String(p.ruta_id)]}</span>
                     )}
+                    {(() => {
+                      const ent = paradas.filter(x => x.ruta_id === p.ruta_id && x.tipo === 'ENTREGA' && x.estado !== 'COMPLETADA')
+                      const faltan = ent.filter(x => x.no_embolsada)
+                      if (!ent.length) return null
+                      const salio = faltan.some(x => x.ruta_salio)
+                      return (
+                        <span className={`ml-2 ${salio && faltan.length ? 'font-bold text-red-700' : 'font-normal text-gray-500'}`}>
+                          · {ent.length - faltan.length} de {ent.length} entregas embolsadas
+                          {salio && faltan.length ? ` — ${faltan.length} NO van en la camioneta` : ''}
+                        </span>
+                      )
+                    })()}
                   </span>
                   <span className="text-[11px] text-gray-500 flex items-center gap-2">
                     {paradas.filter(x => x.ruta_id === p.ruta_id).length} parada(s)
@@ -456,10 +469,10 @@ export default function Reparto() {
                       // Lo que hay que subir a la camioneta para esta ruta: solo
                       // cuentan las entregas, porque los retiros vienen vacios.
                       const carga = paradas
-                        .filter(x => x.ruta_id === p.ruta_id && x.tipo === 'ENTREGA' && x.estado !== 'COMPLETADA')
+                        .filter(x => x.ruta_id === p.ruta_id && x.tipo === 'ENTREGA' && x.estado !== 'COMPLETADA' && !x.no_embolsada)
                         .reduce((t, x) => t + (Number(x.bultos) || 0), 0)
                       const dudosos = paradas.filter(x => x.ruta_id === p.ruta_id
-                        && x.tipo === 'ENTREGA' && x.estado !== 'COMPLETADA' && !x.bultos_confirmados).length
+                        && x.tipo === 'ENTREGA' && x.estado !== 'COMPLETADA' && !x.no_embolsada && !x.bultos_confirmados).length
                       return carga > 0 ? (
                         <span className="font-semibold text-gray-700 flex items-center gap-1">
                           <Package size={12} /> cargar {carga} bulto{carga > 1 ? 's' : ''}
@@ -509,6 +522,17 @@ export default function Reparto() {
                     {p.estado === 'COMPLETADA' && <Check size={14} className="text-green-600" />}
                     {p.estado === 'FALLIDA' && <X size={14} className="text-red-500" />}
                     {!p.lat && <span className="text-[11px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin ubicar</span>}
+                    {p.tipo === 'ENTREGA' && p.estado !== 'COMPLETADA' && (
+                      p.no_embolsada
+                        ? (p.ruta_salio
+                            ? <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-600 text-white flex items-center gap-1">
+                                <AlertTriangle size={11} /> No embolsado: no va en la camioneta
+                              </span>
+                            : <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                                No listo · {String(p.etapa_orden || '—').toLowerCase().replace('_', ' ')}
+                              </span>)
+                        : <span className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700">Embolsado</span>
+                    )}
                     {i > 0 && paradas[i - 1].direccion_id && paradas[i - 1].direccion_id === p.direccion_id && (
                       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
                         misma parada que la anterior

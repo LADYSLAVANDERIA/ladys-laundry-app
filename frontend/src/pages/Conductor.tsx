@@ -157,15 +157,26 @@ export default function Conductor() {
     return Object.values(m).sort((a: any, b: any) => String(a.inicio).localeCompare(String(b.inicio)))
   }, [todas])
 
+  // Qué ruta se muestra. Manda lo que FALTA, no el reloj: la mañana sigue en
+  // pantalla hasta que no le quede ninguna parada pendiente, aunque ya pasó su
+  // hora de término. Antes, pasadas las 13:00 la app saltaba sola a la tarde
+  // con la camioneta todavía en la ruta de la mañana (22-sep, Alexandra).
+  // Terminada una ruta, pasa sola a la siguiente con paradas pendientes,
+  // salvo que el conductor haya elegido una pestaña a mano.
   const [rutaSel, setRutaSel] = useState<string | null>(null)
+  const elegidaAMano = useRef(false)
   useEffect(() => {
     if (!rutas.length) { setRutaSel(null); return }
-    if (rutaSel && rutas.some(r => r.clave === rutaSel)) return
+    const quedan = (r: any) => todas.some(p => String(p.ruta_id ?? 'sin') === r.clave
+      && (p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO'))
+    const actualSigue = rutaSel && rutas.some(r => r.clave === rutaSel)
+    if (actualSigue && (elegidaAMano.current || quedan(rutas.find(r => r.clave === rutaSel)))) return
     const ahora = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Santiago', hour12: false }).slice(0, 5)
-    const enCurso = rutas.find(r => r.inicio && r.fin && String(r.inicio).slice(0, 5) <= ahora && ahora <= String(r.fin).slice(0, 5))
-    const proxima = rutas.find(r => String(r.inicio).slice(0, 5) >= ahora)
-    setRutaSel((enCurso || proxima || rutas[rutas.length - 1]).clave)
-  }, [rutas, rutaSel])
+    const enMarcha = rutas.find(r => quedan(r) && (!r.inicio || String(r.inicio).slice(0, 5) <= ahora))
+    const proxima = rutas.find(r => quedan(r))
+    const elegida = (enMarcha || proxima || rutas[rutas.length - 1]).clave
+    if (elegida !== rutaSel) setRutaSel(elegida)
+  }, [rutas, rutaSel, todas])
 
   const paradas = useMemo(() => {
     const lista = rutaSel ? todas.filter(p => String(p.ruta_id ?? 'sin') === rutaSel) : todas
@@ -396,7 +407,7 @@ export default function Conductor() {
         {rutas.length > 1 && (
           <div className="flex gap-1 bg-white rounded-xl p-1 border">
             {rutas.map(r => (
-              <button key={r.clave} onClick={() => setRutaSel(r.clave)}
+              <button key={r.clave} onClick={() => { elegidaAMano.current = true; setRutaSel(r.clave) }}
                       className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium leading-tight ${
                         rutaSel === r.clave ? 'text-white' : 'text-gray-500'}`}
                       style={rutaSel === r.clave ? { background: 'linear-gradient(135deg,#4AAEE0,#A87BC8)' } : {}}>

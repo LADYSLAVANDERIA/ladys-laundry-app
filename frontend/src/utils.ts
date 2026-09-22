@@ -152,7 +152,7 @@ export const refDesdeOperacion = (formaPagoId?: string | number | null, valor?: 
 // en una la ropa todavía no está en el local, en la otra ya se entregó.
 export const ETAPA_LABEL: Record<string, string> = {
   AGENDADO: 'Agendado', RETIRADO: 'Retirado, en camino al local',
-  RECEPCIONADO: 'Recepcionado', EN_LAVADO: 'En lavado',
+  RECEPCIONADO: 'Recepcionado', PREPARACION: 'En preparación', EN_LAVADO: 'En lavado',
   EN_SECADO: 'En secado', EMBOLSADO: 'Embolsado', LISTO_RETIRO: 'Listo para retiro',
   ASIGNADO_RUTA: 'En ruta', EN_CAMINO: 'En camino', ENTREGADO: 'Entregado',
 }

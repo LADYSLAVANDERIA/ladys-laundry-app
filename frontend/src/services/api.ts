@@ -231,6 +231,36 @@ talAx.interceptors.request.use(cfg => {
 })
 export const tallerApi = { cola: () => talAx.get('/') }
 
+// Preparacion y medicion por CARGA (bitacora #115, #117): Catalina define las
+// cargas de cada pedido y las marca a lavadora, a secadora y secado listo.
+const PREP_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-preparacion')
+const prepAx = axios.create({ baseURL: PREP_URL })
+prepAx.interceptors.request.use(cfg => {
+  const t = useAuthStore.getState().token
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
+export const preparacionApi = {
+  tablero:   () => prepAx.get('/'),
+  preparar:  (orden_id: number) => prepAx.post('/preparar', { orden_id }),
+  carga:     (orden_id: number, tipo: string) => prepAx.post('/carga', { orden_id, tipo }),
+  lavadora:  (carga_id: number, n: number) => prepAx.post('/lavadora', { carga_id, n }),
+  secadora:  (carga_id: number, n: number) => prepAx.post('/secadora', { carga_id, n }),
+  seco:      (carga_id: number) => prepAx.post('/seco', { carga_id }),
+  anular:    (carga_id: number) => prepAx.post('/anular', { carga_id }),
+  liberar:   (maquina: 'LAVADORA' | 'SECADORA', n: number) => prepAx.post('/liberar', { maquina, n }),
+}
+
+// Pedidos embolsados que todavia no se le avisan al cliente (bitacora #118).
+const AVI_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-avisos')
+const aviAx = axios.create({ baseURL: AVI_URL })
+aviAx.interceptors.request.use(cfg => {
+  const t = useAuthStore.getState().token
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
+export const avisosApi = { pendientes: () => aviAx.get('/') }
+
 // KPI de produccion: carga contra capacidad, esperas, pulso y rutas.
 const KPI_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-kpis')
 const kpiAx = axios.create({ baseURL: KPI_URL })

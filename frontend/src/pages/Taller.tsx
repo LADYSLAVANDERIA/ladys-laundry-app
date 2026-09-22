@@ -29,6 +29,9 @@ function Ficha({ p }: { p: any }) {
         <div className="min-w-0">
           <p className="font-semibold text-sm text-gray-800">{ot(p.id)} · {p.cliente}</p>
           <p className="text-xs text-gray-600 truncate">{p.detalle || 'sin ítems cargados'}</p>
+          {p.cargas_resumen && (
+            <p className="text-xs font-semibold text-sky-700 mt-0.5">Cargas: {p.cargas_resumen}</p>
+          )}
         </div>
         {c.etiqueta && (
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap"

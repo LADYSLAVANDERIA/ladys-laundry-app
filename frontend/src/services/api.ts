@@ -316,6 +316,9 @@ export const repartoApi = {
   parada: (id: number, estado: string, nota?: string, extra?: { bultos?: number; nota_cliente?: string }) =>
     repartoAx.post('/parada', { id, estado, nota, ...(extra || {}) }),
   reordenar: (ids: number[]) => repartoAx.post('/reordenar', { ids }),
+  // hora REAL en que salió la camioneta en una ruta; hora vacía = borrarla
+  salida: (fecha: string, ruta_id: number, hora: string | null) =>
+    repartoAx.post('/salida', { fecha, ruta_id, hora }),
 }
 
 const SEG_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-seguimiento')

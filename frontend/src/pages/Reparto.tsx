@@ -3,7 +3,7 @@ import { dirApi, repartoApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { MapPinned,
   Wand2, ChevronUp, ChevronDown, Navigation, Route, Clock, GripVertical,
-  AlertTriangle, Check, X, Smartphone, RefreshCw, Package,
+  AlertTriangle, Check, X, Smartphone, RefreshCw, Package, Truck,
 } from 'lucide-react'
 import { rutaCompletaMaps } from '../utils'
 import { cargarGoogle, ESTILO, pin } from '../lib/google'
@@ -11,6 +11,7 @@ import { cargarGoogle, ESTILO, pin } from '../lib/google'
 const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
 const plata = (n: any) => '$' + Number(n || 0).toLocaleString('es-CL')
 const hhmm = (t: any) => (t ? String(t).slice(0, 5) : '—')
+const ahoraHHMM = () => new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Santiago', hour12: false }).slice(0, 5)
 
 const nombreDe = (p: any) => (p.es_empresa && p.razon_social)
   ? p.razon_social : [p.nombre, p.apellido].filter(Boolean).join(' ') || 'Sin nombre'
@@ -27,7 +28,6 @@ const esManana = (r: any) => {
 
 export default function Reparto() {
   const [fecha, setFecha] = useState(hoy())
-  const [inicio, setInicio] = useState('19:00')
   const [arrastrando, setArrastrando] = useState<number | null>(null)
   const [encima, setEncima] = useState<number | null>(null)
   const [data, setData] = useState<any>(null)
@@ -162,7 +162,7 @@ export default function Reparto() {
   const optimizar = async () => {
     setOptimizando(true)
     try {
-      const r = await repartoApi.optimizar(fecha, inicio)
+      const r = await repartoApi.optimizar(fecha)
       setResumen(r.data)
       toast.success(`Recorrido armado: ${r.data.ordenadas} paradas`)
       cargar()
@@ -214,6 +214,44 @@ export default function Reparto() {
 
   const sinUbicar = paradas.filter(p => !p.lat).length
 
+  // ── hora REAL de salida de la camioneta ──
+  // La ruta tiene una hora teórica (10:00, 15:00) pero la camioneta sale cuando
+  // sale. Se anota el minuto exacto y desde ahí se recalculan las horas
+  // estimadas de lo que falta, que es lo que ven SofIA, el portal y el local.
+  const salidas: Record<string, string> = useMemo(() => {
+    const m: Record<string, string> = {}
+    ;(data?.salidas || []).forEach((x: any) => { m[String(x.ruta_id)] = x.hora })
+    return m
+  }, [data])
+  const [horaSalida, setHoraSalida] = useState('')
+  const [guardandoSalida, setGuardandoSalida] = useState(false)
+  const [calculo, setCalculo] = useState<Record<string, any>>({})
+  const rutaSel = visibles.length === 1 && visibles[0].id ? visibles[0] : null
+  useEffect(() => {
+    if (!rutaSel) return
+    setHoraSalida(salidas[String(rutaSel.id)] || (fecha === hoy() ? ahoraHHMM() : String(rutaSel.inicio || '').slice(0, 5)))
+  }, [rutaSel?.id, salidas[String(rutaSel?.id)], fecha])
+
+  const anotarSalida = async (hora: string | null) => {
+    if (!rutaSel) return
+    if (hora !== null && !/^\d{2}:\d{2}$/.test(hora)) { toast.error('Pon la hora de salida (HH:MM)'); return }
+    setGuardandoSalida(true)
+    try {
+      const { data: r } = await repartoApi.salida(fecha, rutaSel.id, hora)
+      if (r.borrada) {
+        toast('Salida borrada. Las horas quedan como estaban; aprieta Armar recorrido para volver a la hora de la ruta.')
+        setCalculo(c => { const n = { ...c }; delete n[String(rutaSel.id)]; return n })
+      } else {
+        setCalculo(c => ({ ...c, [String(rutaSel.id)]: r }))
+        toast.success(`Salida ${r.salida}: ${r.recalculadas} parada(s) recalculadas · vuelve ~${r.termina}`)
+        if (r.sin_ubicar) toast.error(`${r.sin_ubicar} parada(s) sin ubicación quedaron sin hora: ubícalas primero.`, { duration: 7000 })
+      }
+      cargar()
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || 'No se pudo anotar la salida')
+    } finally { setGuardandoSalida(false) }
+  }
+
   // Ubica las direcciones que quedaron sin pin. Se hace acá, en el reparto,
   // porque es donde se nota: una parada sin ubicación queda fuera del recorrido.
   const [ubicando, setUbicando] = useState(false)
@@ -241,8 +279,6 @@ export default function Reparto() {
         <div className="flex items-center gap-2 flex-wrap">
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
                  className="border rounded-xl px-3 py-2 text-sm" />
-          <input type="time" value={inicio} onChange={e => setInicio(e.target.value)}
-                 className="border rounded-xl px-3 py-2 text-sm w-28" title="Hora de salida" />
           <button onClick={() => cargar()} className="p-2.5 rounded-xl border text-gray-600"><RefreshCw size={16} /></button>
           <button onClick={optimizar} disabled={optimizando || !paradas.length}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium disabled:opacity-50"
@@ -332,6 +368,55 @@ export default function Reparto() {
         </div>
       )}
 
+      {rutaSel && (() => {
+        const clave = String(rutaSel.id)
+        const anotada = salidas[clave]
+        const pend = rutaSel.paradas.filter((p: any) => p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO')
+          .sort((a: any, b: any) => a.secuencia - b.secuencia)
+        const ultima = pend.length ? hhmm(pend[pend.length - 1].hora_estimada) : null
+        const vuelve = calculo[clave]?.termina
+        return (
+          <div className="bg-white border rounded-2xl p-3 flex flex-wrap items-center gap-3"
+               style={{ borderColor: anotada ? rutaSel.color : undefined }}>
+            <div className="flex items-center gap-2 min-w-[12rem]">
+              <Truck size={18} style={{ color: rutaSel.color }} />
+              <div className="leading-tight">
+                <p className="text-sm font-semibold text-gray-700">
+                  Salida real · {rutaSel.manana ? 'Mañana' : 'Tarde'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {anotada
+                    ? <>Salió a las <b>{anotada}</b>{ultima ? <> · última parada ~{ultima}</> : null}{vuelve ? <> · vuelve ~{vuelve}</> : null}</>
+                    : <>Hora teórica {hhmm(rutaSel.inicio)} · anota cuándo sale de verdad</>}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap ml-auto">
+              <input type="time" value={horaSalida} onChange={e => setHoraSalida(e.target.value)}
+                     className="border rounded-xl px-3 py-2 text-sm w-28" title="Hora exacta en que salió la camioneta" />
+              <button onClick={() => anotarSalida(horaSalida)} disabled={guardandoSalida}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-sm font-medium disabled:opacity-50"
+                      style={{ background: rutaSel.color }}>
+                <Clock size={15} /> {guardandoSalida ? 'Calculando…' : 'Recalcular desde esta hora'}
+              </button>
+              {fecha === hoy() && (
+                <button onClick={() => { const h = ahoraHHMM(); setHoraSalida(h); anotarSalida(h) }}
+                        disabled={guardandoSalida}
+                        className="px-3 py-2 rounded-xl border text-sm text-gray-700 disabled:opacity-50">
+                  Salió ahora
+                </button>
+              )}
+              {anotada && (
+                <button onClick={() => anotarSalida(null)} disabled={guardandoSalida}
+                        className="p-2 rounded-xl border text-gray-400 hover:text-gray-600" title="Borrar la salida anotada">
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
       <div ref={div} className="rounded-2xl border overflow-hidden" style={{ height: 380 }} />
 
       <div className="bg-white rounded-2xl border overflow-hidden">
@@ -361,6 +446,9 @@ export default function Reparto() {
                 <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-y">
                   <span className="text-xs font-semibold text-gray-600">
                     {p.ruta_nombre || 'Sin ruta asignada'}
+                    {salidas[String(p.ruta_id)] && (
+                      <span className="ml-2 font-normal text-gray-500">· salió {salidas[String(p.ruta_id)]}</span>
+                    )}
                   </span>
                   <span className="text-[11px] text-gray-500 flex items-center gap-2">
                     {paradas.filter(x => x.ruta_id === p.ruta_id).length} parada(s)

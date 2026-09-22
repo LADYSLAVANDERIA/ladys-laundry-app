@@ -77,6 +77,33 @@ async function sincronizar(fecha: string) {
                                     AND o.entregada_el IS NULL)))`;
 }
 
+// ── numeración corrida del día ──
+//
+// Una parada recién creada nace con secuencia 0 y la pantalla la muestra como
+// "sin posición". Esto le pone número a TODAS las del día, respetando el orden
+// de salida de cada ruta y sin tocar el orden interno de las que ya estaban
+// ordenadas. Tiene que correr SIEMPRE que se aprieta Armar recorrido, incluso
+// cuando no queda ninguna parada por optimizar: si no, el botón no hace nada y
+// el aviso amarillo se queda pegado. Fue justo lo que pasó el 9-sep, con dos
+// paradas agregadas tarde y completadas antes de que nadie reordenara.
+async function renumerar(fecha: string) {
+  await SQL`
+    WITH ord AS (
+      SELECT p.id, ROW_NUMBER() OVER (
+               ORDER BY r.hora_inicio NULLS LAST, (p.secuencia = 0), p.secuencia, p.id) AS n
+      FROM reparto_paradas p
+      LEFT JOIN rutas r ON r.id = p.ruta_id
+      WHERE p.fecha = ${fecha}::date
+    )
+    UPDATE reparto_paradas s SET secuencia = ord.n
+    FROM ord WHERE ord.id = s.id AND s.secuencia IS DISTINCT FROM ord.n`;
+  await SQL`
+    UPDATE ordenes o SET orden_ruta = p.secuencia
+    FROM reparto_paradas p
+    WHERE p.orden_id = o.id AND p.fecha = ${fecha}::date
+      AND o.orden_ruta IS DISTINCT FROM p.secuencia`;
+}
+
 // ── paradas del día con todo lo que el conductor necesita ver ──
 async function traerDia(fecha: string) {
   return await SQL`
@@ -84,7 +111,7 @@ async function traerDia(fecha: string) {
            p.hora_estimada, p.llegada_real, p.km_tramo, p.min_tramo,
            p.lat, p.lng, p.direccion_id, p.ruta_id,
            r.nombre AS ruta_nombre, r.hora_inicio AS ruta_inicio, r.hora_fin AS ruta_fin,
-           o.nro_doc_tributario, o.bultos, o.bultos_confirmados, o.kilos, o.observaciones,
+           o.nro_doc_tributario, o.bultos, o.kilos, o.observaciones,
            o.saldo_pendiente, o.monto_total, o.monto_abonado, o.estado AS estado_orden,
            o.ot_easylaundry, o.token_publico,
            c.id AS cliente_id, c.nombre, c.apellido, c.razon_social, c.telefono, c.es_empresa,
@@ -132,6 +159,98 @@ function optimizar(puntos: any[], base: { lat: number; lng: number }) {
   return ruta;
 }
 
+// ── hora REAL de salida y recálculo de las horas estimadas ──
+//
+// Pedido de Lufi el 22-sep: la camioneta casi nunca sale a la hora teórica de
+// la ruta, así que las horas estimadas quedaban corridas y SofIA, el portal y
+// la pantalla del local prometían horas que ya no servían. Ahora en Reparto
+// del día se anota la hora exacta en que sale la camioneta y desde ESE minuto
+// se recalcula cada parada pendiente, respetando el orden actual (no reordena).
+//
+// Si ya hay paradas completadas después de la salida, el reloj se ancla a la
+// última llegada real: el cálculo parte de donde la camioneta de verdad está.
+// Se vuelve a correr solo cuando se completa una parada, se reordena a mano o
+// se arma el recorrido, mientras la ruta tenga una salida anotada.
+const aMin = (h: string) => { const [a, b] = String(h).split(":").map(Number); return a * 60 + b; };
+const fmt = (m: number) => {
+  const t = Math.round(m);
+  return `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+};
+
+async function recalcular(fecha: string, rutaId: number, cfg: any) {
+  const [s] = await SQL`
+    SELECT to_char(salida AT TIME ZONE 'America/Santiago', 'HH24:MI') AS hora
+    FROM reparto_salidas WHERE fecha = ${fecha}::date AND ruta_id = ${rutaId}`;
+  if (!s) return null;
+
+  const ps = await SQL`
+    SELECT id, estado, lat, lng,
+           to_char(llegada_real AT TIME ZONE 'America/Santiago', 'HH24:MI') AS llegada
+    FROM reparto_paradas
+    WHERE fecha = ${fecha}::date AND ruta_id = ${rutaId}
+    ORDER BY (secuencia = 0), secuencia, id`;
+
+  const base = { lat: Number(cfg.lat), lng: Number(cfg.lng) };
+  const salida = aMin(s.hora);
+  let reloj = salida;
+  let ant = base;
+  const cambios: any[] = [];
+  let sinUbicar = 0;
+
+  for (const p of ps) {
+    // una parada fallida o reprogramada no se visita: no suma tiempo
+    if (p.estado === "FALLIDA" || p.estado === "REPROGRAMADA") continue;
+    const ubicada = p.lat !== null && p.lng !== null;
+    if (!ubicada) { if (p.estado !== "COMPLETADA") sinUbicar++; continue; }
+    const aqui = { lat: Number(p.lat), lng: Number(p.lng) };
+    const d = km(ant.lat, ant.lng, aqui.lat, aqui.lng) * RODEO;
+    const min = Math.max(2, Math.round((d / cfg.vel_kmh) * 60));
+
+    if (p.estado === "COMPLETADA") {
+      // llegada real posterior a la salida: el reloj se ancla ahí
+      reloj = (p.llegada && aMin(p.llegada) >= salida)
+        ? aMin(p.llegada) + cfg.min_por_parada
+        : reloj + min + cfg.min_por_parada;
+      ant = aqui;
+      continue;
+    }
+
+    reloj += min;
+    cambios.push({ id: p.id, hora: fmt(reloj), km: Number(d.toFixed(2)), min });
+    reloj += cfg.min_por_parada;
+    ant = aqui;
+  }
+
+  if (cambios.length) {
+    await SQL.begin(async (t: any) => {
+      for (const c of cambios) {
+        await t`UPDATE reparto_paradas
+                   SET hora_estimada = ${c.hora}::time, km_tramo = ${c.km}, min_tramo = ${c.min}
+                 WHERE id = ${c.id}`;
+      }
+    });
+  }
+
+  const regreso = (km(ant.lat, ant.lng, base.lat, base.lng) * RODEO / cfg.vel_kmh) * 60;
+  return {
+    ruta_id: rutaId, salida: s.hora, recalculadas: cambios.length, sin_ubicar: sinUbicar,
+    proxima: cambios[0]?.hora || null, termina: fmt(reloj + regreso),
+  };
+}
+
+// Recalcula todas las rutas de un día que tengan salida anotada. Nunca rompe la
+// operación que la llamó, pero el error vuelve en la respuesta: no se calla.
+async function recalcularDia(fecha: string, cfg: any, soloRutas?: number[]) {
+  const filas = await SQL`SELECT ruta_id FROM reparto_salidas WHERE fecha = ${fecha}::date`;
+  const out: any[] = [];
+  for (const f of filas) {
+    if (soloRutas && !soloRutas.includes(Number(f.ruta_id))) continue;
+    try { const r = await recalcular(fecha, Number(f.ruta_id), cfg); if (r) out.push(r); }
+    catch (e) { out.push({ ruta_id: f.ruta_id, error: (e as Error).message }); }
+  }
+  return out;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const url = new URL(req.url);
@@ -140,7 +259,8 @@ Deno.serve(async (req: Request) => {
   try {
     const h = req.headers.get("authorization") || "";
     const tok = h.startsWith("Bearer ") ? h.slice(7) : h;
-    try { await jose.jwtVerify(tok, SECRET); }
+    let yo: any = {};
+    try { yo = (await jose.jwtVerify(tok, SECRET)).payload || {}; }
     catch { return json({ error: "Token requerido" }, 401); }
 
     const [cfg] = await SQL`SELECT * FROM reparto_config WHERE id = 1`;
@@ -153,10 +273,47 @@ Deno.serve(async (req: Request) => {
       const paradas = await traerDia(fecha);
       const hechas = paradas.filter((p: any) => p.estado === "COMPLETADA").length;
       const sinUbicar = paradas.filter((p: any) => p.lat === null).length;
+      const salidas = await SQL`
+        SELECT ruta_id, to_char(salida AT TIME ZONE 'America/Santiago', 'HH24:MI') AS hora, registrado_en
+        FROM reparto_salidas WHERE fecha = ${fecha}::date`;
       return json({
         fecha, base: { lat: cfg.lat, lng: cfg.lng, direccion: cfg.direccion },
-        total: paradas.length, completadas: hechas, sin_ubicar: sinUbicar, paradas,
+        total: paradas.length, completadas: hechas, sin_ubicar: sinUbicar, paradas, salidas,
       });
+    }
+
+    // POST /salida { fecha, ruta_id, hora: "HH:MM" | null }
+    // Anota la hora REAL en que salió la camioneta y recalcula desde ese minuto.
+    // hora vacía = borrar la salida anotada (las horas quedan como estaban).
+    if (req.method === "POST" && ruta === "/salida") {
+      const b = await req.json();
+      const fecha = String(b.fecha || "");
+      const rutaId = Number(b.ruta_id);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return json({ error: "Falta la fecha" }, 400);
+      if (!rutaId) return json({ error: "Falta la ruta: la salida se anota por ruta (mañana o tarde)" }, 400);
+
+      if (!b.hora) {
+        await SQL`DELETE FROM reparto_salidas WHERE fecha = ${fecha}::date AND ruta_id = ${rutaId}`;
+        return json({ ok: true, borrada: true });
+      }
+      const hora = String(b.hora).slice(0, 5);
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return json({ error: `Hora inválida: ${b.hora}` }, 400);
+
+      const [hay] = await SQL`SELECT count(*)::int AS n FROM reparto_paradas
+                              WHERE fecha = ${fecha}::date AND ruta_id = ${rutaId}`;
+      if (!hay.n) return json({ error: "Esa ruta no tiene paradas este día" }, 400);
+
+      const uid = Number(yo.id ?? yo.usuario_id ?? yo.sub);
+      await SQL`
+        INSERT INTO reparto_salidas (fecha, ruta_id, salida, usuario_id)
+        VALUES (${fecha}::date, ${rutaId},
+                (${fecha}::date + ${hora}::time) AT TIME ZONE 'America/Santiago',
+                ${Number.isFinite(uid) && uid > 0 ? uid : null})
+        ON CONFLICT (fecha, ruta_id) DO UPDATE
+          SET salida = EXCLUDED.salida, usuario_id = EXCLUDED.usuario_id, registrado_en = NOW()`;
+
+      const r = await recalcular(fecha, rutaId, cfg);
+      return json({ ok: true, ...r });
     }
 
     // POST /optimizar { fecha, inicio?, ruta_id? }
@@ -176,7 +333,20 @@ Deno.serve(async (req: Request) => {
       const candidatas = todas.filter((p: any) =>
         p.lat !== null && p.estado !== "COMPLETADA" &&
         (soloRuta === null || Number(p.ruta_id) === soloRuta));
-      if (!candidatas.length) return json({ ok: true, ordenadas: 0, mensaje: "No hay paradas ubicadas que ordenar" });
+
+      // Sin nada que optimizar igual hay que numerar: pueden quedar paradas
+      // nuevas en cero. Antes se retornaba aca mismo y el boton no hacia nada.
+      if (!candidatas.length) {
+        await renumerar(fecha);
+        const recalculo = await recalcularDia(fecha, cfg);
+        const despues = await traerDia(fecha);
+        const sinUbicar = despues.filter((p: any) => p.lat === null).length;
+        return json({ ok: true, ordenadas: 0, renumeradas: despues.length,
+          sin_ubicar: sinUbicar, recalculo,
+          mensaje: sinUbicar
+            ? `Quedan ${sinUbicar} parada(s) sin ubicacion en el mapa: hay que geocodificar la direccion.`
+            : "No habia paradas pendientes que reordenar. La lista quedo numerada." });
+      }
 
       // Agrupadas por ruta y en orden de salida
       const grupos = new Map<string, any[]>();
@@ -239,33 +409,25 @@ Deno.serve(async (req: Request) => {
       }
 
       // Al ordenar UNA sola ruta el contador parte de cero y chocaba con los
-      // numeros de la otra: dos paradas "1" en el mismo dia. Se renumera todo
-      // el dia respetando el orden de salida de cada ruta, sin tocar el orden
-      // interno de las que no se optimizaron.
-      await SQL`
-        WITH ord AS (
-          SELECT p.id, ROW_NUMBER() OVER (
-                   ORDER BY r.hora_inicio NULLS LAST, (p.secuencia = 0), p.secuencia, p.id) AS n
-          FROM reparto_paradas p
-          LEFT JOIN rutas r ON r.id = p.ruta_id
-          WHERE p.fecha = ${fecha}::date
-        )
-        UPDATE reparto_paradas s SET secuencia = ord.n
-        FROM ord WHERE ord.id = s.id AND s.secuencia IS DISTINCT FROM ord.n`;
-      await SQL`
-        UPDATE ordenes o SET orden_ruta = p.secuencia
-        FROM reparto_paradas p
-        WHERE p.orden_id = o.id AND p.fecha = ${fecha}::date
-          AND o.orden_ruta IS DISTINCT FROM p.secuencia`;
+      // numeros de la otra: dos paradas "1" en el mismo dia.
+      await renumerar(fecha);
+
+      // Si la camioneta ya salio en alguna ruta, sus horas se rehacen desde la
+      // salida real y no desde la hora teorica de la ruta.
+      const recalculo = await recalcularDia(fecha, cfg);
+      for (const r of recalculo) {
+        const d = detalle.find(x => Number(x.ruta_id) === Number(r.ruta_id));
+        if (d && !r.error) { d.salida = `${r.salida} (real)`; d.termina = r.termina; }
+      }
 
       return json({
-        ok: true, ordenadas: n, rutas: detalle,
+        ok: true, ordenadas: n, rutas: detalle, recalculo,
         km_total: Number(kmDia.toFixed(1)), min_total: minDia,
         sin_ubicar: todas.filter((p: any) => p.lat === null).length,
       });
     }
 
-    // POST /parada { id, estado, nota }  → avance del conductor
+    // POST /parada { id, estado, nota, bultos?, nota_cliente? }  → avance del conductor
     if (req.method === "POST" && ruta === "/parada") {
       const b = await req.json();
       if (!b.id || !b.estado) return json({ error: "Faltan datos de la parada" }, 400);
@@ -316,7 +478,14 @@ Deno.serve(async (req: Request) => {
                             ${resumen ? `Retirada en el domicilio. ${resumen}` : "Retirada en el domicilio."})`;
         }
       }
-      return json({ ok: true, parada: p });
+      // Cada cambio de estado mueve el reloj de lo que queda (una completada
+      // ancla la hora real, una fallida deja de sumar tiempo).
+      let recalculo: any[] = [];
+      if (p.ruta_id) {
+        const [f] = await SQL`SELECT fecha::text AS f FROM reparto_paradas WHERE id = ${p.id}`;
+        recalculo = await recalcularDia(f.f, cfg, [Number(p.ruta_id)]);
+      }
+      return json({ ok: true, parada: p, recalculo });
     }
 
     // POST /reordenar { fecha, ids }  → orden manual desde la oficina
@@ -329,7 +498,10 @@ Deno.serve(async (req: Request) => {
           await t`UPDATE reparto_paradas SET secuencia=${i + 1} WHERE id=${ids[i]}`;
         }
       });
-      return json({ ok: true, ordenadas: ids.length });
+      // con el orden nuevo, las horas de las rutas que ya salieron se rehacen
+      const [f] = await SQL`SELECT fecha::text AS f FROM reparto_paradas WHERE id = ${ids[0]}`;
+      const recalculo = f ? await recalcularDia(f.f, cfg) : [];
+      return json({ ok: true, ordenadas: ids.length, recalculo });
     }
 
     return json({ error: "Ruta no encontrada" }, 404);

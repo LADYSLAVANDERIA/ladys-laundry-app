@@ -5,7 +5,12 @@ import { BellRing, Send, RefreshCw, Truck, Store, CheckCircle2, MessageCircle } 
 import { avisosApi, ordenesApi } from '../services/api'
 import { waLink, mensajeSegunEtapa, linkOT, tipoAviso, ot, fmt } from '../utils'
 
-// Pedidos embolsados que todavia no se le avisan al cliente (bitacora #118).
+// Avisos por WhatsApp que falta mandar (bitacora #118).
+// 23-sep-2026: arriba van las OT NUEVAS que creo SofIA en el meson. Mientras
+// Meta no habilite el envio automatico, SofIA le dice al cliente que Catalina le
+// manda su orden, y Catalina la manda desde aca. Si SofIA genero un link de pago,
+// va dentro del mismo mensaje.
+// Debajo, los pedidos embolsados que todavia no se le avisan al cliente.
 //
 // El boton de avisar al embolsar existe, pero cuando hay fila de escaneo se
 // salta. Aca queda la lista de lo que falta, con un boton por pedido: cada uno
@@ -27,7 +32,8 @@ export default function Avisos() {
   useEffect(() => { cargar() }, [])
 
   const avisar = (p: any) => {
-    const msg = mensajeSegunEtapa(p, linkOT(p.id, p.token_publico))
+    const base = mensajeSegunEtapa(p, linkOT(p.id, p.token_publico))
+    const msg = p.link_pago ? `${base}\n\nPuedes pagar acá: ${p.link_pago}` : base
     // La ventana se abre ANTES de cualquier await: si no, el navegador la toma
     // como popup y la bloquea.
     window.open(waLink(p.cliente_telefono, msg), '_blank')
@@ -50,7 +56,7 @@ export default function Avisos() {
           <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
             <BellRing size={22} /> Avisos pendientes
           </h1>
-          <p className="text-sm text-gray-500">Embolsados que el cliente todavía no sabe que están listos</p>
+          <p className="text-sm text-gray-500">Órdenes nuevas de SofIA y embolsados que el cliente todavía no sabe que están listos</p>
         </div>
         <button onClick={cargar} className="p-2 rounded-xl border text-gray-500" title="Actualizar">
           <RefreshCw size={16} className={cargando ? 'animate-spin' : ''} />
@@ -60,7 +66,7 @@ export default function Avisos() {
       {!cargando && faltan.length === 0 && (
         <div className="bg-white rounded-2xl border p-8 text-center text-gray-500">
           <CheckCircle2 size={32} className="mx-auto mb-2 text-green-600" />
-          Todos los pedidos embolsados están avisados.
+          No hay avisos pendientes.
         </div>
       )}
 
@@ -89,9 +95,16 @@ export default function Avisos() {
                     {Number(p.bultos) > 0 && <span>· {p.bultos} bulto{Number(p.bultos) > 1 ? 's' : ''}</span>}
                     {Number(p.saldo_pendiente) > 0 && <span className="text-amber-700 font-semibold">· saldo {fmt(p.saldo_pendiente)}</span>}
                   </p>
+                  {p.tipo_lista === 'OT_NUEVA' ? (
+                    <p className="text-xs mt-1 font-semibold" style={{ color: '#E8006F' }}>
+                      OT nueva de SofIA · hace {espera(Number(p.horas_esperando))} · mandarle su orden
+                      {p.link_pago ? ' y el link de pago' : ''}
+                    </p>
+                  ) : (
                   <p className={`text-xs mt-1 ${viejo ? 'text-red-700 font-semibold' : 'text-gray-400'}`}>
                     Embolsado hace {espera(Number(p.horas_esperando))}
                   </p>
+                  )}
                 </div>
               </div>
 
@@ -103,7 +116,7 @@ export default function Avisos() {
                 <button onClick={() => avisar(p)}
                         className="mt-3 flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white text-sm font-semibold"
                         style={{ background: '#16a34a' }}>
-                  <Send size={15} /> Avisar por WhatsApp
+                  <Send size={15} /> {p.tipo_lista === 'OT_NUEVA' ? 'Enviar orden por WhatsApp' : 'Avisar por WhatsApp'}
                 </button>
               ) : (
                 <Link to={`/ordenes/${p.id}`}

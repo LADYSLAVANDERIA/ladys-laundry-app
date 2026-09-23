@@ -235,7 +235,9 @@ export default function OrdenDetalle() {
         if (datos.entrega_domicilio) datos.dir_entrega_id = dir
       }
       if (!datos.retiro_domicilio)  datos.dir_recogida_id = null
-      if (!datos.entrega_domicilio) datos.dir_entrega_id = null
+      // Pasar la entrega a local tambien suelta la ruta: si no, la orden sigue
+      // colgada de una ruta de reparto aunque ya no vaya a domicilio.
+      if (!datos.entrega_domicilio) { datos.dir_entrega_id = null; datos.ruta_entrega_id = null }
 
       if (datos.retiro_domicilio && !dir && !o.dir_recogida_id)
         return toast.error('Esta orden es a domicilio y no tiene dirección: elige una')
@@ -246,7 +248,12 @@ export default function OrdenDetalle() {
         fecha_recogida: 'Retiro', fecha_entrega: 'Entrega',
         ruta_recogida_id: 'Ruta de retiro', ruta_entrega_id: 'Ruta de entrega',
         bultos: 'Bultos', observaciones: 'Observaciones', ot_easylaundry: 'OT EasyLaundry',
+        // Sin estas dos, desmarcar "a domicilio" y nada mas daba "No cambiaste
+        // nada" y la ventana se cerraba sin guardar (OT 6580, 23-09).
+        retiro_domicilio: 'Modo de retiro', entrega_domicilio: 'Modo de entrega',
       }, {
+        retiro_domicilio: (v: any) => (v ? 'a domicilio' : 'en local'),
+        entrega_domicilio: (v: any) => (v ? 'a domicilio' : 'en local'),
         fecha_recogida: (v: any) => (v ? fechaCorta(v) : '—'),
         fecha_entrega: (v: any) => (v ? fechaCorta(v) : '—'),
         ruta_recogida_id: nombreRuta, ruta_entrega_id: nombreRuta,

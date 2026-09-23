@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   Camera, CameraOff, Check, Droplets, Wind, Package, Layers, Plus, X,
-  AlertTriangle, PlayCircle, RefreshCw, Search, Send, Store, MessageCircle,
+  AlertTriangle, PlayCircle, RefreshCw, Search, Send, Store, MessageCircle, Undo2,
 } from 'lucide-react'
 import { preparacionApi, etapasApi, ordenesApi } from '../services/api'
 import { ot, waLink, mensajeSegunEtapa, linkOT, tipoAviso } from '../utils'
@@ -41,6 +41,15 @@ const ETAPA_TXT: Record<string, string> = {
   EN_SECADO: 'En secado', EMBOLSADO: 'Embolsado', LISTO_RETIRO: 'Listo para retiro',
   ASIGNADO_RUTA: 'En ruta', EN_CAMINO: 'En camino', ENTREGADO: 'Entregado',
   RETIRADO: 'Retirado, en camino al local', AGENDADO: 'Agendado',
+}
+
+// A donde vuelve cada paso si se marco de mas. Se muestra solo dentro de la hora
+// siguiente a la marca: mas alla, corregir historia vieja es peor que el error.
+const ATRAS: Record<string, string> = {
+  SECA:    'vuelve a la secadora',
+  SECANDO: 'sale de la secadora',
+  MOJADA:  'sale de la lavadora',
+  LAVANDO: 'sale de la lavadora',
 }
 
 function cuando(d: number | null) {
@@ -287,6 +296,11 @@ export default function Produccion() {
                     </button>
                   )}
                   {c.estado === 'SECA' && <Check size={18} className="text-green-600" />}
+                  {c.estado !== 'LISTA' && c.min_ultima_marca != null && c.min_ultima_marca <= 60 && (
+                    <button onClick={() => setPedir({ titulo: `¿Deshacer la carga ${c.numero}?`, detalle: `${ot(p.id)} · ${ATRAS[c.estado]}`, color: '#64748b',
+                                                      accion: () => hacer(preparacionApi.deshacer(c.id), `Carga ${c.numero}: ${ATRAS[c.estado]}`) })}
+                            className="p-2 rounded-lg text-gray-400" title="Deshacer"><Undo2 size={16} /></button>
+                  )}
                 </div>
               )
             })}

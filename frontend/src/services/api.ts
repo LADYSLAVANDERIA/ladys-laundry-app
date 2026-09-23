@@ -248,6 +248,7 @@ export const preparacionApi = {
   lavadora:  (carga_id: number, n: number) => prepAx.post('/lavadora', { carga_id, n }),
   secadora:  (carga_id: number, n: number) => prepAx.post('/secadora', { carga_id, n }),
   seco:      (carga_id: number) => prepAx.post('/seco', { carga_id }),
+  deshacer:  (carga_id: number) => prepAx.post('/deshacer', { carga_id }),
   anular:    (carga_id: number) => prepAx.post('/anular', { carga_id }),
   liberar:   (maquina: 'LAVADORA' | 'SECADORA', n: number) => prepAx.post('/liberar', { maquina, n }),
 }

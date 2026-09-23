@@ -1,19 +1,55 @@
 import { useEffect, useRef, useState } from 'react'
-import { etapasApi, ordenesApi } from '../services/api'
-import { waLink, mensajeSegunEtapa, linkOT, tipoAviso } from '../utils'
+import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
-  Camera, CameraOff, Check, AlertTriangle, Package, Droplets,
-  Wind, Truck, Store, Keyboard, MessageCircle, Send,
+  Camera, CameraOff, Check, Droplets, Wind, Package, Layers, Plus, X,
+  AlertTriangle, PlayCircle, RefreshCw, Search, Send, Store, MessageCircle,
 } from 'lucide-react'
+import { preparacionApi, etapasApi, ordenesApi } from '../services/api'
+import { ot, waLink, mensajeSegunEtapa, linkOT, tipoAviso } from '../utils'
 
-// La etapa la define la estación: se elige una vez y se escanea sin volver a tocar nada.
-const ESTACIONES = [
-  { id: 'EN_LAVADO', txt: 'Lavado',   icon: Droplets, color: '#4AAEE0' },
-  { id: 'EN_SECADO', txt: 'Secado',   icon: Wind,     color: '#A87BC8' },
-  { id: 'EMBOLSADO', txt: 'Doblado y embalado', icon: Package, color: '#E8177A' },
-  { id: 'ENTREGADO', txt: 'Entrega en local',   icon: Store,   color: '#16a34a' },
-]
+// PRODUCCION: una sola pantalla para todo lo que pasa con la ropa dentro del
+// local (bitacora #115, #117, #119 y la fusion pedida por Lufi el 22-sep).
+//
+// Antes habia dos: "Produccion" escaneaba un QR y marcaba una etapa fija, y
+// "Preparacion y cargas" manejaba las cargas. Catalina tenia que saber a cual
+// entrar. Ahora se busca el pedido — escrito o pistoleando el QR — y la pantalla
+// muestra el boton que corresponde a su estado: preparar, mover cargas, embolsar
+// o entregar. Abajo sigue el tablero de maquinas y las listas de siempre.
+//
+// El modo estacion (/estacion) NO se toca: sirve para escanear muchos pedidos
+// seguidos con una etapa fija, que es otro trabajo.
+//
+// Toda accion pasa por un OK de confirmacion: un toque al hacer scroll marco una
+// carga como seca sin querer (OT 6573, 22-sep).
+
+const TIPO: Record<string, { txt: string; color: string }> = {
+  BLANCO:      { txt: 'Blanco',      color: '#64748b' },
+  COLOR:       { txt: 'Color',       color: '#E8177A' },
+  DESMANCHADO: { txt: 'Desmanchado', color: '#d97706' },
+  UNIDAD:      { txt: 'Por unidad',  color: '#4AAEE0' },
+}
+const ESTADO: Record<string, { txt: string; color: string }> = {
+  LISTA:   { txt: 'Lista para lavar',  color: '#64748b' },
+  LAVANDO: { txt: 'Lavando',           color: '#4AAEE0' },
+  MOJADA:  { txt: 'Lavada, esperando secadora', color: '#d97706' },
+  SECANDO: { txt: 'Secando',           color: '#A87BC8' },
+  SECA:    { txt: 'Seca',              color: '#16a34a' },
+}
+const ETAPA_TXT: Record<string, string> = {
+  RECEPCIONADO: 'Recepcionado', PREPARACION: 'En preparación', EN_LAVADO: 'En lavado',
+  EN_SECADO: 'En secado', EMBOLSADO: 'Embolsado', LISTO_RETIRO: 'Listo para retiro',
+  ASIGNADO_RUTA: 'En ruta', EN_CAMINO: 'En camino', ENTREGADO: 'Entregado',
+  RETIRADO: 'Retirado, en camino al local', AGENDADO: 'Agendado',
+}
+
+function cuando(d: number | null) {
+  if (d === null) return { txt: 'sin fecha', rojo: false }
+  if (d < 0) return { txt: `atrasado ${-d} día(s)`, rojo: true }
+  if (d === 0) return { txt: 'sale hoy', rojo: true }
+  if (d === 1) return { txt: 'sale mañana', rojo: false }
+  return { txt: `en ${d} días`, rojo: false }
+}
 
 declare global { interface Window { Html5Qrcode: any } }
 function cargarLector(): Promise<any> {
@@ -25,46 +61,79 @@ function cargarLector(): Promise<any> {
     document.head.appendChild(s)
   })
 }
+// Acepta el numero escrito, el id, o la URL completa del QR
+function leerCodigo(txt: string) {
+  const t = String(txt || '').trim()
+  const url = t.match(/\/ot\/(\d+)\//)
+  if (url) return url[1]
+  const num = t.replace(/[^\d]/g, '')
+  return num || t
+}
 
 export default function Produccion() {
-  const [estacion, setEstacion] = useState('EN_LAVADO')
+  const [t, setT] = useState<any>(null)
+  const [cargando, setCargando] = useState(false)
+  const [elegir, setElegir] = useState<null | { carga: any; maquina: 'LAVADORA' | 'SECADORA'; orden: number }>(null)
+  const [verTodos, setVerTodos] = useState(false)
+  const [pedir, setPedir] = useState<null | { titulo: string; detalle?: string; color: string; accion: () => void }>(null)
+  const [okListo, setOkListo] = useState(false)
+  // Buscador y camara
+  const [q, setQ] = useState('')
+  const [buscando, setBuscando] = useState(false)
+  const [resultados, setResultados] = useState<any[] | null>(null)
+  const [foco, setFoco] = useState<any>(null)
   const [camara, setCamara] = useState(false)
-  const [manual, setManual] = useState('')
-  const [hechos, setHechos] = useState<any[]>([])
-  const [bultos, setBultos] = useState<any>(null)   // pedido esperando cantidad de bultos
-  const [ficha, setFicha] = useState<any>(null)     // datos del cliente para poder avisarle
   const lector = useRef<any>(null)
   const ultimo = useRef<{ cod: string; t: number }>({ cod: '', t: 0 })
+  // Embolsado: bultos y aviso, igual que en la pantalla vieja
+  const [emb, setEmb] = useState<any>(null)
 
-  const est = ESTACIONES.find(e => e.id === estacion)!
+  useEffect(() => {
+    if (!pedir) return
+    setOkListo(false)
+    const i = setTimeout(() => setOkListo(true), 400) // evita que el mismo toque acepte
+    return () => clearTimeout(i)
+  }, [pedir])
 
-  const marcar = async (codigo: string, nBultos?: number) => {
-    // el lector dispara varias veces el mismo código: ignoramos repeticiones seguidas
-    const ahora = Date.now()
-    if (codigo === ultimo.current.cod && ahora - ultimo.current.t < 3000) return
-    ultimo.current = { cod: codigo, t: ahora }
+  const cargar = () => {
+    setCargando(true)
+    return preparacionApi.tablero()
+      .then(r => setT(r.data))
+      .catch(e => toast.error(e?.response?.data?.error || 'No se pudo cargar'))
+      .finally(() => setCargando(false))
+  }
+  useEffect(() => { cargar(); const i = setInterval(cargar, 30000); return () => clearInterval(i) }, [])
 
+  // El pedido en foco se relee siempre del servidor: nunca se arma en pantalla
+  const refrescarFoco = async (id?: number) => {
+    const n = id ?? foco?.id
+    if (!n) return
     try {
-      const { data } = await etapasApi.marcar({ codigo, etapa: estacion, bultos: nBultos })
-      if (navigator.vibrate) navigator.vibrate(data.repetida ? [40, 60, 40] : 60)
-      if (data.aviso) toast(data.aviso, { icon: '⚠️' })
-      else toast.success(`${data.cliente} · ${est.txt}`)
-      setHechos(h => [{ ...data, hora: new Date() }, ...h].slice(0, 20))
-      // al embalar preguntamos los bultos, que es el dato que se pierde si no se pide aquí
-      if (estacion === 'EMBOLSADO' && nBultos == null) {
-        setBultos(data)
-        // El marcaje no trae telefono ni token, y sin eso no se puede armar el
-        // WhatsApp. Se pide la ficha aparte para no tener que salir de aca: antes
-        // habia solo un enlace que sacaba a Catalina del escaneo, y por eso el
-        // aviso simplemente no se mandaba.
-        ordenesApi.getById(data.orden_id)
-          .then(r => setFicha(r.data))
-          .catch(() => setFicha(null))
-      }
+      const r = await preparacionApi.buscar(String(n))
+      const p = (r.data.pedidos || []).find((x: any) => x.id === n)
+      setFoco(p || null)
+    } catch { /* si falla, el tablero de abajo sigue siendo la verdad */ }
+  }
+
+  // Toda accion recarga: lo que se ve es lo que quedo guardado
+  const hacer = async (p: Promise<any>, ok: string) => {
+    try { await p; toast.success(ok) }
+    catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo guardar') }
+    await Promise.all([cargar(), refrescarFoco()])
+  }
+
+  const buscar = async (texto: string, abrirSolo = false) => {
+    const v = texto.trim()
+    if (!v) { setResultados(null); return }
+    setBuscando(true)
+    try {
+      const r = await preparacionApi.buscar(v)
+      const lista = r.data.pedidos || []
+      setResultados(lista)
+      if (lista.length === 1 || abrirSolo) { setFoco(lista[0] || null); if (!lista.length) toast.error(`No encontré ${v}`) }
     } catch (e: any) {
-      if (navigator.vibrate) navigator.vibrate([80, 50, 80])
-      toast.error(e?.response?.data?.error || 'No se pudo marcar')
-    }
+      toast.error(e?.response?.data?.error || 'No se pudo buscar')
+    } finally { setBuscando(false) }
   }
 
   const abrirCamara = async () => {
@@ -73,7 +142,14 @@ export default function Produccion() {
       lector.current = new H('lector')
       await lector.current.start({ facingMode: 'environment' },
         { fps: 10, qrbox: { width: 240, height: 240 } },
-        (txt: string) => marcar(txt), () => {})
+        (txt: string) => {
+          const cod = leerCodigo(txt)
+          const ahora = Date.now()
+          if (cod === ultimo.current.cod && ahora - ultimo.current.t < 3000) return
+          ultimo.current = { cod, t: ahora }
+          if (navigator.vibrate) navigator.vibrate(60)
+          setQ(cod); buscar(cod, true)
+        }, () => {})
       setCamara(true)
     } catch { toast.error('No pudimos abrir la cámara. Revisa el permiso.') }
   }
@@ -83,145 +159,434 @@ export default function Produccion() {
   }
   useEffect(() => () => { try { lector.current?.stop() } catch { /* al salir */ } }, [])
 
-  return (
-    <div className="max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold text-gray-800">Producción</h1>
-        <a href="#/estacion" className="text-sm px-4 py-2 rounded-xl text-white"
-           style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-          Modo estación (pantalla completa)
-        </a>
-      </div>
+  // ── Embolsar: pide bultos y ofrece el aviso, como la pantalla vieja ──
+  const embolsar = (p: any) => {
+    const sinSecar = (p.cargas || []).filter((c: any) => c.estado !== 'SECA').length
+    setPedir({
+      titulo: `¿Embolsar ${ot(p.id)}?`,
+      detalle: sinSecar ? `Ojo: ${sinSecar} carga(s) sin terminar de secar` : p.cliente,
+      color: '#E8177A',
+      accion: async () => {
+        try {
+          const { data } = await etapasApi.marcar({ orden_id: p.id, etapa: 'EMBOLSADO' })
+          if (data.aviso) toast(data.aviso, { icon: '⚠️' })
+          setEmb({ ...p, ...data })
+          await cargar()
+        } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo embolsar') }
+      },
+    })
+  }
+  const avisar = (p: any) => {
+    const msg = mensajeSegunEtapa({ ...p, cliente_nombre: p.cliente, etapa: 'EMBOLSADO' }, linkOT(p.id, p.token_publico))
+    // La ventana se abre ANTES del await o el navegador la bloquea como popup
+    window.open(waLink(p.cliente_telefono, msg), '_blank')
+    ordenesApi.aviso(p.id, { tipo: tipoAviso({ ...p, etapa: 'EMBOLSADO' }), mensaje: msg })
+      .then(() => toast.success('Avisado y anotado en la OT'))
+      .catch(() => toast.error('Se abrió WhatsApp, pero no se pudo dejar el registro en la OT'))
+  }
+  const entregar = (p: any) => setPedir({
+    titulo: `¿Entregar ${ot(p.id)} en el local?`, detalle: p.cliente, color: '#16a34a',
+    accion: () => hacer(etapasApi.marcar({ orden_id: p.id, etapa: 'ENTREGADO' }), `${ot(p.id)} entregado`),
+  })
 
-      <div className="bg-white rounded-2xl border p-4">
-        <p className="text-xs text-gray-500 mb-2">¿En qué estación estás?</p>
-        <div className="grid grid-cols-4 gap-2">
-          {ESTACIONES.map(e => {
-            const Icon = e.icon
-            const activa = estacion === e.id
-            return (
-              <button key={e.id} onClick={() => setEstacion(e.id)}
-                      className={`py-3 rounded-xl text-xs font-medium flex flex-col items-center gap-1.5 border-2 ${
-                        activa ? 'text-white' : 'text-gray-500 border-transparent bg-gray-50'}`}
-                      style={activa ? { background: e.color, borderColor: e.color } : {}}>
-                <Icon size={18} /> {e.txt}
+  const maquinas = elegir ? (elegir.maquina === 'LAVADORA' ? t?.lavadoras : t?.secadoras) || [] : []
+  const porPreparar = (t?.por_preparar || []) as any[]
+  const urgentes = porPreparar.filter(p => p.dias === null || p.dias <= 1)
+  const mostrarPrep = verTodos || urgentes.length === 0 ? porPreparar : urgentes
+
+  // ── La tarjeta de un pedido: cargas + el boton que toca segun su estado ──
+  const Tarjeta = ({ p, foco: enFoco = false }: { p: any; foco?: boolean }) => {
+    const cu = cuando(p.dias)
+    const cargas = p.cargas || []
+    const secas = cargas.filter((c: any) => c.estado === 'SECA').length
+    const todasSecas = cargas.length > 0 && secas === cargas.length
+    const enMaquinas = ['PREPARACION', 'EN_LAVADO', 'EN_SECADO'].includes(p.etapa)
+    const listo = ['EMBOLSADO', 'LISTO_RETIRO'].includes(p.etapa)
+    return (
+      <div className={`bg-white rounded-2xl border p-4 space-y-3 ${enFoco ? 'border-2' : ''}`}
+           style={enFoco ? { borderColor: '#E8177A' } : {}}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <Link to={`/ordenes/${p.id}`} className="font-semibold text-gray-800">{ot(p.id)} · {p.cliente}</Link>
+            <p className="text-xs text-gray-500 truncate">{p.detalle || 'sin ítems cargados'}</p>
+            {p.observaciones && <p className="text-xs text-gray-700 mt-1">📝 {p.observaciones}</p>}
+            <p className="text-xs text-gray-400 mt-0.5">
+              {ETAPA_TXT[p.etapa] || p.etapa}
+              {p.entrega_domicilio ? ' · a domicilio' : ' · retira en local'}
+              {Number(p.bultos) > 0 ? ` · ${p.bultos} bulto(s)` : ''}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <span className={`text-[11px] font-bold whitespace-nowrap ${cu.rojo ? 'text-red-700' : 'text-gray-500'}`}>{cu.txt}</span>
+            {enFoco && <button onClick={() => { setFoco(null); setResultados(null); setQ('') }}
+                               className="block ml-auto mt-1 text-xs text-gray-400">cerrar</button>}
+          </div>
+        </div>
+
+        {/* Recepcionado: empezar la preparacion */}
+        {p.etapa === 'RECEPCIONADO' && (
+          <>
+            <p className="text-xs text-gray-500">
+              Previsto: {p.previstas ?? p.cargas_previstas ?? '—'} carga(s){p.firme === false ? ' (estimado por kilos)' : p.firme ? ' (firme)' : ''}
+              {p.trabajo && p.trabajo !== 'LAVA' && <span className="text-amber-700 font-semibold"> · {p.trabajo}</span>}
+            </p>
+            <button onClick={() => setPedir({ titulo: `¿Empezar a preparar ${ot(p.id)}?`, detalle: p.cliente, color: '#E8177A',
+                                              accion: () => hacer(preparacionApi.preparar(p.id), `${ot(p.id)} en preparación`) })}
+                    className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                    style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+              <PlayCircle size={15} /> Preparar
+            </button>
+          </>
+        )}
+
+        {/* En maquinas: las cargas */}
+        {enMaquinas && (
+          <>
+            <p className="text-xs text-gray-500">
+              Previsto: {p.cargas_previstas ?? p.previstas ?? '—'} carga(s) {p.prevision_firme === false ? '(estimado por kilos)' : p.prevision_firme ? '(firme)' : ''}
+              {' · '}Definidas: <b>{cargas.length}</b>
+            </p>
+
+            {cargas.map((c: any) => {
+              const tp = TIPO[c.tipo] || TIPO.COLOR
+              const es = ESTADO[c.estado]
+              return (
+                <div key={c.id} className="rounded-xl border p-3 flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-gray-800">
+                      Carga {c.numero} <span className="text-xs font-bold px-1.5 py-0.5 rounded-full text-white ml-1" style={{ background: tp.color }}>{tp.txt}</span>
+                    </p>
+                    <p className="text-xs" style={{ color: es.color }}>
+                      {es.txt}{c.estado === 'LAVANDO' && ` en L${c.lavadora} · ${c.min_lavando} min`}
+                      {c.estado === 'MOJADA' && ` (salió de L${c.lavadora})`}
+                      {c.estado === 'SECANDO' && ` en S${c.secadora} · ${c.min_secando} min`}
+                    </p>
+                  </div>
+                  {c.estado === 'LISTA' && (
+                    <>
+                      <button onClick={() => setPedir({ titulo: `¿Quitar la carga ${c.numero}?`, detalle: ot(p.id), color: '#dc2626',
+                                                        accion: () => hacer(preparacionApi.anular(c.id), 'Carga quitada') })}
+                              className="p-2 rounded-lg text-gray-400" title="Quitar"><X size={16} /></button>
+                      <button onClick={() => setElegir({ carga: c, maquina: 'LAVADORA', orden: p.id })}
+                              className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5" style={{ background: '#4AAEE0' }}>
+                        <Droplets size={15} /> A lavadora
+                      </button>
+                    </>
+                  )}
+                  {(c.estado === 'LAVANDO' || c.estado === 'MOJADA') && (
+                    <button onClick={() => setElegir({ carga: c, maquina: 'SECADORA', orden: p.id })}
+                            className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5" style={{ background: '#A87BC8' }}>
+                      <Wind size={15} /> A secadora
+                    </button>
+                  )}
+                  {c.estado === 'SECANDO' && (
+                    <button onClick={() => setPedir({ titulo: `¿Carga ${c.numero} secado listo?`, detalle: `${ot(p.id)} · sale de S${c.secadora}`, color: '#16a34a',
+                                                      accion: () => hacer(preparacionApi.seco(c.id), `Carga ${c.numero} seca`) })}
+                            className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5" style={{ background: '#16a34a' }}>
+                      <Check size={15} /> Secado listo
+                    </button>
+                  )}
+                  {c.estado === 'SECA' && <Check size={18} className="text-green-600" />}
+                </div>
+              )
+            })}
+
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5">Agregar carga</p>
+              <div className="grid grid-cols-4 gap-2">
+                {Object.entries(TIPO).map(([k, v]) => (
+                  <button key={k} onClick={() => setPedir({ titulo: `¿Agregar carga ${v.txt.toLowerCase()}?`, detalle: ot(p.id), color: v.color,
+                                                          accion: () => hacer(preparacionApi.carga(p.id, k), `Carga ${v.txt.toLowerCase()} agregada`) })}
+                          className="py-2.5 rounded-xl border-2 text-xs font-semibold flex items-center justify-center gap-1"
+                          style={{ borderColor: v.color, color: v.color }}>
+                    <Plus size={13} /> {v.txt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {todasSecas && (
+              <p className="text-sm font-semibold text-green-700 bg-green-50 rounded-xl p-3">
+                Todas las cargas secas. Revisa que esté todo y embólsalo.
+              </p>
+            )}
+            <button onClick={() => embolsar(p)}
+                    className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                    style={{ background: todasSecas ? '#E8177A' : '#cbd5e1' }}>
+              <Package size={15} /> Doblado y embalado
+            </button>
+          </>
+        )}
+
+        {/* Ya embolsado: avisar y entregar en local */}
+        {listo && (
+          <div className="space-y-2">
+            {p.cliente_telefono && (
+              <button onClick={() => avisar(p)}
+                      className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                      style={{ background: '#16a34a' }}>
+                <Send size={15} /> Avisar por WhatsApp
               </button>
-            )
-          })}
+            )}
+            {p.entrega_domicilio ? (
+              <p className="text-xs text-gray-500 text-center">Va a domicilio: lo entrega el conductor en la ruta.</p>
+            ) : (
+              <button onClick={() => entregar(p)}
+                      className="w-full py-3 rounded-xl border-2 text-sm font-semibold flex items-center justify-center gap-1.5"
+                      style={{ borderColor: '#16a34a', color: '#16a34a' }}>
+                <Store size={15} /> Entregar en el local
+              </button>
+            )}
+          </div>
+        )}
+
+        {['ENTREGADO', 'ASIGNADO_RUTA', 'EN_CAMINO', 'RETIRADO', 'AGENDADO'].includes(p.etapa) && (
+          <p className="text-xs text-gray-500">Este pedido ya no se trabaja en el local.</p>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Layers size={22} /> Producción</h1>
+        <div className="flex items-center gap-2">
+          <a href="#/estacion" className="text-xs px-3 py-2 rounded-xl text-white"
+             style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>Modo estación</a>
+          <button onClick={cargar} className="p-2 rounded-xl border text-gray-500" title="Actualizar">
+            <RefreshCw size={16} className={cargando ? 'animate-spin' : ''} />
+          </button>
         </div>
       </div>
 
+      {/* ── Buscar o pistolear ── */}
       <div className="bg-white rounded-2xl border overflow-hidden">
-        <div className="px-4 py-3 flex items-center justify-between border-b">
-          <span className="text-sm font-medium text-gray-700">
-            Escaneando a <b style={{ color: est.color }}>{est.txt}</b>
-          </span>
+        <div className="p-3 flex gap-2">
+          <div className="flex-1 flex items-center gap-2 border rounded-xl px-3">
+            <Search size={15} className="text-gray-400" />
+            <input value={q} onChange={e => setQ(e.target.value)}
+                   onKeyDown={e => { if (e.key === 'Enter') buscar(q) }}
+                   placeholder="N° de pedido o nombre del cliente"
+                   className="flex-1 py-2.5 text-sm outline-none" />
+            {!!q && <button onClick={() => { setQ(''); setResultados(null); setFoco(null) }} className="text-gray-400"><X size={15} /></button>}
+          </div>
+          <button onClick={() => buscar(q)} className="px-4 rounded-xl text-white text-sm" style={{ background: '#E8177A' }}>
+            {buscando ? '...' : 'Buscar'}
+          </button>
           <button onClick={() => (camara ? cerrarCamara() : abrirCamara())}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs"
-                  style={{ background: camara ? '#dc2626' : est.color }}>
-            {camara ? <><CameraOff size={14} /> Detener</> : <><Camera size={14} /> Abrir cámara</>}
+                  className="px-3 rounded-xl text-white" style={{ background: camara ? '#dc2626' : '#4AAEE0' }}
+                  title={camara ? 'Cerrar cámara' : 'Pistolear el QR'}>
+            {camara ? <CameraOff size={16} /> : <Camera size={16} />}
           </button>
         </div>
 
         <div id="lector" style={{ display: camara ? 'block' : 'none' }} />
 
-        {!camara && (
-          <div className="p-8 text-center text-gray-400 text-sm">
-            <Camera size={30} className="mx-auto mb-2 opacity-40" />
-            Abre la cámara y apunta al código del pedido
+        {resultados && resultados.length > 1 && (
+          <div className="divide-y border-t max-h-72 overflow-y-auto">
+            {resultados.map(r => (
+              <button key={r.id} onClick={() => setFoco(r)} className="w-full text-left px-4 py-2.5">
+                <p className="text-sm font-semibold text-gray-800">{ot(r.id)} · {r.cliente}</p>
+                <p className="text-xs text-gray-500">{ETAPA_TXT[r.etapa] || r.etapa} · {r.detalle || 'sin ítems'}</p>
+              </button>
+            ))}
           </div>
         )}
-
-        <div className="p-3 border-t flex gap-2">
-          <div className="flex-1 flex items-center gap-2 border rounded-xl px-3">
-            <Keyboard size={15} className="text-gray-400" />
-            <input value={manual} onChange={e => setManual(e.target.value)}
-                   onKeyDown={e => { if (e.key === 'Enter' && manual.trim()) { marcar(manual.trim()); setManual('') } }}
-                   placeholder="o escribe el número de pedido"
-                   className="flex-1 py-2.5 text-sm outline-none" inputMode="numeric" />
-          </div>
-          <button onClick={() => { if (manual.trim()) { marcar(manual.trim()); setManual('') } }}
-                  className="px-4 rounded-xl text-white text-sm" style={{ background: est.color }}>
-            Marcar
-          </button>
-        </div>
+        {resultados && resultados.length === 0 && (
+          <p className="px-4 py-3 text-sm text-gray-400 border-t">No encontré ningún pedido con eso.</p>
+        )}
       </div>
 
-      {!!hechos.length && (
-        <div className="bg-white rounded-2xl border overflow-hidden">
-          <p className="px-4 py-2.5 text-xs text-gray-500 border-b">Marcados en esta sesión</p>
-          <div className="divide-y max-h-80 overflow-y-auto">
-            {hechos.map((h, i) => (
-              <div key={i} className="px-4 py-2.5 flex items-center gap-3">
-                {h.repetida
-                  ? <AlertTriangle size={15} className="text-amber-500 shrink-0" />
-                  : <Check size={15} className="text-green-600 shrink-0" />}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-800 truncate">
-                    <b>#{h.orden_id}</b> {h.cliente}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {h.etapa_anterior} → {h.etapa}
-                    {h.entrega_domicilio && ' · va a domicilio'}
-                  </p>
+      {/* ── El pedido buscado, con su acción ── */}
+      {foco && <Tarjeta p={foco} foco />}
+
+      {/* ── Las maquinas, de un vistazo ── */}
+      {t && (
+        <div className="bg-white rounded-2xl border p-4 space-y-3">
+          <div>
+            <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1"><Droplets size={13} /> Lavadoras</p>
+            <div className="grid grid-cols-3 gap-2">
+              {t.lavadoras.map((m: any) => (
+                <div key={m.n} className="rounded-xl border p-2 text-xs"
+                     style={m.carga ? { background: '#EFF8FD', borderColor: '#4AAEE0' } : {}}>
+                  <p className="font-bold text-gray-700">L{m.n}</p>
+                  {m.carga ? (
+                    <>
+                      <p className="truncate">{ot(m.carga.orden_id)} c{m.carga.numero}</p>
+                      <p className={m.carga.minutos >= m.carga.ciclo ? 'text-amber-700 font-semibold' : 'text-gray-500'}>
+                        {m.carga.minutos >= m.carga.ciclo ? `terminó hace ${m.carga.minutos - m.carga.ciclo} min` : `faltan ${m.carga.ciclo - m.carga.minutos} min`}
+                      </p>
+                    </>
+                  ) : <p className="text-green-700">Libre</p>}
                 </div>
-                <span className="text-xs text-gray-400">
-                  {h.hora.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 mb-1.5 flex items-center gap-1"><Wind size={13} /> Secadoras</p>
+            <div className="grid grid-cols-5 gap-1.5">
+              {t.secadoras.map((m: any) => (
+                <div key={m.n} className="rounded-xl border p-1.5 text-[11px]"
+                     style={m.carga ? { background: '#F6F0FA', borderColor: '#A87BC8' } : {}}>
+                  <p className="font-bold text-gray-700">S{m.n}</p>
+                  {m.carga ? (
+                    <>
+                      <p className="truncate">{ot(m.carga.orden_id)} c{m.carga.numero}</p>
+                      <p className="text-gray-500">{m.carga.minutos} min</p>
+                    </>
+                  ) : <p className="text-green-700">Libre</p>}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
-      {/* Al embalar: cuántos bultos y, si el cliente lo espera, el aviso */}
-      {bultos && (
+      {/* ── Pedidos con cargas ── */}
+      {t?.pedidos?.filter((p: any) => p.id !== foco?.id).map((p: any) => <Tarjeta key={p.id} p={p} />)}
+
+      {/* ── Por preparar ── */}
+      <div className="bg-white rounded-2xl border overflow-hidden">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
+          <p className="text-sm font-semibold text-gray-700">Por preparar <span className="text-gray-400 font-normal">({porPreparar.length})</span></p>
+          {urgentes.length > 0 && urgentes.length < porPreparar.length && (
+            <button onClick={() => setVerTodos(v => !v)} className="text-xs text-pink-600">
+              {verTodos ? 'Ver solo hoy y mañana' : `Ver los ${porPreparar.length}`}
+            </button>
+          )}
+        </div>
+        {porPreparar.length === 0 && <p className="p-4 text-sm text-gray-400">No hay pedidos esperando preparación.</p>}
+        <div className="divide-y">
+          {mostrarPrep.map((p: any) => {
+            const cu = cuando(p.dias)
+            return (
+              <div key={p.id} className="px-4 py-3 flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{ot(p.id)} · {p.cliente}</p>
+                  <p className="text-xs text-gray-500 truncate">{p.detalle || 'sin ítems cargados'}</p>
+                  <p className="text-xs">
+                    <span className={cu.rojo ? 'text-red-700 font-semibold' : 'text-gray-500'}>{cu.txt}</span>
+                    <span className="text-gray-400"> · previsto {p.previstas} carga(s){p.firme ? '' : ' aprox.'}</span>
+                    {p.trabajo && p.trabajo !== 'LAVA' && <span className="text-amber-700 font-semibold"> · {p.trabajo}</span>}
+                  </p>
+                </div>
+                <button onClick={() => setPedir({ titulo: `¿Empezar a preparar ${ot(p.id)}?`, detalle: p.cliente, color: '#E8177A',
+                                                  accion: () => hacer(preparacionApi.preparar(p.id), `${ot(p.id)} en preparación`) })}
+                        className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5 shrink-0"
+                        style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                  <PlayCircle size={15} /> Preparar
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ── Elegir maquina ── */}
+      {elegir && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={() => setElegir(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-3" onClick={e => e.stopPropagation()}>
+            <p className="font-semibold text-gray-800">
+              Carga {elegir.carga.numero}: ¿a qué {elegir.maquina === 'LAVADORA' ? 'lavadora' : 'secadora'}?
+            </p>
+            <div className={`grid gap-2 ${elegir.maquina === 'LAVADORA' ? 'grid-cols-3' : 'grid-cols-5'}`}>
+              {maquinas.map((m: any) => (
+                <button key={m.n} disabled={!!m.carga}
+                        onClick={() => {
+                          const c = elegir.carga, maq = elegir.maquina, o = elegir.orden, l = maq === 'LAVADORA' ? 'L' : 'S'
+                          setElegir(null)
+                          setPedir({ titulo: `¿Carga ${c.numero} a ${l}${m.n}?`, detalle: ot(o),
+                                     color: maq === 'LAVADORA' ? '#4AAEE0' : '#A87BC8',
+                                     accion: () => hacer(maq === 'LAVADORA' ? preparacionApi.lavadora(c.id, m.n) : preparacionApi.secadora(c.id, m.n),
+                                                         `Carga ${c.numero} a ${l}${m.n}`) })
+                        }}
+                        className="py-4 rounded-xl border-2 text-lg font-bold disabled:opacity-40"
+                        style={!m.carga ? { borderColor: elegir.maquina === 'LAVADORA' ? '#4AAEE0' : '#A87BC8' } : {}}>
+                  {elegir.maquina === 'LAVADORA' ? 'L' : 'S'}{m.n}
+                </button>
+              ))}
+            </div>
+            {maquinas.some((m: any) => m.carga) && (
+              <div className="text-xs text-gray-500 space-y-1.5 pt-1">
+                <p className="flex items-center gap-1"><AlertTriangle size={12} /> Las grises figuran ocupadas. Si ya sacaste esa ropa:</p>
+                {maquinas.filter((m: any) => m.carga).map((m: any) => (
+                  <button key={m.n}
+                          onClick={() => { const maq = elegir.maquina, l = maq === 'LAVADORA' ? 'L' : 'S'
+                                            setElegir(null)
+                                            setPedir({ titulo: `¿Liberar ${l}${m.n}?`, detalle: `Tenía ${ot(m.carga.orden_id)} carga ${m.carga.numero}`, color: '#64748b',
+                                                       accion: () => hacer(preparacionApi.liberar(maq, m.n), `${l}${m.n} liberada`) }) }}
+                          className="block w-full text-left px-3 py-2 rounded-lg border text-gray-600">
+                    Liberar {elegir.maquina === 'LAVADORA' ? 'L' : 'S'}{m.n} (tenía {ot(m.carga.orden_id)} carga {m.carga.numero})
+                  </button>
+                ))}
+              </div>
+            )}
+            <button onClick={() => setElegir(null)} className="w-full py-2.5 rounded-xl border text-sm text-gray-600">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Al embolsar: bultos y aviso ── */}
+      {emb && (
         <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
             <div>
-              <p className="font-semibold text-gray-800">Pedido #{bultos.orden_id}</p>
-              <p className="text-sm text-gray-500">{bultos.cliente}</p>
+              <p className="font-semibold text-gray-800">{ot(emb.id ?? emb.orden_id)} embolsado</p>
+              <p className="text-sm text-gray-500">{emb.cliente}</p>
             </div>
             <div>
               <label className="text-xs text-gray-600 mb-1 block">¿Cuántos bultos?</label>
               <div className="grid grid-cols-5 gap-2">
                 {[1, 2, 3, 4, 5].map(n => (
                   <button key={n}
-                          onClick={() => { etapasApi.marcar({ orden_id: bultos.orden_id, etapa: 'EMBOLSADO', bultos: n }); setBultos({ ...bultos, n }) }}
-                          className={`py-3 rounded-xl border text-sm font-medium ${bultos.n === n ? 'text-white' : 'text-gray-600'}`}
-                          style={bultos.n === n ? { background: '#E8177A', borderColor: '#E8177A' } : {}}>
+                          onClick={() => { etapasApi.marcar({ orden_id: emb.id ?? emb.orden_id, etapa: 'EMBOLSADO', bultos: n })
+                                             .then(() => setEmb({ ...emb, n }))
+                                             .catch(() => toast.error('No se pudo guardar los bultos')) }}
+                          className={`py-3 rounded-xl border text-sm font-medium ${emb.n === n ? 'text-white' : 'text-gray-600'}`}
+                          style={emb.n === n ? { background: '#E8177A', borderColor: '#E8177A' } : {}}>
                     {n}
                   </button>
                 ))}
               </div>
             </div>
-            {ficha?.cliente_telefono ? (
-              <button
-                onClick={() => {
-                  const msg = mensajeSegunEtapa({ ...ficha, etapa: 'EMBOLSADO' }, linkOT(ficha.id, ficha.token_publico))
-                  // La ventana se abre ANTES del await: si se abre despues, el
-                  // navegador la toma como popup y la bloquea.
-                  window.open(waLink(ficha.cliente_telefono, msg), '_blank')
-                  ordenesApi.aviso(ficha.id, { tipo: tipoAviso({ ...ficha, etapa: 'EMBOLSADO' }), mensaje: msg })
-                    .then(() => toast.success('Avisado y anotado en la OT'))
-                    .catch(() => toast.error('Se abrio WhatsApp, pero no se pudo dejar el registro en la OT'))
-                }}
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white text-sm font-semibold"
-                style={{ background: '#16a34a' }}>
+            {emb.cliente_telefono ? (
+              <button onClick={() => avisar(emb)}
+                      className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white text-sm font-semibold"
+                      style={{ background: '#16a34a' }}>
                 <Send size={15} /> Avisarle al cliente por WhatsApp
               </button>
             ) : (
-              <a href={`#/ordenes/${bultos.orden_id}`}
-                 className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border text-sm text-gray-600">
-                <MessageCircle size={15} />
-                {ficha ? 'Sin telefono: abrir el pedido' : 'Abrir el pedido para avisarle al cliente'}
-              </a>
+              <Link to={`/ordenes/${emb.id ?? emb.orden_id}`}
+                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border text-sm text-gray-600">
+                <MessageCircle size={15} /> Sin teléfono: abrir el pedido
+              </Link>
             )}
-            <button onClick={() => { setBultos(null); setFicha(null) }}
+            <button onClick={() => { setEmb(null); cargar(); refrescarFoco() }}
                     className="w-full py-3 rounded-xl text-white text-sm font-medium"
                     style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-              Listo, seguir escaneando
+              Listo
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmar ── */}
+      {pedir && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={() => setPedir(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4" onClick={e => e.stopPropagation()}>
+            <div>
+              <p className="text-lg font-bold text-gray-800">{pedir.titulo}</p>
+              {pedir.detalle && <p className="text-sm text-gray-500 mt-0.5">{pedir.detalle}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setPedir(null)} className="py-3.5 rounded-xl border-2 text-base font-semibold text-gray-600">Cancelar</button>
+              <button disabled={!okListo}
+                      onClick={() => { const a = pedir.accion; setPedir(null); a() }}
+                      className="py-3.5 rounded-xl text-white text-base font-bold disabled:opacity-50" style={{ background: pedir.color }}>
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

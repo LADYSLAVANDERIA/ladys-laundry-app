@@ -242,6 +242,7 @@ prepAx.interceptors.request.use(cfg => {
 })
 export const preparacionApi = {
   tablero:   () => prepAx.get('/'),
+  buscar:    (q: string) => prepAx.get('/buscar', { params: { q } }),
   preparar:  (orden_id: number) => prepAx.post('/preparar', { orden_id }),
   carga:     (orden_id: number, tipo: string) => prepAx.post('/carga', { orden_id, tipo }),
   lavadora:  (carga_id: number, n: number) => prepAx.post('/lavadora', { carga_id, n }),

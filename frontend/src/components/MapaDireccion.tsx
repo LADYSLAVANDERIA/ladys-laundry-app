@@ -22,6 +22,13 @@ export default function MapaDireccion({ valor, onChange, alto = 220 }: Props) {
   const [opciones, setOpciones] = useState<any[]>([])
   const [cargando, setCargando] = useState(false)
   const [listo, setListo] = useState(false)
+  // El mapa registra sus eventos UNA vez, al abrir. Si esos eventos usaran
+  // "valor" directo, verian la ficha vacia del primer momento: al tocar o
+  // arrastrar el pin se borraba la calle ya escrita y despues salia "Ingresa la
+  // calle" al guardar (ficha de Soledad, 23-09). Con estas refs leen siempre lo
+  // ultimo que hay en el formulario.
+  const valorRef = useRef<any>(valor); valorRef.current = valor
+  const cambioRef = useRef(onChange); cambioRef.current = onChange
 
   // inicializar el mapa
   useEffect(() => {
@@ -40,20 +47,21 @@ export default function MapaDireccion({ valor, onChange, alto = 220 }: Props) {
 
       // Al soltar el pin se guarda la coordenada y, si la ficha aun no tiene
       // calle, se completa con la que Google reconoce en ese punto.
-      p.addListener('dragend', async () => {
-        const lat = p.getPosition().lat(), lng = p.getPosition().lng()
-        onChange({ ...valor, lat: Number(lat.toFixed(7)), lng: Number(lng.toFixed(7)) })
+      const alPunto = async (lat: number, lng: number) => {
+        const base = { ...valorRef.current, lat: Number(lat.toFixed(7)), lng: Number(lng.toFixed(7)) }
+        cambioRef.current(base)
+        if (base.calle) return
         try {
           const { data } = await dirApi.desdePunto({ lat, lng })
-          if (data.calle && !valor?.calle) {
-            onChange({ ...valor, lat, lng, calle: data.calle, numero: data.numero || valor?.numero })
-          }
+          const ahora = valorRef.current
+          if (data.calle && !ahora?.calle)
+            cambioRef.current({ ...ahora, calle: data.calle, numero: ahora?.numero || data.numero || '' })
         } catch { /* opcional */ }
-      })
+      }
+      p.addListener('dragend', () => alPunto(p.getPosition().lat(), p.getPosition().lng()))
       m.addListener('click', (e: any) => {
-        const lat = e.latLng.lat(), lng = e.latLng.lng()
         p.setPosition(e.latLng)
-        onChange({ ...valor, lat: Number(lat.toFixed(7)), lng: Number(lng.toFixed(7)) })
+        alPunto(e.latLng.lat(), e.latLng.lng())
       })
       mapa.current = m; pin.current = p; setListo(true)
     }).catch(() => toast.error('No se pudo cargar el mapa'))
@@ -95,7 +103,7 @@ export default function MapaDireccion({ valor, onChange, alto = 220 }: Props) {
   const ubicarme = () => {
     if (!navigator.geolocation) return toast.error('Tu navegador no da la ubicación')
     navigator.geolocation.getCurrentPosition(
-      p => onChange({ ...valor, lat: Number(p.coords.latitude.toFixed(7)), lng: Number(p.coords.longitude.toFixed(7)) }),
+      p => cambioRef.current({ ...valorRef.current, lat: Number(p.coords.latitude.toFixed(7)), lng: Number(p.coords.longitude.toFixed(7)) }),
       () => toast.error('No pudimos obtener tu ubicación'), { enableHighAccuracy: true, timeout: 8000 })
   }
 

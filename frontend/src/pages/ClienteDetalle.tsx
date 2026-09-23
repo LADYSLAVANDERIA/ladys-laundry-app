@@ -31,9 +31,19 @@ export default function ClienteDetalle() {
   if (!c) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-pink-500" /></div>
 
   const guardarDir = async () => {
-    if (!dir.calle) return toast.error('Ingresa la calle')
-    try { await clientesApi.addDireccion(c.id, dir); toast.success('Dirección agregada'); setModal(null); setDir({ ciudad: 'Concón' }); load() }
-    catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
+    if (!String(dir.calle || '').trim()) return toast.error('Ingresa la calle')
+    // Antes iba al API viejo: no guardaba el punto del mapa y al EDITAR una
+    // direccion creaba otra nueva. Ahora nueva -> crear, existente -> actualizar,
+    // las dos por el servicio de direcciones, que guarda lat/lng.
+    const datos = { ciudad: dir.ciudad || 'Concón', sector: dir.sector ?? null, calle: String(dir.calle).trim(),
+      numero: dir.numero || null, otro: dir.otro || null, lat: dir.lat ?? null, lng: dir.lng ?? null,
+      es_principal: dir.id ? !!dir.es_principal : (!!dir.es_principal || !c.direcciones?.length) }
+    try {
+      if (dir.id) { await dirApi.actualizar(dir.id, datos); toast.success('Dirección actualizada') }
+      else { await dirApi.crear(c.id, datos); toast.success('Dirección agregada') }
+      setModal(null); setDir({ ciudad: 'Concón' }); load()
+    }
+    catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar la dirección') }
   }
   const borrarDir = async (dirId: number) => {
     try { await clientesApi.removeDireccion(c.id, dirId); toast.success('Dirección eliminada'); load() }

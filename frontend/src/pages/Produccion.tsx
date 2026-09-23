@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
@@ -96,6 +96,17 @@ export default function Produccion() {
   const ultimo = useRef<{ cod: string; t: number }>({ cod: '', t: 0 })
   // Embolsado: bultos y aviso, igual que en la pantalla vieja
   const [emb, setEmb] = useState<any>(null)
+  // 23-sep (Lufi): al pasar una carga de etapa la pantalla saltaba arriba. Se guarda
+  // la posicion del contenedor que hace scroll y se vuelve a ella al recargar.
+  const raiz = useRef<HTMLDivElement>(null)
+  const contenedor = () => (raiz.current?.closest('.overflow-y-auto') as HTMLElement | null)
+    || (document.scrollingElement as HTMLElement | null)
+  const volverA = (y: number | undefined) => {
+    if (y === undefined) return
+    const c = contenedor()
+    if (!c) return
+    requestAnimationFrame(() => { c.scrollTop = y; requestAnimationFrame(() => { c.scrollTop = y }) })
+  }
 
   useEffect(() => {
     if (!pedir) return
@@ -106,8 +117,9 @@ export default function Produccion() {
 
   const cargar = () => {
     setCargando(true)
+    const y = contenedor()?.scrollTop
     return preparacionApi.tablero()
-      .then(r => setT(r.data))
+      .then(r => { setT(r.data); volverA(y) })
       .catch(e => toast.error(e?.response?.data?.error || 'No se pudo cargar'))
       .finally(() => setCargando(false))
   }
@@ -126,9 +138,11 @@ export default function Produccion() {
 
   // Toda accion recarga: lo que se ve es lo que quedo guardado
   const hacer = async (p: Promise<any>, ok: string) => {
+    const y = contenedor()?.scrollTop
     try { await p; toast.success(ok) }
     catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo guardar') }
     await Promise.all([cargar(), refrescarFoco()])
+    volverA(y)
   }
 
   const buscar = async (texto: string, abrirSolo = false) => {
@@ -211,6 +225,9 @@ export default function Produccion() {
   const mostrarPrep = verTodos || urgentes.length === 0 ? porPreparar : urgentes
 
   // ── La tarjeta de un pedido: cargas + el boton que toca segun su estado ──
+  // Se LLAMA como funcion, no como <Tarjeta/>: definida aqui adentro, como
+  // componente React la veia nueva en cada render y rearmaba todas las tarjetas
+  // (la pantalla saltaba arriba al tocar cualquier boton). No usa hooks.
   const Tarjeta = ({ p, foco: enFoco = false }: { p: any; foco?: boolean }) => {
     const cu = cuando(p.dias)
     const cargas = p.cargas || []
@@ -369,7 +386,7 @@ export default function Produccion() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-4">
+    <div ref={raiz} className="max-w-3xl mx-auto space-y-4">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Layers size={22} /> Producción</h1>
         <div className="flex items-center gap-2">
@@ -420,7 +437,7 @@ export default function Produccion() {
       </div>
 
       {/* ── El pedido buscado, con su acción ── */}
-      {foco && <Tarjeta p={foco} foco />}
+      {foco && <Fragment key={'foco-' + foco.id}>{Tarjeta({ p: foco, foco: true })}</Fragment>}
 
       {/* ── Las maquinas, de un vistazo ── */}
       {t && (
@@ -465,7 +482,7 @@ export default function Produccion() {
       )}
 
       {/* ── Pedidos con cargas ── */}
-      {t?.pedidos?.filter((p: any) => p.id !== foco?.id).map((p: any) => <Tarjeta key={p.id} p={p} />)}
+      {t?.pedidos?.filter((p: any) => p.id !== foco?.id).map((p: any) => <Fragment key={p.id}>{Tarjeta({ p })}</Fragment>)}
 
       {/* ── Por preparar ── */}
       <div className="bg-white rounded-2xl border overflow-hidden">

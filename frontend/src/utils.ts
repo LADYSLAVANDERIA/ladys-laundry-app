@@ -41,12 +41,25 @@ export const hora = (t?: string | null) => (t ? String(t).slice(0, 5) : '')
 export const linkOT = (id: number | string, token?: string | null) =>
   `${location.origin}${location.pathname.replace(/\/$/, '')}/#/ot/${id}/${token || ''}`
 
+// 23-sep (Lufi, pedido 6660 de Elena): el aviso de ruta de un RETIRO decia "vamos
+// en camino con tu pedido... Ya está pagada": usaba el texto de ENTREGA y, como un
+// retiro todavia no tiene monto, el saldo 0 salia como "pagada". Ahora un pedido
+// por retirar (PRE_ORDEN / AGENDADO) recibe su propio texto, sin hablar de pago, y
+// "pagada" solo se dice si de verdad hubo algo que pagar.
+const capital = (t: string) => t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : t
+const esPorRetirar = (o: any) => o?.estado === 'PRE_ORDEN' || o?.etapa === 'AGENDADO'
+
 export const mensajeAviso = (tipo: string, o: any, link: string) => {
-  const n = String(o.cliente_nombre || o.cliente || '').split(' ')[0]
-  const saldo = Number(o.saldo_pendiente || 0) > 0 ? ` Saldo a pagar: ${fmt(o.saldo_pendiente)}.` : ' Ya está pagada.'
+  const n = capital(String(o.cliente_nombre || o.cliente || '').split(' ')[0])
+  const debe = Number(o.saldo_pendiente || 0)
+  const saldo = debe > 0 ? ` Saldo a pagar: ${fmt(debe)}.`
+              : Number(o.monto_total || 0) > 0 ? ' Ya está pagado.' : ''
   const num = ot(o.id)
   if (tipo === 'INGRESO') return `Hola ${n}, recibimos tu pedido en Ladys Lavandería. Tu orden es la ${num} por ${fmt(o.monto_total)}.${saldo}\n\nSíguela acá: ${link}`
-  if (tipo === 'EN_RUTA') return `Hola ${n}, vamos en camino con tu pedido ${num} de Ladys Lavandería.${saldo}\n\n${link}`
+  if ((tipo === 'EN_RUTA' && esPorRetirar(o)) || tipo === 'EN_RUTA_RETIRO')
+    return `Hola ${n}, somos de Ladys Lavandería: vamos en camino a tu domicilio a retirar tu ropa. ` +
+           `Tu pedido es el ${num} y te avisamos apenas esté listo.\n\n${link}`
+  if (tipo === 'EN_RUTA') return `Hola ${n}, vamos en camino a tu domicilio a entregarte tu pedido ${num} de Ladys Lavandería.${saldo}\n\n${link}`
   if (tipo === 'RETIRADO') return `Hola ${n}, ya retiramos tu ropa. Quedó registrada como la orden ${num} y te avisamos apenas esté lista.\n\n${link}`
   if (tipo === 'ENTREGADA') return `Hola ${n}, tu pedido ${num} fue entregado. ¡Gracias por preferirnos!\n\n${link}`
   const donde = o.entrega_domicilio

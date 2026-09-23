@@ -177,7 +177,7 @@ export default function Programacion() {
             className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${o.telefono ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-300 pointer-events-none'}`}>
             <Phone size={16} /> Llamar
           </a>
-          <button onClick={() => avisar(o, o.estado === 'ENTREGADA' ? 'ENTREGADA' : (tipo === 'retiro' && o.estado !== 'PRE_ORDEN') ? 'RETIRADO' : 'EN_RUTA')} disabled={!o.telefono}
+          <button onClick={() => avisar(o, o.estado === 'ENTREGADA' ? 'ENTREGADA' : (tipo === 'retiro' && o.estado !== 'PRE_ORDEN') ? 'RETIRADO' : tipo === 'retiro' ? 'EN_RUTA_RETIRO' : 'EN_RUTA')} disabled={!o.telefono}
             className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${o.telefono ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-300'}`}>
             <MessageCircle size={16} /> WhatsApp
           </button>
@@ -352,7 +352,7 @@ export default function Programacion() {
               {lote.paradas.map((o: any) => {
                 const ya = enviados.includes(o.id)
                 return (
-                  <button key={o.id} onClick={() => { avisar(o, o._tipo === 'retiro' ? 'EN_RUTA' : 'EN_RUTA'); setEnviados(e => [...e, o.id]) }}
+                  <button key={o.id} onClick={() => { avisar(o, o._tipo === 'retiro' && o.estado === 'PRE_ORDEN' ? 'EN_RUTA_RETIRO' : 'EN_RUTA'); setEnviados(e => [...e, o.id]) }}
                     className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-left ${ya ? 'bg-green-50 border-green-200' : 'hover:bg-gray-50'}`}>
                     <div>
                       <p className="text-sm font-medium">{ot(o.id)} · {o.cliente}</p>

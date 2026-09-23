@@ -193,6 +193,13 @@ export default function Produccion() {
       .then(() => toast.success('Avisado y anotado en la OT'))
       .catch(() => toast.error('Se abrió WhatsApp, pero no se pudo dejar el registro en la OT'))
   }
+  // Los bultos se guardan al elegirlos: la ventana puede cerrarse sin apretar
+  // nada mas y el conductor tiene que cargar el numero correcto.
+  const guardarBultos = (n: number) =>
+    etapasApi.marcar({ orden_id: emb.id ?? emb.orden_id, etapa: 'EMBOLSADO', bultos: n })
+      .then(() => { setEmb({ ...emb, n }); toast.success(`${n} bulto(s)`) })
+      .catch(() => toast.error('No se pudo guardar los bultos'))
+
   const entregar = (p: any) => setPedir({
     titulo: `¿Entregar ${ot(p.id)} en el local?`, detalle: p.cliente, color: '#16a34a',
     accion: () => hacer(etapasApi.marcar({ orden_id: p.id, etapa: 'ENTREGADO' }), `${ot(p.id)} entregado`),
@@ -551,18 +558,24 @@ export default function Produccion() {
             </div>
             <div>
               <label className="text-xs text-gray-600 mb-1 block">¿Cuántos bultos?</label>
-              <div className="grid grid-cols-5 gap-2">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <button key={n}
-                          onClick={() => { etapasApi.marcar({ orden_id: emb.id ?? emb.orden_id, etapa: 'EMBOLSADO', bultos: n })
-                                             .then(() => setEmb({ ...emb, n }))
-                                             .catch(() => toast.error('No se pudo guardar los bultos')) }}
+              <div className="grid grid-cols-6 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
+                  <button key={n} onClick={() => guardarBultos(n)}
                           className={`py-3 rounded-xl border text-sm font-medium ${emb.n === n ? 'text-white' : 'text-gray-600'}`}
                           style={emb.n === n ? { background: '#E8177A', borderColor: '#E8177A' } : {}}>
                     {n}
                   </button>
                 ))}
               </div>
+              <button onClick={() => {
+                        const v = window.prompt('¿Cuántos bultos?', String(emb.n || ''))
+                        const n = Number(v)
+                        if (v !== null && Number.isInteger(n) && n > 0 && n <= 99) guardarBultos(n)
+                        else if (v !== null) toast.error('Escribe un número entre 1 y 99')
+                      }}
+                      className="mt-2 w-full py-2 rounded-xl border text-xs text-gray-500">
+                {emb.n && emb.n > 12 ? `${emb.n} bultos · cambiar` : 'Son más de 12'}
+              </button>
             </div>
             {emb.cliente_telefono ? (
               <button onClick={() => avisar(emb)}

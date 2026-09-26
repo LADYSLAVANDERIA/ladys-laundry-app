@@ -9,7 +9,8 @@
 // minutos sin reportar, la camioneta se dibuja apagada y arriba dice "sin señal
 // desde las HH:MM": es información distinta a "está detenida".
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { seguimientoApi } from '../services/api'
+import { seguimientoApi, rutaCallesApi } from '../services/api'
+import { decodificar } from '../lib/navegacion'
 import toast from 'react-hot-toast'
 import {
   Truck, Clock, MapPin, RefreshCw, WifiOff, Check, X, Navigation, Route as RutaIcono,
@@ -43,7 +44,9 @@ export default function RutaEnVivo() {
   const halo = useRef<any>(null)
   const latido = useRef<any>(null)
   const capa = useRef<any[]>([])
-  const trazo = useRef<any>(null)
+  const trazos = useRef<any[]>([])
+  // el camino por calles (ladys-ruta-calles): rastro en pedazos + lo que falta
+  const [calles, setCalles] = useState<any>(null)
   const donde = useRef<any>(null)
   const cuadro = useRef<number>(0)
   const encuadrado = useRef(false)           // el encuadre se hace una vez: después manda el usuario
@@ -51,6 +54,7 @@ export default function RutaEnVivo() {
 
   const traer = (f = fecha, silencioso = true) => {
     if (!silencioso) setCargando(true)
+    rutaCallesApi.dia(f).then(r => setCalles(r.data)).catch(() => setCalles(null))
     seguimientoApi.recorrido(f)
       .then(r => setD(r.data))
       .catch(() => { if (!silencioso) toast.error('No se pudo cargar la ruta') })
@@ -151,23 +155,52 @@ export default function RutaEnVivo() {
         capa.current.push(m); caja.extend({ lat: Number(p.lat), lng: Number(p.lng) }); puntos++
       })
 
-      // El rastro: por dónde anduvo hoy de verdad, no por dónde debía andar.
-      // Sólo el rastro del horario de este tramo: la mañana no se dibuja encima de la tarde.
-      const aMin = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5))
-      const desdeT = tramo?.inicio ? aMin(tramo.inicio) - 60 : 0
-      const hastaT = tramo?.fin ? aMin(tramo.fin) + 150 : 24 * 60
-      const camino = (d.rastro || []).filter((r: any) => {
-        const h = new Date(r.momento).toLocaleTimeString('en-GB', { timeZone: 'America/Santiago', hour12: false }).slice(0, 5)
-        return aMin(h) >= desdeT && aMin(h) <= hastaT
-      }).map((r: any) => ({ lat: Number(r.lat), lng: Number(r.lng) }))
-      if (trazo.current) trazo.current.setMap(null)
-      if (camino.length > 1) {
-        trazo.current = new g.maps.Polyline({
-          path: camino, map: mapa.current, geodesic: true,
-          strokeColor: '#A87BC8', strokeOpacity: 0.85, strokeWeight: 4, zIndex: 20,
+      // EL CAMINO, SIEMPRE POR CALLES (26-sep, bitácora 122). Antes esta pantalla unía
+      // todos los puntos GPS con UNA línea: cuando el celular dejaba de reportar (la Ale
+      // salía de la app), el hueco quedaba como una recta encima de casas y edificios.
+      // Ahora: pedazos con GPS real = línea llena; huecos sin GPS = reconstruidos por
+      // calles, punteados; lo que falta = camino por calles con tráfico. Nunca una recta.
+      trazos.current.forEach((x: any) => x.setMap(null))
+      trazos.current = []
+      const linea = (path: any[], color: string, opts: any = {}) => {
+        if (path.length < 2) return
+        const l = new g.maps.Polyline({ path, map: mapa.current, geodesic: false, strokeColor: color,
+          strokeOpacity: 0.85, strokeWeight: 4, zIndex: 20, ...opts })
+        trazos.current.push(l)
+        path.forEach((c: any) => caja.extend(c)); puntos += path.length
+      }
+      const punteada = { strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, scale: 3 }, offset: '0', repeat: '12px' }] }
+      const tc = (calles?.tramos || []).find((t: any) => t.nombre === tramo?.clave)
+        || (calles?.tramos || []).find((t: any) => String(t.ruta_id) === String(paradasT[0]?.ruta_id))
+      if (tc) {
+        ;(tc.rastro || []).forEach((z: any) => {
+          if (z.tipo === 'gps') linea(z.puntos.map((q: any) => ({ lat: q[0], lng: q[1] })), '#A87BC8')
+          else if (z.polyline) linea(decodificar(z.polyline), '#A87BC8', punteada)
+          // hueco sin camino reconstruido: no se dibuja nada inventado
         })
-        camino.forEach((c: any) => caja.extend(c))
-        puntos += camino.length
+        if (tc.falta?.polyline) linea(decodificar(tc.falta.polyline), '#E8177A', {
+          strokeOpacity: 0.75, strokeWeight: 5, zIndex: 15,
+          icons: [{ icon: { path: g.maps.SymbolPath.FORWARD_OPEN_ARROW, scale: 2.5, strokeOpacity: 1 }, offset: '40px', repeat: '140px' }] })
+      } else {
+        // Respaldo si no llega el camino por calles: el rastro se CORTA en los huecos, no se une.
+        const aMin = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5))
+        const desdeT = tramo?.inicio ? aMin(tramo.inicio) - 60 : 0
+        const hastaT = tramo?.fin ? aMin(tramo.fin) + 150 : 24 * 60
+        const pts = (d.rastro || []).filter((r: any) => {
+          const h = new Date(r.momento).toLocaleTimeString('en-GB', { timeZone: 'America/Santiago', hour12: false }).slice(0, 5)
+          return aMin(h) >= desdeT && aMin(h) <= hastaT
+        })
+        let pedazo: any[] = []
+        pts.forEach((r: any, k: number) => {
+          const a = pts[k - 1]
+          const c = { lat: Number(r.lat), lng: Number(r.lng) }
+          if (a && ((new Date(r.momento).getTime() - new Date(a.momento).getTime()) > 120000
+            || Math.hypot((c.lat - Number(a.lat)) * 111000, (c.lng - Number(a.lng)) * 93000) > 300)) {
+            linea(pedazo, '#A87BC8'); pedazo = []
+          }
+          pedazo.push(c)
+        })
+        linea(pedazo, '#A87BC8')
       }
 
       // ── la camioneta ──
@@ -225,7 +258,7 @@ export default function RutaEnVivo() {
     })
 
     return () => { vivo = false; cancelAnimationFrame(cuadro.current) }
-  }, [d, tramoSel])
+  }, [d, tramoSel, calles])
 
   useEffect(() => { encuadrado.current = false }, [tramoSel])
 
@@ -308,6 +341,7 @@ export default function RutaEnVivo() {
       <div className="rounded-xl overflow-hidden border bg-white">
         <div ref={div} style={{ height: '58vh', minHeight: 340 }} />
       </div>
+      <LeyendaCalles calles={calles} tramo={tramo} rutaId={paradasT[0]?.ruta_id} />
 
       <div className="rounded-xl border bg-white overflow-hidden">
         <div className="px-4 py-2.5 text-sm font-medium border-b" style={{ color: '#1F2430' }}>
@@ -361,6 +395,29 @@ function Dato({ titulo, valor }: { titulo: string; valor: string }) {
     <div className="rounded-xl border bg-white px-4 py-3">
       <div className="text-xs text-gray-500">{titulo}</div>
       <div className="text-lg font-semibold" style={{ color: '#1F2430' }}>{valor}</div>
+    </div>
+  )
+}
+
+// Qué significa cada línea, y cuándo el celular dejó de reportar.
+function LeyendaCalles({ calles, tramo, rutaId }: { calles: any; tramo: any; rutaId: any }) {
+  const tc = (calles?.tramos || []).find((t: any) => t.nombre === tramo?.clave)
+    || (calles?.tramos || []).find((t: any) => String(t.ruta_id) === String(rutaId))
+  const huecos = (tc?.rastro || []).filter((z: any) => z.tipo === 'hueco' && z.m > 150)
+  return (
+    <div className="text-xs text-gray-600 px-1 space-y-1">
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <span className="flex items-center gap-1.5"><span style={{ width: 22, height: 4, background: '#A87BC8', display: 'inline-block', borderRadius: 2 }} /> Por donde anduvo (GPS)</span>
+        <span className="flex items-center gap-1.5"><span style={{ width: 22, borderTop: '3px dotted #A87BC8', display: 'inline-block' }} /> Sin GPS: reconstruido por calles</span>
+        <span className="flex items-center gap-1.5"><span style={{ width: 22, height: 5, background: '#E8177A', opacity: .75, display: 'inline-block', borderRadius: 2 }} /> Lo que falta, por calles</span>
+      </div>
+      {huecos.length > 0 && (
+        <div className="text-amber-700">
+          El celular no reportó posición: {huecos.map((z: any) => `${z.desde}–${z.hasta} (${(z.m / 1000).toFixed(1).replace('.', ',')} km)`).join(' · ')}.
+          Pasa cuando la pantalla del conductor queda cerrada o en segundo plano.
+        </div>
+      )}
+      {tc?.falta?.error && <div className="text-red-600">No se pudo calcular lo que falta: {tc.falta.error}</div>}
     </div>
   )
 }

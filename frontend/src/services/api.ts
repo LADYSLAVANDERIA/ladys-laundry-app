@@ -339,6 +339,15 @@ export const seguimientoApi = {
   recorrido: (fecha?: string) => segAx.get('/recorrido', { params: { fecha } }),
 }
 
+// EL CAMINO POR CALLES (26-sep, bitacora 122): rastro partido en pedazos (los huecos
+// sin GPS vienen reconstruidos por calles) y lo que falta por calles con trafico.
+// Toda pantalla que dibuje un camino de reparto lo pide aqui. Nunca unir puntos con rectas.
+const CALLES_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-ruta-calles')
+export const rutaCallesApi = {
+  dia: (fecha?: string) => axios.get(CALLES_URL, { params: { fecha },
+    headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }, timeout: 30000 }),
+}
+
 const ETAPAS_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-etapas')
 const etapasAx = axios.create({ baseURL: ETAPAS_URL })
 etapasAx.interceptors.request.use(config => {

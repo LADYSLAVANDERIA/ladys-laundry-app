@@ -6,18 +6,6 @@
 // de emojis y el de campañas. No hay copia en git: la fuente única es lo
 // desplegado.
 //
-// EL EQUIPO REGISTRA COMPROBANTES DE CLIENTES (26-sep-2026, v38): Alexandra
-// mandó el comprobante de Asunción (pedido 6565) y SofIA no lo aplicó. Tres
-// fallas juntas: (1) con alguien del equipo SofIA seguía usando SU ficha de
-// cliente (Alexandra también es clienta), así que estado_pedidos le mostró los
-// pedidos de Alexandra y registrar_comprobante buscó el 6565 entre ellos; (2) el
-// prompt del equipo decía "no registres pagos"; (3) la imagen llegó en un
-// mensaje y el número de pedido en el siguiente, y SofIA ya no tenía la imagen.
-// Ahora: con el equipo NO se usa su ficha de cliente; tiene ver_pedido (busca
-// cualquier pedido por número o nombre) y registrar_comprobante con orden_id
-// abona a CUALQUIER pedido, con el usuario del equipo como responsable; y si el
-// comprobante vino en un mensaje anterior (hasta 30 min), se le vuelve a mostrar.
-//
 // FACTURA A EMPRESA (25-sep-2026, v35, bitácora #198): Luz Adriana Fajardo pidió
 // factura, mandó razón social, RUT, giro y dirección, y SofIA le respondió
 // "Anoto todo para la factura". No anotó nada: registrar_cliente solo aceptaba
@@ -1041,9 +1029,7 @@ async function estadoPedidos(cli: any) {
   };
 }
 
-async function registrarComprobante(a: any, cli: any, contactId: string, imagenUrl: string,
-                                    equipo: any = null) {
-  if (equipo) return comprobanteDelEquipo(a, equipo, contactId, imagenUrl);
+async function registrarComprobante(a: any, cli: any, contactId: string, imagenUrl: string) {
   if (!cli.encontrado)
     return { ok: false, error: "El cliente no está en la base: regístralo primero o deriva a una persona." };
   const ids = idsDe(cli);
@@ -1158,122 +1144,6 @@ async function registrarComprobante(a: any, cli: any, contactId: string, imagenU
         ? "Registrado y el pedido quedó PAGADO. Confírmaselo con el número de pedido y el monto. No digas que está \"en verificación\": para el cliente está pagado."
         : `Registrado como abono parcial. Le queda un saldo de ${clp(resultado?.saldo)}: díselo con claridad.`,
   };
-}
-
-// v38: alguien del EQUIPO manda el comprobante de un CLIENTE. No se mira la ficha
-// de quien escribe: el pedido lo dice orden_id. Sin tope automático ni límite de
-// comprobantes por verificar (quien lo manda es del equipo), pero con los mismos
-// candados de cuenta de destino y de operación repetida.
-async function comprobanteDelEquipo(a: any, equipo: any, contactId: string, imagenUrl: string) {
-  const id = Number(a.orden_id);
-  if (!id)
-    return { ok: false, error: "Falta el número de pedido. Pregúntale a qué pedido va (o búscalo con ver_pedido) y vuelve a llamar con orden_id." };
-  const monto = Math.round(Number(a.monto) || 0);
-  if (monto <= 0)
-    return { ok: false, error: "No se lee el monto en el comprobante. Pídeselo, no lo inventes." };
-
-  const [orden] = await SQL`
-    SELECT o.id, o.cliente_id, o.estado, o.saldo_pendiente, o.monto_total, o.estado_pago,
-           COALESCE(NULLIF(c.razon_social,''), TRIM(CONCAT_WS(' ', c.nombre, c.apellido))) AS cliente
-      FROM ordenes o LEFT JOIN clientes c ON c.id = o.cliente_id WHERE o.id = ${id}`;
-  if (!orden) return { ok: false, error: `El pedido ${id} no existe. Revisa el número con ver_pedido.` };
-  if (String(orden.estado) === "ANULADA")
-    return { ok: false, error: `El pedido ${id} está ANULADO: no se le abona nada. Díselo.` };
-
-  const operacion = String(a.operacion || "").replace(/\s+/g, " ").trim().slice(0, 60);
-  const soloDigitos = operacion.replace(/\D/g, "");
-  if (soloDigitos) {
-    const [rep] = await SQL`
-      SELECT c.orden_id, o.estado_pago, o.saldo_pendiente FROM comprobantes c
-        LEFT JOIN ordenes o ON o.id = c.orden_id
-       WHERE c.estado <> 'ANULADO'
-         AND regexp_replace(COALESCE(c.operacion,''), '\\D', '', 'g') = ${soloDigitos} LIMIT 1`;
-    if (rep && Number(rep.orden_id) === id)
-      return { ok: true, ya_estaba_registrado: true, orden_id: id, cliente: orden.cliente,
-        quedo_pagado: String(rep.estado_pago) === "PAGADA", saldo: clp(rep.saldo_pendiente),
-        aviso: `Ese comprobante YA estaba registrado en el pedido ${id} (${orden.cliente}); no se abona dos veces. ` +
-               `Hoy está ${String(rep.estado_pago) === "PAGADA" ? "PAGADO" : `con saldo ${clp(rep.saldo_pendiente)}`}. Díselo así.` };
-    if (rep)
-      return { ok: false, error: `Esa operación ya se usó en el pedido ${rep.orden_id}. No se abona dos veces: díselo con ese número para que lo revise.` };
-  }
-
-  const destino = String(a.destino || "").trim();
-  const claves = (await config("comprobante_cuentas") || "ladys").split("|").map(soloAlfaNum).filter(Boolean);
-  const plano2 = soloAlfaNum(destino);
-  if (!plano2) return { ok: false, error: "No se ve a qué cuenta se transfirió. Pídele el comprobante completo." };
-  if (!claves.some((k) => plano2.includes(k)))
-    return { ok: false, error: `El comprobante está a nombre de "${destino.slice(0, 60)}", que no es la cuenta de Ladys. No se abona: díselo.` };
-
-  const saldo = Math.round(Number(orden.saldo_pendiente));
-  if (saldo <= 0)
-    return { ok: false, error: `El pedido ${id} (${orden.cliente}) no tiene saldo pendiente: ya figura pagado. ` +
-      `No se abonó nada. Díselo tal cual: si el pago se registró a mano, el comprobante sobra; si no, hay que revisar ese pedido en la app.` };
-
-  const abonar = Math.min(monto, saldo);
-  const sobrante = monto - abonar;
-  const referencia = soloDigitos ? `TRF-${soloDigitos}` : `TRF-C${Date.now()}`;
-  let comprobanteId: number | null = null;
-  let resultado: any = null;
-  await SQL.begin(async (tx: any) => {
-    await tx`SELECT id FROM ordenes WHERE id = ${id} FOR UPDATE`;
-    const [r] = await tx`SELECT * FROM registrar_abono(${id}, ${abonar},
-      ${FORMA_TRANSFERENCIA}, ${referencia}, ${Number(equipo.usuario_id)})`;
-    resultado = r;
-    const [k] = await tx`
-      INSERT INTO comprobantes (orden_id, cliente_id, origen, contact_id, imagen_url,
-        monto_declarado, monto_abonado, fecha_transfer, hora, operacion, banco_origen,
-        destino, pago_id, estado, nota)
-      VALUES (${id}, ${Number(orden.cliente_id)}, 'WHATSAPP', ${contactId || null},
-              ${imagenUrl || null}, ${monto}, ${abonar},
-              ${String(a.fecha || "").slice(0, 10) || null}, ${String(a.hora || "").slice(0, 8) || null},
-              ${operacion || null}, ${String(a.banco_origen || "").slice(0, 60) || null},
-              ${destino.slice(0, 120)}, ${r?.pago_id ?? null}, 'POR_VERIFICAR',
-              ${("Enviado por " + equipo.nombre_completo + " (equipo) a SofIA." +
-                 (sobrante > 0 ? " Transfirio " + sobrante + " de mas." : "")).slice(0, 300)})
-      RETURNING id`;
-    comprobanteId = k.id;
-    await tx`INSERT INTO ordenes_historial (orden_id, estado, nota, usuario_id)
-             SELECT ${id}, estado,
-                    ${"Comprobante #" + k.id + " enviado por " + equipo.nombre_completo + " a SofIA: " + abonar +
-                      (operacion ? " (operacion " + operacion + ")" : "") + ". Falta confirmar en Mercado Pago."},
-                    ${Number(equipo.usuario_id)} FROM ordenes WHERE id = ${id}`;
-  });
-  return {
-    ok: true, comprobante_id: comprobanteId, orden_id: id, cliente: orden.cliente,
-    abonado: clp(abonar), saldo: clp(resultado?.saldo), estado_pago: resultado?.estado_pago,
-    quedo_pagado: String(resultado?.estado_pago) === "PAGADA",
-    sobrante: sobrante > 0 ? clp(sobrante) : null,
-    aviso: `Abonado ${clp(abonar)} al pedido ${id} de ${orden.cliente}. ` +
-      (String(resultado?.estado_pago) === "PAGADA" ? "El pedido quedó PAGADO." : `Queda saldo ${clp(resultado?.saldo)}.`) +
-      (sobrante > 0 ? ` Ojo: transfirió ${clp(sobrante)} de más.` : "") +
-      " Confírmaselo en una o dos líneas con pedido, cliente, monto y estado. Sin adornos.",
-  };
-}
-
-// v38: para el EQUIPO. Busca cualquier pedido por número o por nombre de cliente.
-async function verPedido(a: any) {
-  const id = Number(a.orden_id);
-  const q = String(a.cliente || "").trim();
-  if (!id && q.length < 3) return { error: "Dame el número de pedido o al menos 3 letras del nombre del cliente." };
-  const filas = id
-    ? await SQL`
-      SELECT o.id, o.estado, o.etapa, o.estado_pago, o.monto_total, o.saldo_pendiente,
-             o.fecha_entrega, o.entrega_domicilio,
-             COALESCE(NULLIF(c.razon_social,''), TRIM(CONCAT_WS(' ', c.nombre, c.apellido))) AS cliente, c.telefono
-        FROM ordenes o LEFT JOIN clientes c ON c.id = o.cliente_id WHERE o.id = ${id}`
-    : await SQL`
-      SELECT o.id, o.estado, o.etapa, o.estado_pago, o.monto_total, o.saldo_pendiente,
-             o.fecha_entrega, o.entrega_domicilio,
-             COALESCE(NULLIF(c.razon_social,''), TRIM(CONCAT_WS(' ', c.nombre, c.apellido))) AS cliente, c.telefono
-        FROM ordenes o JOIN clientes c ON c.id = o.cliente_id
-       WHERE o.estado <> 'ANULADA'
-         AND translate(lower(CONCAT_WS(' ', c.nombre, c.apellido, c.razon_social)), 'áéíóúüñ', 'aeiouun') ILIKE ${"%" + sinTilde(q) + "%"}
-       ORDER BY o.id DESC LIMIT 6`;
-  if (!filas.length) return { encontrados: [], aviso: "No aparece. Pídele el número de pedido." };
-  return { encontrados: filas.map((o: any) => ({
-    pedido: o.id, cliente: o.cliente, telefono: o.telefono, estado: o.estado, etapa: o.etapa,
-    total: clp(o.monto_total), saldo: clp(o.saldo_pendiente), pagado: String(o.estado_pago) === "PAGADA",
-    entrega: fechaLarga(o.fecha_entrega), a_domicilio: !!o.entrega_domicilio })) };
 }
 
 async function linkDePago(ordenId: number, ids: number[] | null) {
@@ -1563,16 +1433,6 @@ const HERRAMIENTAS = [
     input_schema: { type: "object", properties: { motivo: { type: "string" } }, required: ["motivo"] } },
 ];
 
-// v38: solo para el equipo. Cualquier pedido, no solo los de quien escribe.
-const HERRAMIENTA_VER_PEDIDO = {
-  name: "ver_pedido",
-  description: "Busca CUALQUIER pedido por número o por nombre del cliente: cliente, estado, total, saldo y si está pagado. Úsalo cuando alguien del equipo te hable de un pedido o te mande un comprobante de un cliente.",
-  input_schema: { type: "object", properties: {
-    orden_id: { type: "number", description: "Número de pedido u OT" },
-    cliente: { type: "string", description: "Nombre o apellido del cliente, si no hay número" },
-  }, required: [] },
-};
-
 // Solo para el equipo: deja el reporte en la bitácora de mejoras.
 const HERRAMIENTA_MEJORA = {
   name: "registrar_mejora",
@@ -1651,18 +1511,9 @@ Cómo cambia esto tu forma de responder:
 · Responde preguntas de operación con las herramientas: cupos de ruta, precios
   del catálogo, planes, estado de un pedido. Dile los datos crudos, no adornados.
 · NO lo derives a un agente humano: él ES el agente humano.
-· Quien te escribe también puede tener ficha de cliente: IGNÓRALA. Cuando habla de
-  un pedido, habla de un pedido de un CLIENTE. Búscalo con ver_pedido.
-· NO agendes retiros. Si te pide agendar para un cliente, dile que eso se hace
-  desde la app.
-
-COMPROBANTES QUE MANDA EL EQUIPO
-Cuando te manda la foto de una transferencia de un cliente, es para que la
-apliques: léela y usa registrar_comprobante con el orden_id del pedido. Si el
-número de pedido viene en el mensaje o en el hilo, úsalo; si no, pregúntaselo en
-una línea (o búscalo con ver_pedido si te da el nombre). No lo mandes a hacerlo a
-mano ni le ofrezcas "derivarlo". Si la herramienta responde ok, confírmale pedido,
-cliente, monto y si quedó pagado. Si responde un error, díselo tal cual en una línea.
+· NO agendes retiros ni registres pagos a su nombre. Si te pide agendar para un
+  cliente, dile que eso se hace desde la app: tú solo agendas para el cliente que
+  te escribe desde su propio WhatsApp.
 
 SI TE CUENTA QUE ALGO FALLA O QUE ALGO SE PODRÍA MEJORAR
 Esto es importante y es tu trabajo: USA registrar_mejora y antótalo. Nunca le
@@ -1831,13 +1682,9 @@ async function conversar(apiKey: string, negocio: string, cli: any, historial: a
   const mensajes: any[] = [...previos, primero];
   // El equipo puede anotar en la bitácora; los clientes no la ven siquiera.
   // El proveedor tiene su propio juego: nada de agendar, cobrar ni vender.
-  // v38: con el equipo no se tocan SUS fichas de cliente (agendar, anular,
-  // registrar, estado_pedidos): todo va por número de pedido.
-  const SOLO_CLIENTE = ["derivar_a_persona", "registrar_datos_factura", "estado_pedidos",
-                        "agendar_retiro", "anular_retiro", "registrar_cliente"];
   const tools = equipo
-    ? [...HERRAMIENTAS.filter((h) => !SOLO_CLIENTE.includes(h.name)),
-       HERRAMIENTA_VER_PEDIDO, HERRAMIENTA_MEJORA]
+    ? [...HERRAMIENTAS.filter((h) => h.name !== "derivar_a_persona" && h.name !== "registrar_datos_factura"),
+       HERRAMIENTA_MEJORA]
     : proveedor
     ? [...HERRAMIENTAS.filter((h) => h.name === "catalogo" || h.name === "derivar_a_persona"),
        ...HERRAMIENTAS_PROVEEDOR]
@@ -1879,11 +1726,8 @@ async function conversar(apiKey: string, negocio: string, cli: any, historial: a
         else if (t.name === "estado_pedidos")
           out = cli.encontrado ? await estadoPedidos(cli) : { error: "No está registrado" };
         else if (t.name === "link_pago")
-          out = equipo ? await linkDePago(Number(t.input.orden_id), null)
-              : cli.encontrado ? await linkDePago(Number(t.input.orden_id), idsDe(cli))
+          out = cli.encontrado ? await linkDePago(Number(t.input.orden_id), idsDe(cli))
                                : { ok: false, error: "No está registrado" };
-        else if (t.name === "ver_pedido")
-          out = equipo ? await verPedido(t.input) : { error: "Herramienta desconocida" };
         else if (t.name === "registrar_mejora") {
           out = await registrarMejora(t.input, equipo, telefono);
           if (out.ok) mejoraId = out.mejora_id;
@@ -1894,9 +1738,9 @@ async function conversar(apiKey: string, negocio: string, cli: any, historial: a
           if (!adjuntos.length)
             out = { ok: false, error: "No hay ninguna imagen en ESTE mensaje. Si el comprobante ya aparece en LO QUE YA HICISTE, está registrado y bien hecho: NO pidas reenviarlo ni te disculpes, solo confírmaselo. Si no aparece ahí, recién entonces pídele la imagen." };
           else {
-            out = await registrarComprobante(t.input, cli, contactId, adjuntos[0]?.url || "", equipo);
+            out = await registrarComprobante(t.input, cli, contactId, adjuntos[0]?.url || "");
             if (out.ok) ordenId = out.orden_id;
-            if (out.derivar && !equipo) {
+            if (out.derivar) {
               escalado = String(out.error).slice(0, 180);
               const av = await avisarAgente(cli, telefono, contactId, escalado, minutos, prueba);
               avisoOk = av.avisado;
@@ -1991,14 +1835,14 @@ Deno.serve(async (req: Request) => {
         SELECT nombre, rubro FROM proveedores
          WHERE activo AND telefono IS NOT NULL ORDER BY id`;
       return json({ activa: (await config("sofia_activa")) === "true",
-        version: 38,
+        version: 37,
         prompt: p ? `${p.length} caracteres` : "FALTA",
         herramientas: HERRAMIENTAS.map((h) => h.name),
         herramienta_equipo: HERRAMIENTA_MEJORA.name,
         herramientas_proveedor: HERRAMIENTAS_PROVEEDOR.map((h) => h.name),
         ve_imagenes: true, transcribe_audios: true, horas_de_hilo: HORAS_DE_HILO,
         frase_por_pedido: true, fichas_por_telefono: true, sector_en_ficha: true,
-        factura_en_ficha: true, memoria_de_acciones: true, equipo_registra_comprobantes: true,
+        factura_en_ficha: true, memoria_de_acciones: true,
         silencio_tras_derivar_min: Number(await config("sofia_silencio_minutos")) || 10,
         silencio_tras_persona_min: Number(await config("sofia_silencio_humano_minutos")) || 60,
         antelacion_minutos: await antelacionMinima(),
@@ -2113,26 +1957,6 @@ Deno.serve(async (req: Request) => {
       }
 
       if (!texto && adjuntos.length) texto = MARCA_IMAGEN;
-
-      // v38: el equipo suele mandar la foto del comprobante y el número de pedido en
-      // mensajes separados. Si este mensaje no trae imagen y el anterior (<= 30 min)
-      // sí, se le vuelve a mostrar la imagen a SofIA.
-      let imagenPrevia = false;
-      if (!adjuntos.length && conversacion && pit && texto &&
-          /\d{4,}|comprobante|transfer|pago|pedido|orden|ot\b/i.test(texto) &&
-          await buscarColaborador(telefono || (contactId ? await telefonoDe(pit, contactId) : ""))) {
-        try {
-          const lista = await mensajesDe(pit, conversacion, 8) || [];
-          const previa = lista.find((m: any) => String(m.direction) === "inbound" &&
-            Array.isArray(m.attachments) && m.attachments.length &&
-            Date.now() - new Date(m.dateAdded || 0).getTime() < 30 * 60000 &&
-            String(m.id || "") !== mensajeId);
-          if (previa) {
-            const b2 = (await bajarAdjuntos(previa.attachments.map(String))).filter((x: any) => !x.audio);
-            if (b2.length) { adjuntos.push(b2[0]); imagenPrevia = true; }
-          }
-        } catch { /* sin imagen previa */ }
-      }
       if (!texto) return json({ ignorado: true, motivo: urls.length
         ? "adjunto de un tipo que no puedo leer" : "mensaje vacío" });
 
@@ -2175,9 +1999,6 @@ Deno.serve(async (req: Request) => {
       let nota = !equipo && hilo.haceMin !== null && hilo.haceMin >= minutosHumano
         ? `\n\nOJO: alguien del equipo respondió este hilo y dejó de escribir hace ${hilo.haceMin} minutos. Retomas tú, sin repetir ni contradecir lo que dijo esa persona.`
         : "";
-      if (imagenPrevia)
-        nota += `\n\nOJO: la imagen adjunta NO viene en este mensaje: la mandó en un mensaje anterior de los últimos 30 minutos y te la vuelvo a mostrar. ` +
-          `Si es un comprobante y este mensaje trae el número de pedido, aplícalo con registrar_comprobante.`;
 
       // v33: el cliente puede REENVIAR un mensaje que nosotros le escribimos (lo
       // hizo el 23-sep para mostrar que SofIA dijo lo contrario que Catalina).

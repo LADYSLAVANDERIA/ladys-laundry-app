@@ -11,6 +11,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { seguimientoApi, rutaCallesApi } from '../services/api'
 import { decodificar } from '../lib/navegacion'
+import CorregirCamino from '../components/CorregirCamino'
+import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
 import {
   Truck, Clock, MapPin, RefreshCw, WifiOff, Check, X, Navigation, Route as RutaIcono,
@@ -47,6 +49,10 @@ export default function RutaEnVivo() {
   const trazos = useRef<any[]>([])
   // el camino por calles (ladys-ruta-calles): rastro en pedazos + lo que falta
   const [calles, setCalles] = useState<any>(null)
+  // Corregir camino a mano (bitácora 203): solo administración y jefe de local.
+  const perfil = useAuthStore(st => st.user?.perfil)
+  const puedeCorregir = perfil === 'ADMINISTRADOR' || perfil === 'JEFE_LOCAL'
+  const [corrigiendo, setCorrigiendo] = useState<any>(null)
   const donde = useRef<any>(null)
   const cuadro = useRef<number>(0)
   const encuadrado = useRef(false)           // el encuadre se hace una vez: después manda el usuario
@@ -265,6 +271,16 @@ export default function RutaEnVivo() {
   useEffect(() => () => { if (latido.current) clearInterval(latido.current) }, [])
 
   const r = d?.resumen
+  // Desde dónde se ve el camino nuevo: la camioneta si va hacia esa parada con señal;
+  // si no, la parada anterior del tramo; si no, el local.
+  const origenCorreccion = (p: any) => {
+    const siguiente = paradasT.find((x: any) => x.estado === 'EN_CAMINO') || paradasT.find((x: any) => x.estado === 'PENDIENTE')
+    if (conductor && !sinSenal && siguiente?.id === p.id) return { lat: Number(conductor.lat), lng: Number(conductor.lng) }
+    const i = paradasT.findIndex((x: any) => x.id === p.id)
+    const ant = i > 0 ? paradasT[i - 1] : null
+    if (ant?.lat && ant?.lng) return { lat: Number(ant.lat), lng: Number(ant.lng) }
+    return d?.base ? { lat: Number(d.base.lat), lng: Number(d.base.lng) } : null
+  }
   const faltan = paradasT.filter(p => p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO').length
   const hechasT = paradasT.filter(p => p.estado === 'COMPLETADA').length
   const enCamino = paradasT.find((p: any) => p.estado === 'EN_CAMINO')
@@ -338,6 +354,11 @@ export default function RutaEnVivo() {
         </div>
       )}
 
+      {corrigiendo && (
+        <CorregirCamino key={corrigiendo.id} mapa={mapa.current} parada={corrigiendo}
+          origen={origenCorreccion(corrigiendo)}
+          onCerrar={(ok) => { setCorrigiendo(null); if (ok) traer(fecha) }} />
+      )}
       <div className="rounded-xl overflow-hidden border bg-white">
         <div ref={div} style={{ height: '58vh', minHeight: 340 }} />
       </div>
@@ -371,6 +392,13 @@ export default function RutaEnVivo() {
                   {p.direccion}{p.comuna ? `, ${p.comuna}` : ''}
                 </span>
               </span>
+              {puedeCorregir && p.lat && p.lng && (
+                <button onClick={() => { setCorrigiendo(p); div.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }) }}
+                  className="text-xs px-2 py-1 rounded-lg border shrink-0"
+                  style={{ borderColor: '#16A34A', color: '#16A34A' }} title="Corregir el camino por calles hacia esta parada">
+                  Corregir camino
+                </button>
+              )}
               <span className="text-xs text-right shrink-0 text-gray-500 flex items-center gap-1.5">
                 <Clock size={12} />
                 {p.llegada_real

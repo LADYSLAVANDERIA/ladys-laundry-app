@@ -346,6 +346,13 @@ const CALLES_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functio
 export const rutaCallesApi = {
   dia: (fecha?: string) => axios.get(CALLES_URL, { params: { fecha },
     headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }, timeout: 30000 }),
+  // Corregir camino (bitacora 203): se guarda en la direccion del cliente.
+  correccion: (parada_id: number) => axios.get(CALLES_URL + '/correccion', { params: { parada_id },
+    headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }, timeout: 20000 }),
+  previa: (b: { origen: any; destino: any; via: any[] }) => axios.post(CALLES_URL + '/previa', b,
+    { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }, timeout: 20000 }),
+  guardar: (b: { parada_id: number; llegada?: any; via?: any[]; quitar?: boolean }) => axios.post(CALLES_URL + '/correccion', b,
+    { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }, timeout: 20000 }),
 }
 
 const ETAPAS_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-etapas')

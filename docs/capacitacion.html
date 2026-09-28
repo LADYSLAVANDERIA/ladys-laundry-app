@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Capacitación · Ladys Lavandería</title>
+<style>
+:root{--rosa:#E8177A;--morado:#A87BC8;--calipso:#4AAEE0;--tinta:#1F2430;--gris:#667085;--linea:#E4E7EC;--fondo:#F7F8FA}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--tinta);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{background:linear-gradient(135deg,#E8177A,#A87BC8);color:#fff;padding:28px 20px 34px}
+.caja{max-width:960px;margin:0 auto;padding:0 20px}
+header h1{margin:0 0 6px;font-size:26px}
+header p{margin:0;opacity:.92;font-size:15px}
+nav{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--linea);box-shadow:0 1px 3px rgba(0,0,0,.04)}
+nav .caja{display:flex;gap:6px;overflow-x:auto;padding:10px 20px}
+nav button{flex:0 0 auto;border:1px solid var(--linea);background:#fff;color:var(--gris);border-radius:999px;padding:9px 16px;font:600 14px system-ui;cursor:pointer}
+nav button[aria-selected="true"]{background:var(--rosa);border-color:var(--rosa);color:#fff}
+main{padding:26px 0 70px}
+section{display:none}
+section.activa{display:block}
+.tarjeta{background:#fff;border:1px solid var(--linea);border-radius:16px;padding:20px 22px;margin:0 0 16px}
+.tarjeta h3{margin:0 0 4px;font-size:18px}
+.tarjeta h3 + .sub{margin:0 0 14px;color:var(--gris);font-size:14px}
+.tarjeta h4{margin:18px 0 6px;font-size:16px}
+h2{font-size:21px;margin:28px 0 12px}
+h2:first-child{margin-top:0}
+ol,ul{margin:10px 0;padding-left:22px}
+li{margin:6px 0}
+.paso{display:flex;gap:14px;margin:14px 0}
+.num{flex:0 0 30px;height:30px;border-radius:50%;background:var(--rosa);color:#fff;display:grid;place-items:center;font:700 14px system-ui}
+.paso div p{margin:0 0 4px}
+.paso div small{color:var(--gris)}
+.ojo{background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:15px}
+.ojo b{color:#9A3412}
+.no{background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:15px}
+.no b{color:#991B1B}
+.dato{background:#F0F9FF;border:1px solid #BAE6FD;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:15px}
+.si{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;padding:12px 14px;margin:14px 0;font-size:15px}
+.tabla{overflow-x:auto}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:15px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--linea);vertical-align:top}
+th{color:var(--gris);font-size:13px;text-transform:uppercase;letter-spacing:.03em}
+code,kbd{background:#F2F4F7;padding:2px 7px;border-radius:6px;font-size:14px;font-family:inherit;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{border-radius:999px;padding:3px 11px;font-size:13px;font-weight:600;background:#F2F4F7}
+.cargo{border-left:5px solid var(--rosa)}
+.cargo.c2{border-left-color:var(--morado)} .cargo.c3{border-left-color:var(--calipso)} .cargo.c4{border-left-color:#1F2430}
+.hora{display:grid;grid-template-columns:92px 1fr;gap:4px 14px;margin:10px 0}
+.hora b{color:var(--rosa);font-variant-numeric:tabular-nums}
+.hora div{padding-bottom:8px;border-bottom:1px dashed var(--linea)}
+.prenda h3{display:flex;align-items:center;gap:8px}
+.btnmedia{margin-top:10px;border:1px solid var(--rosa);color:var(--rosa);background:#fff;border-radius:999px;padding:8px 16px;font:600 14px system-ui;cursor:pointer}
+.galeria{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-top:12px}
+.galeria figure{margin:0;background:#F2F4F7;border-radius:12px;overflow:hidden}
+.galeria iframe{width:100%;height:280px;border:0;display:block}
+.galeria figure.video{grid-column:1/-1}
+.galeria figure.video iframe{height:420px}
+.galeria figcaption{font-size:13px;color:var(--gris);padding:6px 10px}
+.galeria a{color:var(--rosa)}
+footer{color:var(--gris);font-size:13px;text-align:center;padding:26px 20px 40px}
+@media(max-width:600px){.tarjeta{padding:16px} header h1{font-size:22px} .hora{grid-template-columns:70px 1fr} .galeria figure.video iframe{height:300px}}
+@media print{nav,.btnmedia,.galeria{display:none} section{display:block!important;page-break-before:always}}
+</style>
+</head>
+<body>
+<header><div class="caja">
+  <h1>Capacitación Ladys</h1>
+  <p>Manual de operaciones de Ladys Lavandería Concón: qué hace cada cargo, cómo lo hace en el sistema y cómo lo hace en el local.</p>
+</div></header>
+
+<nav><div class="caja">
+  <button data-p="todos" aria-selected="true">Para todos</button>
+  <button data-p="cargos" aria-selected="false">Cargos</button>
+  <button data-p="dia" aria-selected="false">Día a día</button>
+  <button data-p="ingreso" aria-selected="false">Ingreso de OT</button>
+  <button data-p="lavado" aria-selected="false">Lavado y secado</button>
+  <button data-p="doblado" aria-selected="false">Doblado y embolsado</button>
+  <button data-p="reparto" aria-selected="false">Reparto</button>
+  <button data-p="sofia" aria-selected="false">SofIA</button>
+  <button data-p="calidad" aria-selected="false">Calidad y seguridad</button>
+</div></nav>
+
+<main><div class="caja">
+
+<!-- ═════════════════ PARA TODOS ═════════════════ -->
+<section id="todos" class="activa">
+
+<div class="tarjeta">
+  <h3>Qué es Ladys</h3>
+  <p class="sub">Lo que tiene que saber cualquier persona que entra al equipo.</p>
+  <p>Ladys Lavandería Concón SpA lava, seca, dobla y entrega ropa y textiles del hogar para personas y empresas. Estamos en <b>Av. Concón Reñaca 102, locales 5 y 6</b>. Lo que nos diferencia no es el precio: es que el cliente <b>no tiene que moverse</b> (retiramos y entregamos en su casa), que su ropa vuelve <b>impecable y bien presentada</b>, y que siempre sabe en qué etapa está su pedido.</p>
+  <p>El negocio va hacia el <b>domicilio</b>: el cliente que usa retiro y entrega vuelve mucho más que el que viene al local. Cada vez que alguien dude entre traer la ropa o que se la retiremos, se le ofrece el domicilio.</p>
+  <div class="tabla"><table>
+    <tr><th>Dato</th><th>Valor</th></tr>
+    <tr><td>Horario del local</td><td>Lunes a viernes 10:00–13:30 y 14:30–18:30 · Sábado 10:00–13:30 · Domingo cerrado</td></tr>
+    <tr><td>Ruta a domicilio</td><td>Lunes a sábado: <b>mañana 09:00–10:00</b> (4 cupos) y <b>tarde 19:00–21:00</b> (15 cupos). Las dos rutas retiran y entregan, también el sábado. Domingos y feriados sin ruta.</td></tr>
+    <tr><td>WhatsApp del local</td><td>+56 9 7541 0232 (lo atiende SofIA)</td></tr>
+    <tr><td>Razón social / RUT</td><td>Ladys Lavandería Concón SpA · 78.035.214-0</td></tr>
+    <tr><td>Correo</td><td>contacto@ladyslavanderia.cl</td></tr>
+  </table></div>
+</div>
+
+<div class="tarjeta">
+  <h3>Cómo entrar al sistema</h3>
+  <p class="sub">Igual para todos los perfiles.</p>
+  <div class="paso"><span class="num">1</span><div><p>Abre <code>ladyslavanderia.cl/app</code> en el teléfono o el computador.</p><small>Guárdalo en la pantalla de inicio: el sistema lo ofrece la primera vez.</small></div></div>
+  <div class="paso"><span class="num">2</span><div><p>Entra con tu correo y tu clave.</p><small>La primera vez usa la clave que te dieron y cámbiala de inmediato en <b>Cambiar mi clave</b>, abajo a la izquierda.</small></div></div>
+  <div class="paso"><span class="num">3</span><div><p>Cada persona ve solo el menú de su perfil.</p><small>Si necesitas algo que no ves, no pidas la clave de otro: avisa para que te habiliten.</small></div></div>
+  <div class="no"><b>Nunca compartas tu clave.</b> Todo lo que se hace queda registrado con el nombre de quien lo hizo. Si alguien usa tu cuenta, sus errores quedan a tu nombre.</div>
+  <div class="dato">Cuando aparezca la barra <b>“Hay una versión nueva de la app”</b>, aprieta <b>Actualizar</b>. Si algo que te dijeron que se arregló no lo ves, casi siempre es eso.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>El recorrido de un pedido (OT)</h3>
+  <p class="sub">Todos deben reconocer las etapas, aunque solo intervengan en algunas. El cliente ve estas mismas etapas en su enlace de seguimiento.</p>
+  <div class="tabla"><table>
+    <tr><th>Etapa</th><th>Qué significa</th><th>Quién la marca</th></tr>
+    <tr><td><b>Agendado</b></td><td>El retiro a domicilio está pedido. La ropa sigue en la casa del cliente.</td><td>SofIA, o el jefe de local en Nueva orden</td></tr>
+    <tr><td><b>Retirado</b></td><td>El conductor la retiró y va en la camioneta hacia el local.</td><td>Conductor, en la parada</td></tr>
+    <tr><td><b>Recepcionado</b></td><td>Entró al local, se pesó y se le cargaron los servicios. Recién aquí tiene precio.</td><td>Jefe de local (o SofIA en el mesón)</td></tr>
+    <tr><td><b>Preparación</b></td><td>El taller lo abrió, lo clasificó y lo separó en cargas.</td><td>Asistente, botón <b>Preparar</b></td></tr>
+    <tr><td><b>En lavado</b></td><td>Al menos una carga está en lavadora.</td><td>Sale solo de las cargas</td></tr>
+    <tr><td><b>En secado</b></td><td><b>Todas</b> las cargas ya entraron a secadora.</td><td>Sale solo de las cargas</td></tr>
+    <tr><td><b>Embolsado</b></td><td>Doblado, revisado y embalado. Listo.</td><td>Asistente, botón <b>Embolsar</b> (nunca es automático)</td></tr>
+    <tr><td><b>Listo para retiro</b></td><td>Espera en zona limpia a que el cliente venga (pedidos del local).</td><td>Sistema</td></tr>
+    <tr><td><b>Entregado</b></td><td>Llegó a manos del cliente.</td><td>Conductor en la ruta, o jefe de local en el mostrador</td></tr>
+  </table></div>
+  <div class="ojo"><b>Retirado no es recepcionado.</b> Retirado es que salió de la casa del cliente. Recepcionado es que entró al local y se le cargó lo que trae. Confundirlas hace que un pedido figure en producción cuando todavía va en la camioneta.</div>
+  <div class="ojo"><b>Fecha de entrega y etapa son cosas distintas.</b> La fecha es una promesa; la etapa es dónde está la ropa ahora. Que un pedido “se entregue hoy” no significa que esté listo. Solo en <b>Embolsado</b> se le dice al cliente que su pedido está listo.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Reglas del negocio que todos deben saber</h3>
+  <ul>
+    <li><b>No hay pedido mínimo</b>, ni en el local ni a domicilio. El cliente paga solo lo que manda.</li>
+    <li><b>Despacho:</b> sin costo en Concón, Reñaca, Reñaca Alto y Jardín del Mar. Resto de Viña del Mar: $2.500 en total, ida y vuelta. Fuera de esa zona (Quintero, Valparaíso, sector rural): lo cotiza una persona. <b>Lo decide el sector, no la comuna:</b> Reñaca es Viña del Mar y va sin costo.</li>
+    <li><b>El pedido se paga al ingresar</b>, antes de pasar a proceso. No al entregar.</li>
+    <li><b>El conductor no lleva máquina de tarjetas.</b> A domicilio se paga por transferencia o por link de pago.</li>
+    <li><b>El express (5 horas) lo decide el jefe de local, caso a caso.</b> No entra en la ruta y no se agenda por calendario.</li>
+    <li><b>Los socios del Club no pagan por pedido.</b> Su plan lo cubre: nunca les pidas transferencia.</li>
+    <li><b>Ultratug</b> es el único cliente con crédito (30 días desde el retiro). <b>Ladys 2</b> se factura semanal. El resto paga al ingresar.</li>
+    <li><b>Domingos y feriados no hay ruta</b>, salvo que se avise expresamente que ese día se trabaja.</li>
+    <li><b>Nunca se mezcla ropa de dos clientes</b>, en ninguna etapa: ni en la máquina, ni en el canasto, ni en el mesón de doblado.</li>
+  </ul>
+</div>
+</section>
+
+<!-- ═════════════════ CARGOS ═════════════════ -->
+<section id="cargos">
+<h2>Los cargos de Ladys</h2>
+<p>Cuatro funciones. Una persona puede cubrir dos (hoy Alexandra es jefa de local y conductora), pero cada función tiene sus responsabilidades propias y se evalúa por separado.</p>
+
+<div class="tarjeta">
+  <h3>Organigrama</h3>
+  <div class="tabla"><table>
+    <tr><th>Cargo</th><th>Perfil en el sistema</th><th>Hoy lo cubre</th><th>Reporta a</th></tr>
+    <tr><td>Administrador / gerente</td><td><code>ADMINISTRADOR</code></td><td>Luis Lufi</td><td>—</td></tr>
+    <tr><td>Jefe de local</td><td><code>JEFE_LOCAL</code></td><td>Alexandra Godoy</td><td>Administrador</td></tr>
+    <tr><td>Conductor</td><td><code>JEFE_LOCAL</code> (la vista de conductor está dentro de Reparto)</td><td>Alexandra Godoy</td><td>Jefe de local</td></tr>
+    <tr><td>Asistente de producción</td><td><code>ASISTENTE</code></td><td>Catalina Hidalgo</td><td>Jefe de local</td></tr>
+    <tr><td>SofIA (asistente virtual)</td><td>—</td><td>WhatsApp, Instagram y mesón</td><td>Jefe de local para derivaciones</td></tr>
+  </table></div>
+</div>
+
+<div class="tarjeta cargo">
+  <h3>Jefe de local</h3>
+  <p class="sub">Dueño del día. Convierte una bolsa de ropa en un pedido con precio, plazo y pago, y se asegura de que salga a tiempo.</p>
+  <h4>Misión</h4>
+  <p>Que cada pedido del día esté ingresado bien, cobrado, en producción y entregado en la fecha prometida, y que ningún cliente derivado por SofIA quede esperando.</p>
+  <h4>Responsabilidades</h4>
+  <ul>
+    <li>Apertura y cierre del local: cortina, reja, terraza, cartel, caja.</li>
+    <li>Ingresar clientes y órdenes (Nueva orden), recepcionar los pedidos retirados a domicilio, pesar, etiquetar y dejar en zona sucia.</li>
+    <li>Cobrar: efectivo, tarjeta en máquina, transferencia, link. Confirmar transferencias en <b>Pagos por revisar</b>.</li>
+    <li>Atender a los clientes que SofIA deriva a una persona (llega SMS al celular). Es la prioridad del día.</li>
+    <li>Decidir los express, los reclamos, los descuentos y los cambios de entrega.</li>
+    <li>Programar la ruta del día en <b>Programación</b> y <b>Reparto del día</b>: que cada entrega que sale esté embolsada.</li>
+    <li>Revisar <b>Avisos pendientes</b>: órdenes nuevas de SofIA y embolsados que el cliente todavía no sabe que están listos.</li>
+    <li>Controlar el trabajo del taller: que se marque en el momento y que no haya pedidos atrasados.</li>
+    <li>Registrar gastos de caja chica y compras en <b>Compras y gastos</b>.</li>
+    <li>Orden y limpieza del mostrador y la entrada.</li>
+  </ul>
+  <h4>Qué ve en el sistema</h4>
+  <div class="chips"><span class="chip">Inicio</span><span class="chip">Dashboard</span><span class="chip">Nueva orden</span><span class="chip">Pedidos</span><span class="chip">El taller</span><span class="chip">Producción</span><span class="chip">Producción KPI</span><span class="chip">Avisos pendientes</span><span class="chip">Reparto del día</span><span class="chip">Ruta en vivo</span><span class="chip">Programación</span><span class="chip">Caja</span><span class="chip">Pagos por revisar</span><span class="chip">Por cobrar</span><span class="chip">Compras y gastos</span><span class="chip">Clientes</span><span class="chip">Membresías</span><span class="chip">Servicios y precios</span><span class="chip">Rutas de reparto</span></div>
+  <h4>Cómo se mide</h4>
+  <ul><li>Pedidos entregados en la fecha prometida.</li><li>Pedidos sin pago al pasar a proceso: cero.</li><li>Clientes derivados atendidos en menos de 15 minutos en horario de local.</li><li>Diferencias de caja: cero.</li></ul>
+</div>
+
+<div class="tarjeta cargo c2">
+  <h3>Asistente de producción</h3>
+  <p class="sub">Trabaja en el taller. Recibe la ropa ya ingresada, la procesa y la deja lista. En el mesón, también es las manos de SofIA.</p>
+  <h4>Misión</h4>
+  <p>Que cada pedido salga limpio, bien doblado, completo y a tiempo, y que el sistema muestre en todo momento dónde está cada carga.</p>
+  <h4>Responsabilidades</h4>
+  <ul>
+    <li>Revisar las órdenes y sus observaciones antes de tocar la ropa.</li>
+    <li>Clasificar: blancos, color, desmanchado, prendas por unidad. Revisar bolsillos y prendas dañadas.</li>
+    <li>Tratar manchas y cuidados especiales, con foto de cada mancha.</li>
+    <li>Lavado y secado, marcando cada carga en <b>Producción</b> en el momento en que entra y sale de cada máquina.</li>
+    <li>Doblado y embolsado según el estándar de esta página. Anotar bultos y avisar al cliente.</li>
+    <li>Dejar cada pedido en zona limpia según vaya a retiro en local o a domicilio.</li>
+    <li>Mantención diaria y semanal de lavadoras y secadoras (filtros, peluseros, tambor).</li>
+    <li>En el mesón: pesar, revisar manchas, contar plazas y confirmarle a SofIA lo que ve.</li>
+    <li>Orden y limpieza del área de trabajo.</li>
+  </ul>
+  <h4>Qué ve en el sistema</h4>
+  <div class="chips"><span class="chip">Inicio</span><span class="chip">Pedidos</span><span class="chip">El taller</span><span class="chip">Producción</span><span class="chip">Avisos pendientes</span><span class="chip">Ruta en vivo</span></div>
+  <h4>Cómo se mide</h4>
+  <ul><li>Cargas marcadas en el momento (no en lote al final del día).</li><li>Pedidos embolsados completos: cero prendas olvidadas.</li><li>Reclamos por calidad de lavado o doblado.</li><li>Máquinas detenidas con ropa terminada adentro.</li></ul>
+</div>
+
+<div class="tarjeta cargo c3">
+  <h3>Conductor</h3>
+  <p class="sub">Hace la ruta: retira ropa en las casas y entrega los pedidos listos. Es la única persona de Ladys que el cliente ve.</p>
+  <h4>Misión</h4>
+  <p>Cumplir cada tramo de la ruta en su horario, con cada entrega embolsada y cada retiro bien anotado.</p>
+  <h4>Responsabilidades</h4>
+  <ul>
+    <li>Cargar la camioneta solo con lo embolsado de esa ruta, contando bultos.</li>
+    <li>Marcar cada parada en la app en el momento: en camino, entregado, retirado, no se pudo.</li>
+    <li>Anotar en cada retiro los bultos y lo que dijo el cliente (manchas, cobertores, fechas).</li>
+    <li>Usar el navegador interno de la app para que el GPS siga reportando.</li>
+    <li>Descargar los retiros en el local y dejarlos para recepción.</li>
+    <li>Cuidar la camioneta: combustible, limpieza, que nada de la ropa del cliente quede suelta.</li>
+  </ul>
+  <h4>Qué ve en el sistema</h4>
+  <div class="chips"><span class="chip">Inicio</span><span class="chip">Reparto del día (vista conductor)</span></div>
+  <h4>Cómo se mide</h4>
+  <ul><li>Paradas cumplidas dentro del tramo.</li><li>Retiros con bultos y nota anotados: todos.</li><li>Entregas que salieron sin estar embolsadas: cero.</li></ul>
+</div>
+
+<div class="tarjeta cargo c4">
+  <h3>Administrador</h3>
+  <p class="sub">Define precios, rutas, usuarios y reglas; revisa números y corrige el sistema.</p>
+  <ul>
+    <li>Único que ve Facturación, Análisis, Usuarios y Ajustes del local.</li>
+    <li>Aprueba cambios de precio, convenios de empresa y descuentos fuera de lo normal.</li>
+    <li>Recibe por correo cada derivación de SofIA a una persona (respaldo del SMS).</li>
+    <li>Mantiene esta página: si algo de acá no coincide con el local, se corrige aquí.</li>
+  </ul>
+</div>
+</section>
+<!-- ═════════════════ DÍA A DÍA ═════════════════ -->
+<section id="dia">
+<h2>Tareas diarias por cargo</h2>
+<p>La pantalla del taller va diciendo en voz alta las rutinas fijas (bienvenida, aspirado, pausas activas y cierre). Esta es la jornada completa de cada cargo, de lunes a viernes. El sábado se indica al final.</p>
+
+<div class="tarjeta cargo c3">
+  <h3>Conductor · jornada</h3>
+  <div class="hora">
+    <b>08:30</b><div>Abrir <b>Reparto del día</b> y elegir la ruta de la mañana. Revisar que todas las entregas digan <b>Embolsada</b>. Si alguna dice <b>aún no embolsado</b>, no sale: avisa al jefe de local.</div>
+    <b>08:45</b><div>Cargar la camioneta solo con esa ruta. Contar los bultos contra el encabezado de la ruta. Cada bolsa con su ticket.</div>
+    <b>09:00–10:00</b><div>Ruta de la mañana (4 cupos). Cada parada se marca en el momento.</div>
+    <b>10:00</b><div>Descargar los retiros en el local y dejarlos para recepción, con los bultos contados.</div>
+    <b>18:30</b><div>Preparar la ruta de la tarde: misma revisión de embolsados y bultos.</div>
+    <b>19:00–21:00</b><div>Ruta de la tarde (hasta 15 cupos).</div>
+    <b>21:00</b><div>Dejar los retiros en el local, camioneta limpia y cerrada. Ninguna parada queda sin cerrar en la app.</div>
+  </div>
+</div>
+
+<div class="tarjeta cargo">
+  <h3>Jefe de local · jornada</h3>
+  <div class="hora">
+    <b>10:00</b><div><b>Apertura:</b> abrir reja y cortina, sacar cartel y terraza, encender luces y equipos. Contar el efectivo y abrir la caja en <b>Caja</b>.</div>
+    <b>10:05</b><div><b>Pagos por revisar:</b> confirmar contra la cartola las transferencias que llegaron en la noche.</div>
+    <b>10:10</b><div><b>Avisos pendientes:</b> órdenes nuevas que tomó SofIA y embolsados sin avisar. Avisar a cada cliente con el botón.</div>
+    <b>10:15</b><div><b>Recepcionar los retiros de la ruta AM:</b> pesar, cargar ítems, cobrar, etiquetar y dejar en zona sucia (ver Ingreso de OT).</div>
+    <b>10:30</b><div><b>Programación:</b> revisar los retiros y entregas de la tarde y de mañana. Que ninguna entrega de la ruta PM esté lejos de terminarse.</div>
+    <b>Todo el día</b><div>Mostrador, WhatsApp derivado por SofIA (SMS), cobros, express. Revisar la conversación en cuanto llega el SMS.</div>
+    <b>13:30</b><div>Colación. Local cerrado hasta 14:30.</div>
+    <b>14:30</b><div>Reapertura. Revisar el avance del taller en <b>Producción</b>: qué entregas de la tarde siguen sin embolsar y qué falta para cada una.</div>
+    <b>17:30</b><div>Último control de la ruta PM: todo lo que sale a las 19:00 debe estar embolsado. Lo que no alcance se reagenda <b>antes</b> de que salga la camioneta, y se avisa al cliente.</div>
+    <b>18:30</b><div><b>Cierre:</b> cuadrar y cerrar la caja, informar diferencias. Registrar gastos del día. Cortina, cartel y terraza adentro.</div>
+  </div>
+</div>
+
+<div class="tarjeta cargo c2">
+  <h3>Asistente de producción · jornada</h3>
+  <div class="hora">
+    <b>10:00</b><div><b>Revisión de máquinas:</b> si hay ropa lavada en una lavadora, pasa a secadora de inmediato; si hay ropa seca en una secadora, pasa a doblado. Marca todo en <b>Producción</b> (si la máquina figura ocupada y ya la sacaste, usa <b>Liberar</b>).</div>
+    <b>10:01</b><div>Bienvenida y recordatorio de seguridad (lo dice la pantalla).</div>
+    <b>10:10</b><div><b>Insumos:</b> revisar que alcancen para el día (ver lista en Lavado y secado). Revisar el gas de las secadoras.</div>
+    <b>10:15</b><div>Aspirado de la mañana (recordatorio de la pantalla).</div>
+    <b>10:20</b><div><b>Por preparar:</b> en Producción, la lista muestra primero lo que se entrega hoy y mañana. Preparar en ese orden y cargar las tres lavadoras.</div>
+    <b>Cada 50 min</b><div>Rotar máquinas: lavadora terminada → secadora; secadora terminada → doblado. Una máquina parada con ropa terminada adentro es tiempo perdido. Limpiar el pelusero de la secadora en cada ciclo.</div>
+    <b>Entre ciclos</b><div>Desmanchado, doblado y embolsado. Cada pedido que se embolsa se avisa al cliente en el mismo momento.</div>
+    <b>13:25</b><div>Pausa activa antes de colación.</div>
+    <b>13:30–14:30</b><div>Colación. Antes de salir, dejar las máquinas cargadas con algo que no se dañe esperando.</div>
+    <b>14:31</b><div>Pausa activa al volver. Rotar máquinas.</div>
+    <b>16:00</b><div>Aspirado de la tarde.</div>
+    <b>17:30</b><div>Prioridad absoluta: embolsar todo lo que sale en la ruta de las 19:00.</div>
+    <b>18:25</b><div>Pausa activa de cierre.</div>
+    <b>18:32</b><div><b>Revisión de cierre</b> (la dice la pantalla): corte de gas cerrado, desenchufar lo no esencial, llave de la puerta del patio, apagar la enfriadora de agua, sacar la basura, área despejada. Insumos repuestos para mañana.</div>
+  </div>
+  <div class="no"><b>Nunca queda ropa mojada en una lavadora de un día para otro.</b> La última carga de lavadora se programa para que alcance a pasar a secadora antes del cierre. Las prendas delicadas no quedan en secadora sin nadie mirando.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Sábado</h3>
+  <ul>
+    <li>Rutas iguales a la semana: 09:00–10:00 y 19:00–21:00, con retiros y entregas.</li>
+    <li>Local de 10:00 a 13:30.</li>
+    <li>13:10 pausa activa y 13:20 revisión de cierre del sábado (la dice la pantalla).</li>
+    <li>La última carga de lavadora se programa a más tardar a las <b>12:30</b> para que alcance a entrar a secadora y salir antes de cerrar. <b>Nada queda mojado hasta el lunes.</b></li>
+  </ul>
+</div>
+
+<div class="tarjeta">
+  <h3>Tareas semanales</h3>
+  <div class="tabla"><table>
+    <tr><th>Tarea</th><th>Cada cuánto</th><th>Quién</th></tr>
+    <tr><td>Limpieza del filtro inferior de lavadoras</td><td>Semanal, o después de un lavado que deje la máquina sucia</td><td>Asistente</td></tr>
+    <tr><td>Lavado de tambor: 2 tapas de cloro + 1 de vinagre + 1 de bicarbonato en los dispensadores, ciclo vacío</td><td>Semanal</td><td>Asistente</td></tr>
+    <tr><td>Aspirado del tambor de secadoras</td><td>Semanal o cuando se necesite</td><td>Asistente</td></tr>
+    <tr><td>Charla de seguridad de 5 minutos, con registro</td><td>Semanal</td><td>Jefe de local</td></tr>
+    <tr><td>Pedido de insumos a proveedores</td><td>Según stock</td><td>Jefe de local</td></tr>
+  </table></div>
+</div>
+</section>
+
+<!-- ═════════════════ INGRESO DE OT ═════════════════ -->
+<section id="ingreso">
+<h2>Ingreso de una orden de trabajo</h2>
+<p>Casi todos los errores caros empiezan o se evitan en el ingreso. Una OT bien ingresada tiene: cliente correcto, todos los ítems con su servicio, fecha real, forma de retiro y entrega, observaciones y pago.</p>
+
+<div class="tarjeta">
+  <h3>Hay tres puertas de entrada</h3>
+  <div class="tabla"><table>
+    <tr><th>Cómo llega</th><th>Qué existe ya en el sistema</th><th>Qué haces</th></tr>
+    <tr><td>Cliente en el mostrador</td><td>Nada</td><td><b>Nueva orden</b> desde cero, o SofIA en el mesón.</td></tr>
+    <tr><td>Retiro agendado por WhatsApp (SofIA)</td><td>OT en <b>Agendado</b>, sin ítems ni precio</td><td>No crees otra. Cuando llega la ropa, abre esa OT desde Programación o Pedidos y recepciónala.</td></tr>
+    <tr><td>Retiro agendado por el jefe de local</td><td>Igual que el anterior</td><td>En Nueva orden marca <b>Aún no tenemos la ropa (queda “por retirar”)</b>.</td></tr>
+  </table></div>
+</div>
+
+<div class="tarjeta">
+  <h3>Nueva orden, paso a paso</h3>
+  <p class="sub">Menú → <b>Nueva orden</b>. Son cuatro bloques.</p>
+  <div class="paso"><span class="num">1</span><div><p><b>Cliente.</b> Busca por nombre o teléfono. Confirma el teléfono con el cliente antes de seguir: hay números compartidos por dos fichas.</p><small>Si no existe, <b>Cliente nuevo</b>: nombre, apellido, teléfono con WhatsApp, correo. Si quiere factura, ficha de empresa con razón social, RUT y giro. Si es a domicilio, agrega la dirección exacta con depto, block o referencia.</small></div></div>
+  <div class="paso"><span class="num">2</span><div><p><b>¿Qué lava?</b> Agrega los kilos y las prendas desde el catálogo. Cada cosa con su servicio.</p><small>Kilo clásico, kilo express, solo secado, cobertores por plaza, prendas de vestir, tratamientos. <b>Los tratamientos (desmanchado, blanqueado, desmugre) no incluyen el lavado:</b> van además del kilo o de la prenda. Al cliente con cobertor, ofrécele siempre el desmanchado.</small></div></div>
+  <div class="paso"><span class="num">3</span><div><p><b>Retiro y entrega.</b> Elige si se recibe en el local o se retira a domicilio, y si se entrega en el local o a domicilio con su ruta.</p><small>El sistema propone la fecha de entrega según el plazo de cada servicio y salta domingos y feriados. Si la orden tiene servicios con plazos distintos, te avisa. Puedes poner la fecha a mano; queda marcado <b>Fecha puesta a mano</b> y puedes <b>volver al plazo automático</b>.</small></div></div>
+  <div class="paso"><span class="num">4</span><div><p><b>Total y pago.</b> Revisa el total, aplica <b>Descuento manual</b> si corresponde (pesos o %, motivo obligatorio), elige documento (<b>Boleta</b>, <b>Factura</b> o <b>Sin documento</b>) y si paga ahora.</p><small>Escribe en <b>Observaciones</b> todo lo que dijo el cliente: “sábana delicada”, “no secar el chaleco”, “rechaza desmanchado”, “retira antes de las 18”. El taller lo lee antes de lavar. Termina con <b>Crear OT e imprimir</b>.</small></div></div>
+  <div class="ojo"><b>La fecha que propone el sistema es un plazo de catálogo, no una promesa del taller.</b> Si el taller está cargado, cámbiala antes de decírsela al cliente.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Recepcionar un retiro que llegó en la camioneta</h3>
+  <div class="paso"><span class="num">1</span><div><p>Busca la OT en <b>Pedidos</b> o <b>Programación</b> (está en Retirado). Lee la nota del conductor: bultos y lo que dijo el cliente.</p></div></div>
+  <div class="paso"><span class="num">2</span><div><p>Pesa la ropa y abre <b>Editar ítems</b>: kilos, prendas y tratamientos. <b>Guardar y recalcular</b>.</p><small>Si el conductor anotó “desmanchar sábana gris”, ese desmanchado se carga aquí. Si no se carga, no se cobra y el taller no lo ve.</small></div></div>
+  <div class="paso"><span class="num">3</span><div><p>Toma foto del peso y de cualquier falla o mancha visible, y súbela en <b>Fotos del pedido</b>.</p></div></div>
+  <div class="paso"><span class="num">4</span><div><p>Manda al cliente el detalle y el pago con <b>Avisar al cliente</b>. A domicilio: transferencia o <b>Cobrar con link</b>.</p></div></div>
+  <div class="paso"><span class="num">5</span><div><p>Imprime el ticket, pégalo en cada bulto y deja el pedido en zona sucia.</p></div></div>
+</div>
+
+<div class="tarjeta">
+  <h3>Etiquetado y zona sucia</h3>
+  <ul>
+    <li>Cada bulto lleva su ticket impreso con el <b>código QR</b> y el número de OT. Si son varios bultos, todos llevan ticket.</li>
+    <li><b>Clásico:</b> estante de zona sucia ordenado por fecha de entrega. Abajo la ropa, arriba cobertores, plumones y almohadas. Se lava de abajo hacia arriba y de derecha a izquierda: la esquina inferior derecha es lo próximo.</li>
+    <li><b>Express:</b> frente a las lavadoras, con etiqueta extra que diga EXPRESS. Pasa antes que todo.</li>
+    <li>Bolsos reutilizables del cliente: colgados con su etiqueta, para devolver la ropa en el mismo bolso.</li>
+  </ul>
+</div>
+
+<div class="tarjeta">
+  <h3>Cobrar</h3>
+  <div class="tabla"><table>
+    <tr><th>Situación</th><th>Cómo se cobra</th></tr>
+    <tr><td>Cliente en el mostrador</td><td>Efectivo, o tarjeta con <b>Cobrar en la máquina</b>: el cobro aparece solo en la máquina y el cliente pasa la tarjeta.</td></tr>
+    <tr><td>Pedido a domicilio</td><td>Transferencia primero. Si quiere tarjeta, <b>Cobrar con link</b> y se manda por WhatsApp. Cuando paga, el pedido se abona solo.</td></tr>
+    <tr><td>Cliente manda comprobante</td><td><b>Comprobante de transferencia</b>. Queda pendiente hasta que alguien lo confirme contra la cartola en <b>Pagos por revisar</b>. El comprobante solo no es prueba de pago.</td></tr>
+    <tr><td>Socio del Club</td><td>No se cobra: el plan lo cubre. Si pasa del tope de kilos, el sistema calcula el kilo extra.</td></tr>
+    <tr><td>Ultratug</td><td>Crédito a 30 días desde el retiro. Factura.</td></tr>
+  </table></div>
+  <div class="no">En pedidos a domicilio el botón de la máquina no aparece, y es a propósito: el conductor no lleva máquina. <b>Nunca le digas a un cliente que puede pagar con tarjeta al recibir.</b></div>
+  <div class="dato">Datos de transferencia: Ladys Lavandería Concón SpA · RUT 78.035.214-0. El resto de los datos lo manda el sistema en el mensaje de pago.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Errores y cómo se corrigen</h3>
+  <ul>
+    <li><b>Marcaste entregada una orden por error:</b> <b>Deshacer entrega</b>, con motivo. Vuelve a la ruta sola.</li>
+    <li><b>Ítems mal ingresados:</b> <b>Editar ítems</b> y guarda. El total se recalcula.</li>
+    <li><b>Hay que cambiar fecha o ruta de entrega:</b> <b>Editar entrega</b> en el detalle de la orden.</li>
+    <li><b>Pago registrado por error:</b> se revierte desde el detalle; la orden vuelve a quedar con saldo pendiente.</li>
+    <li><b>Orden duplicada o que no va:</b> <b>Anular orden</b>, con motivo. No se borra.</li>
+  </ul>
+  <div class="si">Nada se borra: se corrige y queda registrado quién lo hizo y por qué. Corregir un error propio no es un problema; dejarlo pasar sí.</div>
+</div>
+</section>
+<!-- ═════════════════ LAVADO Y SECADO ═════════════════ -->
+<section id="lavado">
+<h2>Lavado y secado</h2>
+<p>El taller tiene <b>3 lavadoras (L1, L2, L3)</b> de carga frontal de 7 kg, ciclo de 50 minutos, y <b>6 secadoras (S1 a S6)</b>: cinco a gas y una LG. La lavadora es el cuello de botella: una lavadora parada con ropa lista adentro atrasa todo el día.</p>
+
+<div class="tarjeta">
+  <h3>En el sistema: la pantalla Producción</h3>
+  <p class="sub">Menú → <b>Producción</b>. Una sola pantalla para preparar, lavar, secar y embolsar.</p>
+  <div class="paso"><span class="num">1</span><div><p><b>Encuentra el pedido.</b> Escribe el número de OT o el nombre, o toca <b>Pistolear el QR</b> y apunta al ticket.</p><small>El pedido se abre arriba con el botón que corresponde a su estado. Abajo está la lista <b>Por preparar</b>, con lo de hoy y mañana primero.</small></div></div>
+  <div class="paso"><span class="num">2</span><div><p><b>Preparar.</b> Al abrir la bolsa y clasificar, toca <b>Preparar</b>. El pedido pasa a Preparación.</p></div></div>
+  <div class="paso"><span class="num">3</span><div><p><b>Arma las cargas.</b> Con <b>Agregar carga</b>, una por cada tanda que va a una máquina, con su tipo:</p>
+    <div class="chips"><span class="chip" style="background:#e2e8f0">Blanco</span><span class="chip" style="background:#fce7f3">Color</span><span class="chip" style="background:#fef3c7">Desmanchado</span><span class="chip" style="background:#e0f2fe">Por unidad</span></div>
+    <small><b>Por unidad</b> es para cobertores y plumones: se lavan solos, el color no importa. Si armaste una de más, se quita.</small></div></div>
+  <div class="paso"><span class="num">4</span><div><p><b>A lavadora</b> en el momento en que la ropa entra, eligiendo L1, L2 o L3.</p><small>El sistema no deja poner una carga en una máquina ocupada y te dice con qué. Si la máquina figura ocupada pero ya sacaste esa ropa, usa <b>Liberar</b>.</small></div></div>
+  <div class="paso"><span class="num">5</span><div><p><b>A secadora</b> en el momento en que la pasas, eligiendo S1 a S6.</p><small>Si pasa tiempo entre que terminó la lavadora y la marcas, ese tiempo queda como “ropa mojada esperando”. Es justo lo que queremos medir y reducir.</small></div></div>
+  <div class="paso"><span class="num">6</span><div><p><b>Secado listo</b> cuando la sacas seca de verdad.</p><small>Si sigue húmeda, no la marques: dale otro ciclo.</small></div></div>
+  <div class="paso"><span class="num">7</span><div><p><b>Embolsar</b> cuando todo el pedido está doblado y revisado (ver Doblado y embolsado).</p></div></div>
+  <div class="dato">Cada botón pide un <b>OK de confirmación</b>. Es para que un toque sin querer al hacer scroll no marque nada. Lee el mensaje antes de aceptar.</div>
+  <div class="ojo"><b>Marca en el momento, carga por carga.</b> Si marcas tres pedidos juntos al final del día, los tiempos quedan mal y las promesas al cliente también. La etapa del pedido sale sola de sus cargas: En lavado apenas entra la primera, En secado cuando entraron todas.</div>
+  <div class="no"><b>Nunca marques algo que no pasó.</b> Marcar embolsado un pedido que sigue en la secadora hace que se prometa para hoy y que salga en la camioneta sin estar.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Antes de lavar (pre-lavado)</h3>
+  <ol>
+    <li><b>Lee la OT y sus observaciones</b> en el sistema. Ahí está si pidió desmanchar, no secar algo o lavar aparte.</li>
+    <li><b>Saca y cuenta la ropa</b> en el mesón. Si falta o sobra algo respecto de lo anotado, avisa de inmediato al jefe de local. No lo corrijas por tu cuenta.</li>
+    <li><b>Revisa todos los bolsillos.</b> Lo que aparezca (dinero, llaves, papeles) va en una bolsita con el número de OT y se devuelve con el pedido.</li>
+    <li><b>Separa</b> blancos, colores, delicados y lo que necesita tratamiento. Lo más sucio se lava primero; lo que necesita desmanchado se trata mientras corren las primeras cargas.</li>
+    <li><b>Fotografía cada mancha y cada falla</b> (rotura, decoloración, botón suelto) y súbela en <b>Fotos del pedido</b>. Es la constancia si después hay un reclamo.</li>
+    <li><b>Desmanchado solo con autorización.</b> Si el cliente no lo pidió, se le mandan las fotos y se le ofrece. Si lo rechaza, se lava normal.</li>
+  </ol>
+  <div class="no"><b>Ropa de trabajo ignífuga:</b> completamente separada, <b>sin suavizante, sin cloro</b> y sin secado a alta temperatura. Carga máxima 2 chaquetas + 2 pantalones, ciclo de 58 minutos, secado delicado de 20 minutos por kilo. Es un requisito del cliente, no una preferencia.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Dosis de productos por carga</h3>
+  <p class="sub">Para las lavadoras frontales de 7 kg. Detergente y suavizante Ladys, hipoalergénicos.</p>
+  <div class="tabla"><table>
+    <tr><th>Carga</th><th>Detergente</th><th>Suavizante</th><th>Pasta desmugrante</th><th>Potenciador alcalino</th></tr>
+    <tr><td>Normal (ropa por kilo)</td><td>1 tapa</td><td>1 tapa</td><td>1/8 cucharada</td><td>10 ml (1/8 de la medida)</td></tr>
+    <tr><td>Cobertor o plumón 2 plazas o más</td><td>2 tapas</td><td>2 tapas</td><td>1/2 cucharada si está muy sucio</td><td>20 ml</td></tr>
+    <tr><td>Ignífuga</td><td>1 tapa</td><td><b>Nada</b></td><td>—</td><td>—</td></tr>
+    <tr><td>Ropa blanca</td><td>1 tapa</td><td>1 tapa</td><td>1/8 cucharada</td><td>10 ml · cloro solo si el cliente lo autorizó y la prenda lo resiste</td></tr>
+  </table></div>
+  <h4>Insumos que tienen que estar al empezar el día</h4>
+  <div class="chips"><span class="chip">Detergente líquido 3 L</span><span class="chip">Suavizante líquido 3 L</span><span class="chip">Detergente en polvo 5 kg</span><span class="chip">Cloro ropa blanca 1 L</span><span class="chip">Quitamanchas 1 L</span><span class="chip">Jabón en barra</span><span class="chip">Potenciador alcalino 3 L</span><span class="chip">Pasta desmanchante 500 g</span><span class="chip">Agua oxigenada</span><span class="chip">Desengrasante</span><span class="chip">Cinta de papel</span><span class="chip">Plumón</span><span class="chip">Bolsas de embalaje</span></div>
+</div>
+
+<div class="tarjeta">
+  <h3>Desmanchado por tipo de mancha</h3>
+  <p class="sub">Siempre probar primero en una parte que no se vea. Nunca meter a secadora una prenda con la mancha todavía puesta: el calor la fija.</p>
+  <div class="tabla"><table>
+    <tr><th>Mancha</th><th>Cómo se trata</th></tr>
+    <tr><td>Tierra o barro</td><td>Dejar secar y sacudir. Cloro gel directo solo en blancos; en color, escobillar con jabón en barra y agua.</td></tr>
+    <tr><td>Grasa o aceite</td><td>Desengrasante directo sobre la mancha, refregar o escobillar con jabón en barra y agua. Repetir antes de lavar.</td></tr>
+    <tr><td>Sangre o fluidos</td><td>Agua fría, nunca caliente. Agua oxigenada las veces que haga falta hasta que salga; ayudar con jabón en barra.</td></tr>
+    <tr><td>Hongos</td><td>Amonio cuaternario directo, dejar actuar 24 horas. Al lavar, bicarbonato y vinagre en la carga.</td></tr>
+    <tr><td>Vino tinto</td><td>Vinagre o antigrasa directo, restregar y repetir hasta que salga. Ayudar con jabón en barra.</td></tr>
+  </table></div>
+</div>
+
+<div class="tarjeta">
+  <h3>Secado</h3>
+  <p class="sub">Punto de partida por tipo de carga. Revisa la humedad cada 10 a 20 minutos y dale más tiempo si hace falta. Limpia el pelusero en cada ciclo.</p>
+  <div class="tabla"><table>
+    <tr><th>Carga</th><th>Temperatura</th><th>Tiempo de referencia</th></tr>
+    <tr><td>Ropa por kilo (carga normal)</td><td>Alta</td><td>50 min</td></tr>
+    <tr><td>Ropa delgada</td><td>Alta</td><td>15–30 min, revisar a los 15</td></tr>
+    <tr><td>Ropa sintética</td><td>Baja</td><td>30 min</td></tr>
+    <tr><td>Chaquetas</td><td>Media</td><td>30 min</td></tr>
+    <tr><td>Sábanas</td><td>Alta</td><td>35–40 min, de a dos juegos</td></tr>
+    <tr><td>Toallas</td><td>Alta</td><td>40 min, revisar a los 20</td></tr>
+    <tr><td>Cubrecolchón</td><td>Baja (sintético)</td><td>15 min</td></tr>
+    <tr><td>Cobertor 1 y 1,5 plazas</td><td>Alta</td><td>50 min</td></tr>
+    <tr><td>Cobertor o plumón 2 plazas o más</td><td>Alta</td><td>120 min, abriéndolo y dándolo vuelta a mitad del secado</td></tr>
+    <tr><td>Almohadas</td><td>Alta</td><td>4 ciclos de 50 min, dejándolas deshumedecer al aire entre ciclos</td></tr>
+    <tr><td>Zapatillas</td><td>Baja, en bolso de malla</td><td>2 ciclos de 30 min, con 24 h al aire entre ciclos</td></tr>
+    <tr><td>Ignífuga</td><td>Baja o delicado</td><td>20 min por kilo</td></tr>
+  </table></div>
+  <div class="ojo">Si la ropa mojada pesa mucho para una sola secadora, se divide en dos. En el sistema son dos cargas distintas.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Casos especiales</h3>
+  <h4>Zapatillas</h4>
+  <ol><li>Desmanchado manual con jabón y antigrasa.</li><li>Lavado en ciclo de vapor o delicado.</li><li>Secado al aire 24 horas.</li><li>Deshumedecer en secadora, en bolso de malla, 30 min a baja temperatura. Repetir tras 24 horas si hace falta.</li><li>Embolsar en bolsa plástica con etiqueta y ticket. Plazo de 3 a 5 días.</li></ol>
+  <h4>Chaquetas de cuero o similares</h4>
+  <p>Preparación de 15 a 20 minutos (desmanchado, revisión, despeluzado), lavado express, oreo al aire, secado corto, quitar motas y planchado. Se trata prenda por prenda.</p>
+  <h4>Clientes con volumen (empresas, arriendos)</h4>
+  <p>Se separa por tipo (sábanas por un lado, toallas por otro). Primero lo que no necesita desmanchado y lo que más demora en secar. Los desmanchados se fotografían, se cuentan y se cobran como adicional en la misma OT. Las sábanas se secan de a dos juegos.</p>
+</div>
+</section>
+<!-- ═════════════════ DOBLADO Y EMBOLSADO ═════════════════ -->
+<section id="doblado">
+<h2>Doblado y embolsado</h2>
+<p>El doblado es lo primero que el cliente ve al abrir la bolsa. Una prenda bien lavada y mal doblada se percibe como un mal servicio. Cada prenda tiene su forma estándar; las fotos y videos son del manual de operaciones de Ladys.</p>
+
+<div class="tarjeta">
+  <h3>Reglas del mesón de doblado</h3>
+  <ul>
+    <li><b>Un cliente a la vez sobre el mesón.</b> Antes de empezar otro pedido, el mesón queda vacío.</li>
+    <li>Revisa cada prenda antes de doblar: limpia, seca y sin mancha. Si algo no salió, vuelve a proceso, no a la bolsa.</li>
+    <li>Dobla apenas sale de la secadora: la ropa tibia se arruga menos.</li>
+    <li>Las prendas de un mismo tipo quedan del mismo tamaño para que la pila sea pareja.</li>
+    <li>Lo que el cliente trajo colgado (camisas, vestidos, trajes) se entrega colgado, con funda.</li>
+  </ul>
+</div>
+
+<div class="tarjeta prenda" data-media="poleras">
+  <h3>Poleras y polerones</h3>
+  <ol>
+    <li>Extiende la prenda boca abajo sobre el mesón y alísala con las manos.</li>
+    <li>Dobla un costado con su manga hacia el centro, a un tercio del ancho. La manga queda paralela al costado.</li>
+    <li>Repite con el otro costado: queda un rectángulo del ancho del cuello.</li>
+    <li>Polerón con capucha: la capucha se dobla hacia abajo, sobre la espalda, antes de seguir.</li>
+    <li>Dobla desde el ruedo hacia el cuello, en dos o en tres según el largo.</li>
+    <li>Da vuelta la prenda: el frente con el estampado o logo queda arriba.</li>
+  </ol>
+</div>
+
+<div class="tarjeta prenda" data-media="pantalon">
+  <h3>Pantalones</h3>
+  <ol>
+    <li>Sostén el pantalón por la pretina y junta una pierna sobre la otra, costura con costura.</li>
+    <li>Estíralo sobre el mesón y alisa. La entrepierna que sobresale se dobla hacia adentro.</li>
+    <li>Dobla desde la basta hacia la pretina, en dos o en tres según el largo.</li>
+    <li>Jeans y pantalones de tela gruesa: en tres. Buzos y pantalones delgados: en dos.</li>
+  </ol>
+</div>
+
+<div class="tarjeta prenda" data-media="toallas">
+  <h3>Toallas</h3>
+  <ol>
+    <li>Extiende la toalla a lo largo, con el lado del bordado o del borde terminado hacia abajo.</li>
+    <li>Dobla a lo largo en tres partes.</li>
+    <li>Dobla a lo ancho en dos y luego otra vez en dos (o en tres si es de baño grande).</li>
+    <li>El borde terminado queda hacia afuera, que es lo que se ve en la pila.</li>
+    <li>Todas las toallas del mismo tamaño quedan dobladas igual.</li>
+  </ol>
+</div>
+
+<div class="tarjeta prenda">
+  <h3>Sábanas con planchado</h3>
+  <ol>
+    <li>Dobla la sábana en cuatro partes, dejando un cuadrado.</li>
+    <li>Plancha desde la esquina superior izquierda hacia la derecha, aplicando vapor 1 segundo en programa algodón. Repite hasta cubrir el cuadrado completo.</li>
+    <li>Dobla el cuadrado a lo largo dos veces, dejando un rectángulo horizontal.</li>
+    <li>Dobla el rectángulo en tres partes.</li>
+    <li>Las fundas se planchan y se doblan en cuatro.</li>
+    <li><b>Arma el juego:</b> dentro de la sábana superior van la bajera y sus fundas. Un juego, un paquete.</li>
+  </ol>
+</div>
+
+<div class="tarjeta prenda">
+  <h3>Sábanas sin planchado y bajeras</h3>
+  <ol>
+    <li>Sábana plana: dobla en dos juntando las esquinas y otra vez en dos, alisando con las manos en cada doblez.</li>
+    <li>Bajera con elástico: mete una esquina dentro de la otra en cada lado corto, hasta que queden dos esquinas dobles.</li>
+    <li>Junta esas dos esquinas: queda un rectángulo. Estira el elástico hacia adentro y alisa.</li>
+    <li>Dobla el rectángulo en tres a lo largo y luego en dos o tres hasta el tamaño del juego.</li>
+    <li>Arma el juego igual que con planchado: bajera y fundas dentro de la sábana superior.</li>
+  </ol>
+</div>
+
+<div class="tarjeta prenda" data-media="interior">
+  <h3>Ropa interior</h3>
+  <ol>
+    <li><b>Calzones y boxers:</b> extendidos boca abajo, los costados hacia el centro en tercios, y luego la parte de abajo hacia la pretina.</li>
+    <li><b>Sostenes:</b> nunca se doblan por la copa. Se encaja una copa dentro de la otra y los tirantes y la espalda van dentro de las copas.</li>
+    <li>Se agrupan por tipo y van juntas en un solo paquete dentro de la bolsa, para que no se pierdan.</li>
+  </ol>
+</div>
+
+<div class="tarjeta prenda" data-media="calcetines">
+  <h3>Calcetines</h3>
+  <ol>
+    <li>Junta cada par. Los que no tengan pareja van juntos en un paquete aparte: no se botan ni se mezclan.</li>
+    <li>Pon un calcetín sobre el otro, talón con talón.</li>
+    <li>Dobla en dos (o en tres si son largos) desde la punta hacia el elástico.</li>
+    <li>No los hagas “pelota” dando vuelta el elástico: lo estira y lo arruina.</li>
+  </ol>
+</div>
+
+<div class="tarjeta prenda">
+  <h3>Fundas de cojín</h3>
+  <ol>
+    <li>Extiende la funda con el cierre abierto hacia abajo.</li>
+    <li>Dobla en dos y luego en dos otra vez, dejando un cuadrado.</li>
+    <li>Las fundas de un mismo juego van juntas.</li>
+  </ol>
+</div>
+
+<div class="tarjeta prenda" data-media="cobertores">
+  <h3>Cobertores y plumones</h3>
+  <ol>
+    <li>Revisa que esté seco por dentro, sobre todo en las costuras y en el relleno. Un plumón húmedo embolsado se llena de hongos en dos días.</li>
+    <li>Extiéndelo sobre el mesón y sacúdelo para repartir el relleno.</li>
+    <li>Dobla a lo largo en tres partes.</li>
+    <li>Dobla a lo ancho en tres o en cuatro, hasta el tamaño de la bolsa.</li>
+    <li>No lo aplastes para que quepa: usa una bolsa más grande. Un cobertor aplastado llega apelmazado.</li>
+    <li>Cada cobertor es un bulto aparte.</li>
+  </ol>
+</div>
+
+<div class="tarjeta">
+  <h3>Embolsado, paso a paso</h3>
+  <div class="paso"><span class="num">1</span><div><p><b>Verifica que el pedido esté completo.</b> Todas las cargas del pedido tienen que estar secas y dobladas. Compara con la OT: prendas y cantidades.</p><small>El embolsado nunca es automático justamente por esto: tú eres quien confirma que está todo.</small></div></div>
+  <div class="paso"><span class="num">2</span><div><p><b>Pesa el pedido.</b> Debe pesar lo mismo que al ingresar, con hasta unos 800 g menos por suciedad y humedad que se van. Si falta más, algo quedó en una máquina o en otra carga: búscalo antes de cerrar.</p></div></div>
+  <div class="paso"><span class="num">3</span><div><p><b>Embala.</b> En el bolso del cliente si lo trajo; si no, en bolsa transparente. Aprovecha el espacio con orden: lo pesado abajo, lo delicado arriba. Una bolsa de 60×90 lleva unos 4 juegos de sábanas king o 6 de dos plazas.</p></div></div>
+  <div class="paso"><span class="num">4</span><div><p><b>Etiqueta cada bulto</b> con su ticket y número de OT. Lo que vuelve del bolsillo va en una bolsita dentro.</p></div></div>
+  <div class="paso"><span class="num">5</span><div><p><b>En el sistema: Embolsar.</b> En Producción, busca el pedido y toca <b>Embolsar</b>. Elige cuántos bultos son (1 a 12, o <b>Son más de 12</b> y escribe el número).</p><small>Los bultos se guardan al elegirlos. El conductor ve ese número al cargar la camioneta: si está mal, se queda una bolsa en el local.</small></div></div>
+  <div class="paso"><span class="num">6</span><div><p><b>Avisarle al cliente por WhatsApp.</b> El botón verde aparece al elegir los bultos: abre el chat con el mensaje listo según la etapa y su enlace de seguimiento.</p><small>Si no lo avisas ahora, queda en <b>Avisos pendientes</b>. A domicilio el sistema dice: “Va a domicilio: lo entrega el conductor en la ruta”.</small></div></div>
+  <div class="paso"><span class="num">7</span><div><p><b>Deja el pedido en zona limpia</b>: separado lo que se retira en el local de lo que sale en ruta, y lo de ruta por tramo (mañana o tarde).</p></div></div>
+</div>
+</section>
+
+<!-- ═════════════════ REPARTO ═════════════════ -->
+<section id="reparto">
+<h2>Reparto: la ruta a domicilio</h2>
+<p>Dos tramos de lunes a sábado: <b>mañana 09:00–10:00</b> y <b>tarde 19:00–21:00</b>. Los dos retiran y entregan.</p>
+
+<div class="tarjeta">
+  <h3>Antes de salir</h3>
+  <ol>
+    <li>Abre <b>Reparto del día</b>. Se abre en la ruta que corresponde a la hora; se puede cambiar arriba.</li>
+    <li>Revisa que cada entrega diga embolsada. <b>Ninguna entrega sin embolsar sale en la camioneta.</b> Si una dice <b>aún no embolsado</b>, se reagenda antes de salir y se avisa al cliente.</li>
+    <li>Mira cuántos bultos hay que cargar en el encabezado. Carga solo lo de esa ruta y cuenta. Si dice <b>sin confirmar, cuéntalos</b>, cuéntalos tú.</li>
+    <li>Si arriba aparece <b>Activar ubicación en vivo</b>, tócalo y acepta el permiso de ubicación. Sin eso el local no ve dónde va la camioneta.</li>
+  </ol>
+</div>
+
+<div class="tarjeta">
+  <h3>En cada parada</h3>
+  <div class="paso"><span class="num">1</span><div><p><b>Tu próxima parada</b> aparece arriba, con bultos, kilos y observaciones. Tienes <b>Ir</b>, <b>Llamar</b> y <b>WhatsApp</b>.</p><small><b>Ir</b> abre el navegador dentro de la app. Úsalo en vez de Google Maps: si sales de la app, el teléfono deja de mandar tu ubicación y la ruta en vivo se queda ciega.</small></div></div>
+  <div class="paso"><span class="num">2</span><div><p>Al salir hacia esa dirección toca <b>Voy en camino · avisar al cliente</b>.</p><small>Le llega el aviso al cliente. Si al final no vas, usa <b>Ya no voy a esta · devolverla a la lista</b>: si la dejas marcada, tapa a las siguientes.</small></div></div>
+  <div class="paso"><span class="num">3</span><div><p><b>Entrega:</b> entrega los bultos y marca <b>Entregado</b>.</p></div></div>
+  <div class="paso"><span class="num">4</span><div><p><b>Retiro:</b> marca <b>Retirado</b> y se abre una ventana:</p>
+    <ul><li><b>¿Cuántos bultos retiraste?</b> con los botones − y +.</li><li><b>¿Te dijo algo la clienta?</b> “Desmanchar una sábana gris”, “2 cobertores king”, “la necesita el viernes”.</li></ul>
+    <small>Queda en el pedido, a la vista del taller. Si no lo anotas ahí, se pierde.</small></div></div>
+  <div class="dato">Cuando dice <b>“misma dirección”</b>, en esa casa hay que entregar un pedido y retirar otro. Bajas una vez y haces las dos, cada una con su botón.</div>
+  <div class="ojo">No prometas horas exactas: el tramo es 09:00–10:00 o 19:00–21:00. Si el cliente necesita una hora puntual, que la consulte por WhatsApp con el local.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Cuando algo falla</h3>
+  <ul>
+    <li><b>No hay nadie:</b> llama y escribe por WhatsApp desde la parada. Si no contesta, marca <b>No se pudo</b> y avisa al local. No dejes la parada sin cerrar.</li><li><b>Cerraste una parada por error:</b> <b>Reabrir esta parada</b>.</li>
+    <li><b>La dirección está mala o el punto está mal ubicado:</b> márcala igual con la nota. Así se corrige la ficha.</li>
+    <li><b>El cliente quiere pagar con tarjeta:</b> no llevas máquina. El local le manda un link por WhatsApp.</li>
+    <li><b>Entrega más ropa de la agendada:</b> anótalo en bultos y en la nota. No la rechaces.</li>
+    <li><b>Una bolsa falta o sobra al entregar:</b> no la dejes “por mientras”. Avisa al jefe de local desde la puerta.</li>
+  </ul>
+</div>
+</section>
+<!-- ═════════════════ SOFIA ═════════════════ -->
+<section id="sofia">
+<h2>SofIA: cómo funciona y qué hace cada uno con ella</h2>
+<p>SofIA es la asistente virtual de Ladys. Es una compañera más del equipo: atiende a los clientes y opera el sistema, pero no puede tocar la ropa ni decidir excepciones. Para eso existe el equipo.</p>
+
+<div class="tarjeta">
+  <h3>Dónde trabaja</h3>
+  <div class="tabla"><table>
+    <tr><th>Canal</th><th>Qué hace ahí</th></tr>
+    <tr><td><b>WhatsApp e Instagram</b></td><td>Responde a los clientes a cualquier hora: precios, horarios, retiros, estado del pedido, pagos, Club.</td></tr>
+    <tr><td><b>Mesón (tablet del mostrador)</b></td><td>Atiende de viva voz a quien llega al local: lo identifica por su teléfono, arma la orden y manda el cobro a la máquina de tarjetas.</td></tr>
+    <tr><td><b>Pantalla del taller</b></td><td>Dice en voz alta las rutinas del día, llama a Catalina cuando la necesitan en el mesón y le hace preguntas sobre el trabajo en <b>El taller</b>.</td></tr>
+  </table></div>
+</div>
+
+<div class="tarjeta">
+  <h3>Lo que SofIA puede hacer sola</h3>
+  <p class="sub">Cada acción la hace con una herramienta que consulta o escribe en el sistema en ese momento. Nunca de memoria.</p>
+  <div class="tabla"><table>
+    <tr><th>Acción</th><th>Detalle</th></tr>
+    <tr><td>Cotizar</td><td>Consulta el catálogo antes de decir cualquier precio.</td></tr>
+    <tr><td>Registrar un cliente nuevo y su dirección</td><td>Con nombre, teléfono y dirección con sector.</td></tr>
+    <tr><td>Ver cupos y agendar retiros</td><td>Revisa los cupos de cada tramo y crea la OT en <b>Agendado</b>. Se puede agendar para el mismo día hasta 30 minutos antes de que salga la ruta.</td></tr>
+    <tr><td>Anular un retiro</td><td>Solo si está agendado, sin ropa retirada y sin pagos.</td></tr>
+    <tr><td>Decir el estado de un pedido</td><td>Según la etapa real. Solo dice “está listo” si está embolsado.</td></tr>
+    <tr><td>Mandar link de pago y registrar comprobantes</td><td>Lee la imagen del comprobante y lo deja registrado; el jefe de local lo confirma contra la cartola.</td></tr>
+    <tr><td>Vender el Club</td><td>Solo si al cliente le conviene según lo que gasta. Un ofrecimiento por conversación.</td></tr>
+  </table></div>
+</div>
+
+<div class="tarjeta">
+  <h3>Lo que SofIA siempre deriva a una persona</h3>
+  <ul>
+    <li>Express a domicilio (fuera de la ruta).</li>
+    <li>Reclamos y prendas dañadas.</li>
+    <li>Discusiones de cobro o de precio, y descuentos que alguien dice que le prometieron.</li>
+    <li>Convenios de empresa, hoteles y arriendos turísticos.</li>
+    <li>Precios que no están en el catálogo y servicios a medida.</li>
+    <li>Cambios de entrega, de dirección o de ítems en un pedido ya en proceso.</li>
+    <li>Despachos fuera de la zona (Quintero, Valparaíso, sector rural).</li>
+  </ul>
+</div>
+
+<div class="tarjeta">
+  <h3>Cuando SofIA deriva: qué pasa y qué haces tú</h3>
+  <div class="paso"><span class="num">1</span><div><p>SofIA le dice al cliente que lo atiende una persona y le pone la etiqueta <b>transferencia a humano</b>.</p></div></div>
+  <div class="paso"><span class="num">2</span><div><p>En unos 4 segundos llega un <b>SMS al celular del jefe de local</b> con el nombre del cliente, y un correo de respaldo al administrador.</p><small>Si el correo llega con “REVISAR -” adelante, el SMS no salió: alguien tiene que tomar esa conversación igual.</small></div></div>
+  <div class="paso"><span class="num">3</span><div><p><b>Jefe de local:</b> abre la conversación en el CRM y responde. Lee lo que SofIA ya habló para no volver a preguntarle lo mismo al cliente.</p></div></div>
+  <div class="paso"><span class="num">4</span><div><p>Si de la conversación sale un cambio (fecha, ítems, descuento), <b>se hace en el sistema</b>, no solo se promete por chat.</p></div></div>
+  <div class="no"><b>Un cliente derivado que nadie atiende es peor que no tener SofIA.</b> En horario de local se responde en menos de 15 minutos.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>SofIA en el mesón: Catalina es sus manos</h3>
+  <p>SofIA habla con el cliente y opera el sistema. Lo físico lo hace Catalina.</p>
+  <ol>
+    <li>El cliente llega y SofIA lo saluda por la tablet. Le pide su teléfono y lo busca.</li>
+    <li>Cuando necesita algo físico, <b>llama a Catalina</b>: suena en la pantalla del taller un llamado de tres notas, tipo aeropuerto, y lo deja escrito en la franja morada.</li>
+    <li>Catalina va al mostrador y le dice a SofIA lo que ve: el <b>peso</b>, cuántas <b>plazas</b> tiene el cobertor, qué <b>manchas</b> hay.</li>
+    <li>SofIA arma la orden y manda el cobro a la máquina. El cliente pasa la tarjeta.</li>
+    <li>Catalina etiqueta la ropa con el ticket y la deja en zona sucia.</li>
+  </ol>
+  <div class="ojo">Lo que Catalina dice en el mesón queda como dato del pedido. Si dice “son 6 kilos”, se cobran 6: pesa siempre, no calcules a ojo.</div>
+</div>
+
+<div class="tarjeta">
+  <h3>Lo que SofIA todavía no hace bien (y cómo lo cubre el equipo)</h3>
+  <ul>
+    <li><b>Si el cliente pide un desmanchado o un extra en un pedido que ya está agendado</b>, SofIA puede decir “lo anoto” pero no tiene cómo guardarlo. Al recepcionar un retiro, lee la conversación del cliente y carga los extras en <b>Editar ítems</b>.</li>
+    <li><b>Si el cliente manda dos mensajes seguidos muy rápido</b>, SofIA puede responder solo el primero. Si ves una conversación así, respóndele el segundo.</li>
+    <li>Si SofIA le dijo algo equivocado a un cliente (precio, fecha), <b>no la contradigas delante del cliente sin revisar</b>: revisa el sistema, corrige y avisa al administrador para que se corrija su instrucción.</li>
+  </ul>
+</div>
+
+<div class="tarjeta">
+  <h3>Las preguntas de SofIA en El taller</h3>
+  <p>Cada tanto SofIA le pregunta al taller cosas sobre el trabajo: cuánto demora algo, por qué se detuvo un pedido. Aparecen en la pantalla <b>El taller</b> (y a veces por WhatsApp). Respóndelas con lo que realmente pasa: con esas respuestas se ajustan los plazos que se le prometen al cliente.</p>
+</div>
+</section>
+
+<!-- ═════════════════ CALIDAD Y SEGURIDAD ═════════════════ -->
+<section id="calidad">
+<h2>Calidad y seguridad</h2>
+
+<div class="tarjeta">
+  <h3>Control de calidad</h3>
+  <ul>
+    <li>Cada prenda se revisa <b>antes de lavar</b> (tela, color, suciedad, manchas) y <b>antes de doblar</b> (limpia, seca, sin mancha).</li>
+    <li>Toda falla o mancha que trae la prenda se fotografía y se sube al pedido <b>antes de lavar</b>. Es la constancia ante un reclamo.</li>
+    <li>No se mezcla ropa de clientes en ninguna etapa.</li>
+    <li>Se pesa al embolsar y se compara con el peso de ingreso.</li>
+    <li>Lo que no salió bien vuelve a proceso. No se entrega “para que no se atrase”: un pedido atrasado se explica, uno mal hecho se pierde el cliente.</li>
+  </ul>
+</div>
+
+<div class="tarjeta">
+  <h3>Prenda dañada, perdida o reclamo</h3>
+  <ol>
+    <li>No sigas procesando la prenda.</li>
+    <li>Fotografíala y súbela al pedido con una nota de qué pasó y en qué etapa.</li>
+    <li>Avisa al jefe de local. El cliente lo atiende una persona, nunca SofIA.</li>
+    <li>El jefe de local decide la solución y la deja escrita en el pedido.</li>
+  </ol>
+</div>
+
+<div class="tarjeta">
+  <h3>Seguridad en el taller</h3>
+  <ul>
+    <li><b>Guantes</b> siempre que se manipulan productos químicos. <b>Mascarilla</b> si el olor es fuerte y <b>lentes</b> si hay riesgo de salpicadura.</li>
+    <li>Nunca mezclar cloro con amoníaco, vinagre ni otros limpiadores: libera gases tóxicos.</li>
+    <li>Cofia o pelo tomado en el taller.</li>
+    <li>Pasillos libres: no son orden, son la salida en caso de emergencia.</li>
+    <li>Si una máquina suena distinto, huele a quemado o calienta más de lo normal, se detiene y se avisa antes de seguir usándola.</li>
+    <li>Gas: revisar el porcentaje de los cilindros en la mañana y cerrar el corte al final del día.</li>
+    <li>Uniforme corporativo durante toda la jornada.</li>
+  </ul>
+</div>
+
+<div class="tarjeta">
+  <h3>Obligaciones de todos, todos los días</h3>
+  <ul>
+    <li>Registrar asistencia al llegar, al salir y al volver de colación, y al irse.</li>
+    <li>Mantener orden y limpieza: vitrina, entrada, vidrios, cocina y baño.</li>
+    <li>Aspirar el local al menos dos veces al día (la pantalla lo recuerda).</li>
+    <li>Hacer las pausas activas: cinco minutos que evitan lesiones de manos, hombros y espalda.</li>
+  </ul>
+</div>
+</section>
+
+</div></main>
+
+<footer>Uso interno de Ladys Lavandería Concón. Si algo de acá no coincide con la realidad del local, avísalo: el error es de esta página.<br>Actualizada el 28 de septiembre de 2026.</footer>
+<script>
+// Fotos y videos del Manual de Operaciones (Drive: Multimedia Operaciones / Doblado y Planchado).
+// Se cargan solo al apretar el botón, para que la página abra rápido en el teléfono.
+const DRIVE = 'https://drive.google.com/file/d/';
+const MEDIA = {
+  poleras:    { fotos: ['1nteFVP8y-I61_Ju-2LnIZWrNvaEYkBLp','1GzLUKYoFSYpdsAYcpKA8YU7xAHAlPABz','1vuPX6usX6GuY-xDOL18ATMYlKRGSZ3xV','1ERkP6pQYU4AP1vnRdJqV4wuWXyRV0N43','1xewjr9TZbJI54T1orDm4uGvEiq4aq8O5','1zzMUS0c7-kARr7EnY3s_5BCoDXa9HuGH','1T7AKAw6ETDMqGU0uZWD41Vh4XVRXwAsI'],
+                videos: ['1ksokVGLe7wok0Zlx7j-cglS3whhsNfLI','1W_eb055WrTxSgCdq28qma9Ve2N2SEqSD','1zwij0TvyA3XwPqlpxiARNXo5No_39qWY'] },
+  pantalon:   { fotos: ['1EokFnn4LFel78CDlBzVNwt8L_Kn-DCcx','1Oj-9BMQGp5hPgCCXF86sw_8ZK2nXqoq_','1V7ZFv-qe_GzxCd6RdD-0URPI6_bHV02B','1Kfb6zfBpx-IUBis_p3G0275UyDr-QJno','1nHe6MIXovrInu-n_UFeWiVsAWb90AfLm'],
+                videos: ['1T5zJXmEqwV1os7B8N4J3soVxpNjyF3zc'] },
+  toallas:    { fotos: ['1lGWaEIrSjiWLqtPIElucZ1JitxOs8l7H','14WPmPTeiWxRl5iRTjXXS0BPhpNT3Uuc6','1srwbTvmcF55I5ueQOrdLrxD5oLB-Ga16','1Rj-rWT0WAjaG6SOUXevxRBow2KKqkgnl','1oMsBv46UWJqqhbG1a9LTabgg2_QvS46p','1dSEF8xfxxQ3JKhmXI5ps-35xAj6IvsTm'],
+                videos: ['1WdLSJhSTUXFlgXe7jGBPt5li1TnTPd3C'] },
+  interior:   { fotos: ['1JyQvO2ustVm7yj-p-Q1wJTduRQspADWA','1thsS4oZgONYFVzAyAXRqttzr-m2bzG-s','1sOFcaiitpwb0GpFdPjVpvmfbIgaoy_Cj','1P0qWWjebi_nnNHwgj40O8KJbLzOUWHtx','1uZgnB1B6HwB8TERuMFF_vVNd1sNh-B51'],
+                videos: ['1zwQ2gFG4MV22M2IrCgUVLU8wcCQ9EWY_'] },
+  calcetines: { fotos: ['1UzloLcUW7gLd_kEYFNuMAB2dhHbQgWYV','1VD2cAAP-yp3A9UwXwmkw-3j8C279y9JS','1yOAtrPzGgyuEkQNdTHG2rXY8sgxb-u3E','16lxIF58y3gYqrIguysFca4zYPyRlsPkt'],
+                videos: ['1W_p4yBS016NrLDyWGsp4ca2lT_utrHN5'] },
+  cobertores: { fotos: ['1N6hSP6x3vevSOkPu3RXDXpyvYJnDr-bG','1AZdvL7F67orWB6vOWwVlyxXPuvtJDZhp','14gEYO8QEGi9EH22FGT6HAhb5kRyMYZ_-','1zOm22JIr85924wXGexEGweSzyHiv5ajk'],
+                videos: ['1W9de6u63fHWT-NJf3nZok9-gwxfqcAh-'] }
+};
+
+document.querySelectorAll('.prenda[data-media]').forEach(card => {
+  const m = MEDIA[card.dataset.media]; if (!m) return;
+  const b = document.createElement('button');
+  b.className = 'btnmedia';
+  b.textContent = `Ver fotos y video del manual (${m.fotos.length} fotos · ${m.videos.length} video${m.videos.length > 1 ? 's' : ''})`;
+  b.addEventListener('click', () => {
+    b.remove();
+    const g = document.createElement('div'); g.className = 'galeria';
+    const fig = (id, txt, video) => {
+      const f = document.createElement('figure'); if (video) f.className = 'video';
+      f.innerHTML = `<iframe src="${DRIVE}${id}/preview" loading="lazy" allow="autoplay; fullscreen" allowfullscreen title="${txt}"></iframe>
+        <figcaption>${txt} · <a href="${DRIVE}${id}/view" target="_blank" rel="noopener">abrir en Drive</a></figcaption>`;
+      return f;
+    };
+    m.videos.forEach((id, i) => g.appendChild(fig(id, `Video ${m.videos.length > 1 ? i + 1 : ''}`.trim(), true)));
+    m.fotos.forEach((id, i) => g.appendChild(fig(id, `Paso ${i + 1}`, false)));
+    card.appendChild(g);
+  });
+  card.appendChild(b);
+});
+
+const botones = document.querySelectorAll('nav button');
+function abrir(p) {
+  botones.forEach(o => o.setAttribute('aria-selected', String(o.dataset.p === p)));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('activa', s.id === p));
+}
+botones.forEach(b => b.addEventListener('click', () => {
+  abrir(b.dataset.p); history.replaceState(null, '', '#' + b.dataset.p);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}));
+// Permite mandar el enlace directo a una sección: /capacitacion/#doblado
+if (location.hash && document.getElementById(location.hash.slice(1))) abrir(location.hash.slice(1));
+</script>
+</body>
+</html>

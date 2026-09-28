@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { etapasApi } from '../services/api'
 import {
   Camera, Check, X, Package, Droplets, Wind, Truck, Store,
-  Settings, Keyboard, Sun, SwitchCamera,
+  Settings, Keyboard, Sun, SwitchCamera, Shirt,
 } from 'lucide-react'
 
 const ESTACIONES = [
   { id: 'EN_LAVADO', txt: 'Lavado',   icon: Droplets, color: '#4AAEE0' },
   { id: 'EN_SECADO', txt: 'Secado',   icon: Wind,     color: '#A87BC8' },
+  { id: 'EN_PLANCHADO', txt: 'Planchado', icon: Shirt,  color: '#7c3aed' },
   { id: 'EMBOLSADO', txt: 'Doblado y embalado', icon: Package, color: '#E8177A' },
   { id: 'ENTREGADO', txt: 'Entrega en local',   icon: Store,   color: '#16a34a' },
 ]

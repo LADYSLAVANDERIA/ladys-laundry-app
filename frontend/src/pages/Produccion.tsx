@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   Camera, CameraOff, Check, Droplets, Wind, Package, Layers, Plus, X,
-  AlertTriangle, PlayCircle, RefreshCw, Search, Send, Store, MessageCircle, Undo2,
+  AlertTriangle, PlayCircle, RefreshCw, Search, Send, Store, MessageCircle, Undo2, Shirt,
 } from 'lucide-react'
 import { preparacionApi, etapasApi, ordenesApi } from '../services/api'
 import { ot, waLink, mensajeSegunEtapa, linkOT, tipoAviso } from '../utils'
@@ -19,6 +19,11 @@ import { ot, waLink, mensajeSegunEtapa, linkOT, tipoAviso } from '../utils'
 //
 // El modo estacion (/estacion) NO se toca: sirve para escanear muchos pedidos
 // seguidos con una etapa fija, que es otro trabajo.
+//
+// PLANCHADO Y DOBLADO (28-sep, Lufi): es una etapa propia, EN_PLANCHADO.
+//   - Solo planchado: Recepcionado -> A planchado -> Embolsar. Nunca a maquinas.
+//   - Mixto: cargas (lavado/secado) -> A planchado -> Embolsar.
+//   - Solo lavado: igual que siempre (el boton de planchado queda como opcion).
 //
 // Toda accion pasa por un OK de confirmacion: un toque al hacer scroll marco una
 // carga como seca sin querer (OT 6573, 22-sep).
@@ -38,7 +43,7 @@ const ESTADO: Record<string, { txt: string; color: string }> = {
 }
 const ETAPA_TXT: Record<string, string> = {
   RECEPCIONADO: 'Recepcionado', PREPARACION: 'En preparación', EN_LAVADO: 'En lavado',
-  EN_SECADO: 'En secado', EMBOLSADO: 'Embolsado', LISTO_RETIRO: 'Listo para retiro',
+  EN_SECADO: 'En secado', EN_PLANCHADO: 'En planchado y doblado', EMBOLSADO: 'Embolsado', LISTO_RETIRO: 'Listo para retiro',
   ASIGNADO_RUTA: 'En ruta', EN_CAMINO: 'En camino', ENTREGADO: 'Entregado',
   RETIRADO: 'Retirado, en camino al local', AGENDADO: 'Agendado',
 }
@@ -219,6 +224,23 @@ export default function Produccion() {
     accion: () => hacer(etapasApi.marcar({ orden_id: p.id, etapa: 'ENTREGADO' }), `${ot(p.id)} entregado`),
   })
 
+  const aPlanchado = (p: any) => {
+    const sinSecar = (p.cargas || []).filter((c: any) => c.estado !== 'SECA').length
+    setPedir({
+      titulo: `¿Pasar ${ot(p.id)} a planchado y doblado?`,
+      detalle: sinSecar ? `Ojo: ${sinSecar} carga(s) sin terminar de secar` : p.cliente,
+      color: '#7c3aed',
+      accion: async () => {
+        try {
+          const { data } = await etapasApi.marcar({ orden_id: p.id, etapa: 'EN_PLANCHADO' })
+          if (data.aviso) toast(data.aviso, { icon: '⚠️' })
+          else toast.success(`${ot(p.id)} en planchado`)
+        } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo pasar a planchado') }
+        await Promise.all([cargar(), refrescarFoco(p.id)])
+      },
+    })
+  }
+
   const maquinas = elegir ? (elegir.maquina === 'LAVADORA' ? t?.lavadoras : t?.secadoras) || [] : []
   const porPreparar = (t?.por_preparar || []) as any[]
   const urgentes = porPreparar.filter(p => p.dias === null || p.dias <= 1)
@@ -263,12 +285,20 @@ export default function Produccion() {
               Previsto: {p.previstas ?? p.cargas_previstas ?? '—'} carga(s){p.firme === false ? ' (estimado por kilos)' : p.firme ? ' (firme)' : ''}
               {p.trabajo && p.trabajo !== 'LAVA' && <span className="text-amber-700 font-semibold"> · {p.trabajo}</span>}
             </p>
-            <button onClick={() => setPedir({ titulo: `¿Empezar a preparar ${ot(p.id)}?`, detalle: p.cliente, color: '#E8177A',
-                                              accion: () => hacer(preparacionApi.preparar(p.id), `${ot(p.id)} en preparación`) })}
-                    className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
-                    style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-              <PlayCircle size={15} /> Preparar
-            </button>
+            {p.trabajo === 'PLANCHA' ? (
+              <button onClick={() => aPlanchado(p)}
+                      className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                      style={{ background: '#7c3aed' }}>
+                <Shirt size={15} /> Solo planchado: a planchado y doblado
+              </button>
+            ) : (
+              <button onClick={() => setPedir({ titulo: `¿Empezar a preparar ${ot(p.id)}?`, detalle: p.cliente, color: '#E8177A',
+                                                accion: () => hacer(preparacionApi.preparar(p.id), `${ot(p.id)} en preparación`) })}
+                      className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                      style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                <PlayCircle size={15} /> Preparar
+              </button>
+            )}
           </>
         )}
 
@@ -345,13 +375,49 @@ export default function Produccion() {
 
             {todasSecas && (
               <p className="text-sm font-semibold text-green-700 bg-green-50 rounded-xl p-3">
-                Todas las cargas secas. Revisa que esté todo y embólsalo.
+                {p.trabajo === 'MIXTO'
+                  ? 'Todas las cargas secas. Lleva planchado: pásalo a planchado y doblado.'
+                  : 'Todas las cargas secas. Revisa que esté todo y embólsalo.'}
               </p>
             )}
+            {p.trabajo === 'MIXTO' ? (
+              <>
+                <button onClick={() => aPlanchado(p)}
+                        className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                        style={{ background: todasSecas ? '#7c3aed' : '#cbd5e1' }}>
+                  <Shirt size={15} /> A planchado y doblado
+                </button>
+                <button onClick={() => embolsar(p)}
+                        className="w-full py-2 text-xs text-gray-500 flex items-center justify-center gap-1">
+                  <Package size={13} /> Embolsar sin planchar
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => embolsar(p)}
+                        className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
+                        style={{ background: todasSecas ? '#E8177A' : '#cbd5e1' }}>
+                  <Package size={15} /> Doblado y embalado
+                </button>
+                <button onClick={() => aPlanchado(p)}
+                        className="w-full py-2 text-xs text-gray-500 flex items-center justify-center gap-1">
+                  <Shirt size={13} /> Necesita planchado
+                </button>
+              </>
+            )}
+          </>
+        )}
+
+        {/* Planchado y doblado: de aqui solo se embolsa */}
+        {p.etapa === 'EN_PLANCHADO' && (
+          <>
+            <p className="text-xs text-gray-500">
+              {p.trabajo === 'PLANCHA' ? 'Solo planchado: no pasa por lavadora ni secadora.' : 'Viene de lavado y secado.'}
+            </p>
             <button onClick={() => embolsar(p)}
                     className="w-full py-3 rounded-xl text-white text-sm font-semibold flex items-center justify-center gap-1.5"
-                    style={{ background: todasSecas ? '#E8177A' : '#cbd5e1' }}>
-              <Package size={15} /> Doblado y embalado
+                    style={{ background: '#E8177A' }}>
+              <Package size={15} /> Planchado listo: embolsar
             </button>
           </>
         )}
@@ -505,16 +571,24 @@ export default function Produccion() {
                   <p className="text-xs text-gray-500 truncate">{p.detalle || 'sin ítems cargados'}</p>
                   <p className="text-xs">
                     <span className={cu.rojo ? 'text-red-700 font-semibold' : 'text-gray-500'}>{cu.txt}</span>
-                    <span className="text-gray-400"> · previsto {p.previstas} carga(s){p.firme ? '' : ' aprox.'}</span>
+                    {p.trabajo !== 'PLANCHA' && <span className="text-gray-400"> · previsto {p.previstas} carga(s){p.firme ? '' : ' aprox.'}</span>}
                     {p.trabajo && p.trabajo !== 'LAVA' && <span className="text-amber-700 font-semibold"> · {p.trabajo}</span>}
                   </p>
                 </div>
-                <button onClick={() => setPedir({ titulo: `¿Empezar a preparar ${ot(p.id)}?`, detalle: p.cliente, color: '#E8177A',
-                                                  accion: () => hacer(preparacionApi.preparar(p.id), `${ot(p.id)} en preparación`) })}
-                        className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5 shrink-0"
-                        style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-                  <PlayCircle size={15} /> Preparar
-                </button>
+                {p.trabajo === 'PLANCHA' ? (
+                  <button onClick={() => aPlanchado(p)}
+                          className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5 shrink-0"
+                          style={{ background: '#7c3aed' }}>
+                    <Shirt size={15} /> A planchado
+                  </button>
+                ) : (
+                  <button onClick={() => setPedir({ titulo: `¿Empezar a preparar ${ot(p.id)}?`, detalle: p.cliente, color: '#E8177A',
+                                                    accion: () => hacer(preparacionApi.preparar(p.id), `${ot(p.id)} en preparación`) })}
+                          className="px-3 py-2.5 rounded-xl text-white text-sm font-semibold flex items-center gap-1.5 shrink-0"
+                          style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                    <PlayCircle size={15} /> Preparar
+                  </button>
+                )}
               </div>
             )
           })}

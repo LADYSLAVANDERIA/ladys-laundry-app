@@ -16,7 +16,14 @@ const json = (d: unknown, s = 200) =>
   new Response(JSON.stringify(d), { status: s, headers: { "content-type": "application/json", ...CORS } });
 
 // El recorrido normal de un pedido. El orden importa: nunca se retrocede solo.
-const ETAPAS = ["RETIRADO", "RECEPCIONADO", "EN_LAVADO", "EN_SECADO", "EMBOLSADO",
+// PREPARACION (22-sep-2026): entre recepcion y lavado Catalina revisa manchas,
+// separa blancos, colores y desmanchado, y define las cargas en ladys-preparacion.
+// EN_PLANCHADO (28-sep-2026, pedido de Lufi): planchado y doblado es una etapa
+// propia, despues del secado y antes de embolsar. Los pedidos SOLO de planchado
+// entran directo aca desde RECEPCIONADO, sin pasar por lavadora ni secadora (la
+// base lo impide con trg_planchado_sin_maquinas). Los mixtos llegan despues de
+// secar. Asi se mide cuanto se demora el planchado, igual que lavado y secado.
+const ETAPAS = ["RETIRADO", "RECEPCIONADO", "PREPARACION", "EN_LAVADO", "EN_SECADO", "EN_PLANCHADO", "EMBOLSADO",
                 "LISTO_RETIRO", "ASIGNADO_RUTA", "EN_CAMINO", "ENTREGADO"];
 
 // Cómo se refleja cada etapa en el estado que ya usaba el sistema
@@ -24,7 +31,8 @@ const ESTADO_DE: Record<string, string> = {
   // RETIRADO sigue siendo una pre-orden: la ropa va en la camioneta, todavia no
   // tiene servicios cargados ni monto. Recien al recepcionarla entra a proceso.
   RETIRADO: "PRE_ORDEN",
-  RECEPCIONADO: "EN_PROCESO", EN_LAVADO: "EN_PROCESO", EN_SECADO: "EN_PROCESO",
+  RECEPCIONADO: "EN_PROCESO", PREPARACION: "EN_PROCESO", EN_LAVADO: "EN_PROCESO", EN_SECADO: "EN_PROCESO",
+  EN_PLANCHADO: "EN_PROCESO",
   EMBOLSADO: "LISTA", LISTO_RETIRO: "LISTA", ASIGNADO_RUTA: "LISTA",
   EN_CAMINO: "LISTA", ENTREGADO: "ENTREGADA",
 };
@@ -65,24 +73,44 @@ Deno.serve(async (req: Request) => {
 
       const [o] = await SQL`SELECT o.id, o.etapa, o.estado, o.entrega_domicilio, o.bultos, o.kilos,
                                    o.tipo_servicio, o.fecha_entrega,
-                                   c.nombre, c.apellido, c.razon_social, c.telefono
+                                   c.nombre, c.apellido, c.razon_social, c.telefono,
+                                   trabajo_de_orden(o.id) AS trabajo
                             FROM ordenes o JOIN clientes c ON c.id = o.cliente_id
                             WHERE o.id = ${id}`;
       if (!o) return json({ error: `No existe el pedido ${id}` }, 404);
       if (o.estado === "ANULADA") return json({ error: `El pedido ${id} está anulado` }, 409);
+
+      // Solo planchado: no pasa por lavado ni secado (tambien lo frena la base)
+      if (o.trabajo === "PLANCHA" && (etapa === "EN_LAVADO" || etapa === "EN_SECADO")) {
+        return json({ error: `El pedido ${id} es solo de planchado: no pasa por lavado ni secado. Márcalo en planchado o embólsalo.` }, 409);
+      }
+
+      // MEDICION POR CARGA (22-sep-2026): un pedido que ya tiene cargas se mueve
+      // por sus cargas en la pantalla Preparacion. Si ademas se escaneara a lavado
+      // o secado, la etapa del pedido y la de sus cargas dirian cosas distintas.
+      // Los pedidos sin cargas (los que venian antes del cambio) siguen igual.
+      const [cg] = await SQL`SELECT COUNT(*)::int AS total,
+                                    COUNT(*) FILTER (WHERE secado_fin IS NULL)::int AS sin_terminar
+                               FROM cargas WHERE orden_id = ${id} AND NOT anulada`;
+      if (cg.total > 0 && (etapa === "EN_LAVADO" || etapa === "EN_SECADO" || etapa === "PREPARACION")) {
+        return json({ error: `El pedido ${id} se marca por carga en la pantalla Preparación` }, 409);
+      }
+      if (etapa === "PREPARACION") {
+        return json({ error: "La preparación se empieza en la pantalla Preparación" }, 409);
+      }
 
       const antes = ETAPAS.indexOf(o.etapa || (o.estado === "PRE_ORDEN" ? "RETIRADO" : "RECEPCIONADO"));
       const ahora = ETAPAS.indexOf(etapa);
       const retrocede = ahora < antes;
       const repetida = ahora === antes;
 
-      // Los bultos SIEMPRE se guardan, aunque la etapa ya este marcada.
-      //
-      // Produccion embolsa en dos pasos: primero escanea el codigo -y ahi todavia
-      // no sabe cuantos bultos son- y despues elige el numero en la pantalla. Ese
-      // segundo llamado llegaba con la etapa ya en EMBOLSADO, caia en "repetida"
-      // y se descartaba entero. Resultado: el pedido de Alejandra salio con 1
-      // bulto cuando se habian embolsado 5, y el conductor iba a cargar de menos.
+      // LOS BULTOS SIEMPRE SE GUARDAN, AUNQUE LA ETAPA YA ESTE MARCADA (17-sep-2026).
+      // Produccion embolsa en DOS pasos: primero escanea el codigo —y ahi todavia
+      // no sabe cuantos bultos son— y despues elige el numero en la pantalla. Esa
+      // segunda llamada llega con la etapa ya marcada, o sea `repetida`, y el
+      // codigo la descartaba entera. Resultado: 78 de 84 pedidos embolsados
+      // quedaron registrados con 1 bulto, y el conductor cargaba de menos: el de
+      // Carola Carstens salio con uno cuando se habian embolsado dos.
       if (repetida && b.bultos != null) {
         await SQL`UPDATE ordenes SET bultos = ${Number(b.bultos)}, actualizado_en = NOW()
                   WHERE id = ${id}`;
@@ -108,13 +136,25 @@ Deno.serve(async (req: Request) => {
       const items = await SQL`SELECT nombre, cantidad FROM orden_items
                               WHERE orden_id = ${id} ORDER BY cantidad DESC, nombre`;
 
+      // Los bultos que se devuelven son los de DESPUES de guardar, no los previos:
+      // la pantalla los muestra para confirmar, y mostrar el valor viejo hacia
+      // creer que no se habia guardado.
+      const [fin] = await SQL`SELECT bultos FROM ordenes WHERE id = ${id}`;
+
+      // Embolsar (o pasar a planchado) con cargas sin terminar de secar se permite
+      // (lo decide la persona que revisa el pedido), pero se avisa: puede faltar
+      // una carga en la secadora.
+      const faltanCargas = (etapa === "EMBOLSADO" || etapa === "EN_PLANCHADO") && !repetida && cg.sin_terminar > 0
+        ? `Ojo: el pedido ${id} tiene ${cg.sin_terminar} carga(s) sin terminar de secar` : null;
+
       const cliente = o.razon_social || [o.nombre, o.apellido].filter(Boolean).join(" ");
       return json({
-        items, kilos: o.kilos, bultos_previos: o.bultos,
+        items, kilos: o.kilos, bultos_previos: o.bultos, bultos: fin?.bultos ?? o.bultos,
         ok: true, orden_id: id, cliente, etapa_anterior: o.etapa, etapa,
         repetida, retrocede, entrega_domicilio: o.entrega_domicilio,
-        aviso: repetida ? `El pedido ${id} ya estaba en esta etapa`
-             : retrocede ? `Ojo: el pedido ${id} retrocedió de etapa` : null,
+        aviso: faltanCargas
+             ?? (repetida && b.bultos == null ? `El pedido ${id} ya estaba en esta etapa`
+             : retrocede ? `Ojo: el pedido ${id} retrocedió de etapa` : null),
       });
     }
 

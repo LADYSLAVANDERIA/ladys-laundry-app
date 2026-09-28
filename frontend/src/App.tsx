@@ -57,7 +57,8 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <HashRouter>
-      <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
+      {/* no-print: los avisos flotantes no deben salir en el ticket (tapaban el N.° de OT, 28-sep) */}
+      <Toaster position="top-right" containerClassName="no-print" toastOptions={{ duration: 3000 }} />
       <Routes>
         <Route path="/ot/:id/:token" element={<OrdenPublica />} />
         <Route path="/mi/:id/:token" element={<PortalCliente />} />

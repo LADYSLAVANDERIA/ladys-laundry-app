@@ -16,6 +16,8 @@ body {
 @media print {
   body { background: #fff !important; }
   .no-print, aside, nav, header, button { display: none !important; }
+  /* Avisos flotantes (react-hot-toast): nunca en el papel */
+  [data-rht-toaster], [role="status"] { display: none !important; }
   .print-only { display: block !important; }
   /* Va despues de .print-only para poder ocultar el ticket que no se esta imprimiendo */
   .no-imprimir-ahora { display: none !important; }

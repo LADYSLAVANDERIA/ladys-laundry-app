@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { etapasApi, cobrosApi, transferenciasApi, itemNotaApi, descuentosApi } from '../services/api'
 import { useAuthStore } from '../store/authStore'
@@ -14,7 +14,7 @@ const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:rin
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
 
 export default function OrdenDetalle() {
-  const { id } = useParams(); const navigate = useNavigate(); const [params] = useSearchParams()
+  const { id } = useParams(); const navigate = useNavigate(); const [params, setParams] = useSearchParams()
   const [o, setO] = useState<any>(null); const [local, setLocal] = useState<any>({})
   const [formas, setFormas] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([]); const [rutas, setRutas] = useState<any[]>([])
   // Precios de convenio del cliente. Sin esto, editar los items de una orden
@@ -133,7 +133,18 @@ export default function OrdenDetalle() {
     setTipoTicket(tipo)
     setTimeout(() => window.print(), 200)   // deja que el ticket correcto se dibuje
   }
-  useEffect(() => { if (o && params.get('print') === '1' && qr) setTimeout(() => window.print(), 600) }, [o, qr])
+  // Impresión automática al crear la OT: UNA sola vez. Antes el ?print=1 quedaba en
+  // la dirección y cada recarga del pedido (cobro POS, botón del ticket interno,
+  // etc.) volvía a imprimir: salían tickets repetidos (27-sep). Se imprime una vez
+  // por pedido y se saca el print=1 de la dirección, dejando el resto (cobrar=pos).
+  const autoImpreso = useRef<number | null>(null)
+  useEffect(() => {
+    if (!o || !qr || params.get('print') !== '1' || autoImpreso.current === o.id) return
+    autoImpreso.current = o.id
+    setTimeout(() => window.print(), 600)
+    const resto = new URLSearchParams(params); resto.delete('print')
+    setParams(resto, { replace: true })
+  }, [o, qr])
 
   // Viene de Nueva Orden con la máquina elegida: se abre el cobro solo, así el
   // terminal recibe el monto sin que nadie tenga que buscar el botón.

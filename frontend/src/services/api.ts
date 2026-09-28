@@ -564,3 +564,21 @@ export const navegacionApi = {
   ruta: (d: { origen: { lat: number; lng: number }; destino: { lat: number; lng: number }; rumbo?: number | null; parada_id?: number; motivo?: string }) =>
     axios.post(`${NAV_URL}/ruta`, d, { headers: { Authorization: `Bearer ${useAuthStore.getState().token}` }, timeout: 20000 }),
 }
+
+// Entrevistas de trabajo: citación manual por WhatsApp y respuestas que deja SofIA.
+const ENT_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-entrevistas')
+const entAx = axios.create({ baseURL: ENT_URL })
+entAx.interceptors.request.use(cfg => {
+  const t = useAuthStore.getState().token
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
+export const entrevistasApi = {
+  lista:     () => entAx.get('/'),
+  enviado:   (id: number, mensaje: string) => entAx.post('/enviado', { id, mensaje }),
+  deshacer:  (id: number) => entAx.delete('/enviado', { params: { id } }),
+  estado:    (id: number, estado: string, nota = '') => entAx.post('/estado', { id, estado, nota }),
+  guardar:   (id: number, d: object) => entAx.put('/entrevista', { id, ...d }),
+  crear:     (d: object) => entAx.post('/', d),
+  plantilla: (texto: string) => entAx.put('/plantilla', { texto }),
+}

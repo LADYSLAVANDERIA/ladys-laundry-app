@@ -39,6 +39,7 @@ import Estacion from './pages/Estacion'
 import Cotejo from './pages/Cotejo'
 import Conductor from './pages/Conductor'
 import Marketing from './pages/Marketing'
+import Entrevistas from './pages/Entrevistas'
 import RutaEnVivo from './pages/RutaEnVivo'
 
 function SoloToken({ children }: { children: React.ReactNode }) {
@@ -99,6 +100,7 @@ export default function App() {
         <Route path="/transferencias" element={<PrivateRoute><Transferencias /></PrivateRoute>} />
         <Route path="/prepagos"       element={<PrivateRoute><Prepagos /></PrivateRoute>} />
         <Route path="/marketing"     element={<PrivateRoute><Marketing /></PrivateRoute>} />
+        <Route path="/entrevistas"   element={<PrivateRoute><Entrevistas /></PrivateRoute>} />
         <Route path="/membresias"    element={<PrivateRoute><Membresias /></PrivateRoute>} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

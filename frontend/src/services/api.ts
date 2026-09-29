@@ -575,8 +575,8 @@ entAx.interceptors.request.use(cfg => {
 })
 export const entrevistasApi = {
   lista:     () => entAx.get('/'),
-  enviado:   (id: number, mensaje: string) => entAx.post('/enviado', { id, mensaje }),
-  deshacer:  (id: number) => entAx.delete('/enviado', { params: { id } }),
+  enviado:   (id: number, mensaje: string, tipo = '') => entAx.post('/enviado', { id, mensaje, tipo }),
+  deshacer:  (id: number, tipo = '') => entAx.delete('/enviado', { params: { id, tipo } }),
   estado:    (id: number, estado: string, nota = '') => entAx.post('/estado', { id, estado, nota }),
   guardar:   (id: number, d: object) => entAx.put('/entrevista', { id, ...d }),
   crear:     (d: object) => entAx.post('/', d),

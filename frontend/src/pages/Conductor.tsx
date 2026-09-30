@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { repartoApi, seguimientoApi } from '../services/api'
+import { repartoApi, seguimientoApi, dirApi } from '../services/api'
 import MapaRuta from '../components/MapaRuta'
 import Navegacion, { type PosGps } from '../components/Navegacion'
 import { desbloquearVoz } from '../lib/navegacion'
@@ -228,12 +228,30 @@ export default function Conductor() {
     } catch { toast.error('No se pudo guardar') }
   }
 
-  // "Ir" navega dentro de la app: así la pantalla sigue delante y el GPS no
-  // se corta. Sin coordenadas no hay cómo: se cae a Google Maps.
+  // "Ir" navega SIEMPRE dentro de la app: así la pantalla sigue delante, el GPS
+  // no se corta y el cliente sigue viendo la camioneta. Si la parada no tiene
+  // coordenadas, se ubica su dirección en ese momento y se guarda (30-sep-2026).
+  // Google Maps queda solo si la dirección de verdad no se encuentra, y con aviso.
+  const [ubicando, setUbicando] = useState<number | null>(null)
+  const [sinUbicar, setSinUbicar] = useState<any>(null)
   const navegarA = async (p: any) => {
     desbloquearVoz()
+    let destino = p
+    if (!(p.lat && p.lng)) {
+      setUbicando(p.id)
+      try {
+        const { data } = await dirApi.ubicarParada(Number(p.id))
+        if (data?.lat && data?.lng) {
+          destino = { ...p, lat: data.lat, lng: data.lng }
+          setData((prev: any) => prev ? { ...prev, paradas: (prev.paradas || []).map((x: any) =>
+            x.id === p.id ? { ...x, lat: data.lat, lng: data.lng } : x) } : prev)
+        }
+      } catch { /* sin ubicación: se avisa abajo */ }
+      setUbicando(null)
+      if (!(destino.lat && destino.lng)) { setSinUbicar(p); return }
+    }
     if (!enVivo) await partirGps()
-    setNavegando(p)
+    setNavegando(destino)
   }
   const llegue = (p: any) => {
     setNavegando(null)
@@ -311,19 +329,12 @@ export default function Conductor() {
             {p.nota && <p className="text-sm text-gray-500 italic">Nota: {p.nota}</p>}
 
             <div className="grid grid-cols-3 gap-2">
-              {p.lat && p.lng ? (
-                <button onClick={() => navegarA(p)}
-                        className="flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-white font-medium text-xs"
-                        style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-                  <Navigation size={18} /> Ir
-                </button>
-              ) : (
-                <a href={linkNav(p)} target="_blank" rel="noreferrer"
-                   className="flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-white font-medium text-xs"
-                   style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-                  <Navigation size={18} /> Ir
-                </a>
-              )}
+              <button onClick={() => navegarA(p)} disabled={ubicando === p.id}
+                      className="flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-white font-medium text-xs disabled:opacity-70"
+                      style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                <Navigation size={18} className={ubicando === p.id ? 'animate-pulse' : ''} />
+                {ubicando === p.id ? 'Ubicando…' : 'Ir'}
+              </button>
               <a href={p.telefono ? `tel:+${soloNumeros(p.telefono)}` : undefined}
                  className={`flex flex-col items-center justify-center gap-1 py-3 rounded-xl text-xs font-medium border ${p.telefono ? 'text-gray-700' : 'text-gray-300 pointer-events-none'}`}>
                 <Phone size={18} /> Llamar
@@ -513,6 +524,28 @@ export default function Conductor() {
           </>
         )}
       </div>
+
+      {sinUbicar && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center p-3" onClick={() => setSinUbicar(null)}>
+          <div className="bg-white rounded-2xl p-4 w-full max-w-md space-y-3" onClick={e => e.stopPropagation()}>
+            <p className="font-semibold text-gray-900 flex items-center gap-2">
+              <AlertTriangle size={18} className="text-amber-600" /> No pude ubicar esta dirección
+            </p>
+            <p className="text-sm text-gray-600">{nombreDe(sinUbicar)} · {dirDe(sinUbicar)}</p>
+            <p className="text-sm text-gray-600">
+              Si abres Google Maps <b>se corta tu ubicación en vivo</b> y el cliente deja de ver la camioneta.
+              Avísale a la oficina para que corrijan la dirección.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setSinUbicar(null)} className="py-3 rounded-xl border text-gray-700 font-medium">Cancelar</button>
+              <a href={linkNav(sinUbicar)} target="_blank" rel="noreferrer" onClick={() => setSinUbicar(null)}
+                 className="py-3 rounded-xl text-white font-medium text-center" style={{ background: '#6b7280' }}>
+                Abrir Google Maps
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {navegando && (
         <Navegacion

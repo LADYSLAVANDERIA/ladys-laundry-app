@@ -454,10 +454,16 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
             <X size={18} /> Salir
           </button>
         </div>
-        <a href={linkGoogle} target="_blank" rel="noreferrer"
-           className="flex items-center justify-center gap-1 text-[11px] text-gray-400 pb-1">
+        {/* Pide confirmación: tocarlo sin querer sacaba al conductor de la app y
+            el cliente dejaba de ver la camioneta (30-sep-2026). */}
+        <button type="button"
+           onClick={() => {
+             if (window.confirm('¿Salir a Google Maps?\n\nSe corta tu ubicación en vivo y el cliente deja de ver la camioneta.'))
+               window.open(linkGoogle, '_blank', 'noopener')
+           }}
+           className="flex items-center justify-center gap-1 text-[11px] text-gray-400 pb-1 w-full">
           <ExternalLink size={11} /> Abrir en Google Maps (se corta tu ubicación en vivo)
-        </a>
+        </button>
       </div>
     </div>
   )

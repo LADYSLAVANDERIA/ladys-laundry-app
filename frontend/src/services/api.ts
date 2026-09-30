@@ -132,6 +132,8 @@ export const dirApi = {
   buscar:     (texto: string) => dirHttp.post('/buscar', { texto }),
   // Ubica en el mapa las direcciones de las paradas de una fecha (botón del reparto).
   ubicarRuta: (fecha: string) => dirHttp.post('/geocodificar-ruta', { fecha }),
+  // Una parada sin coordenadas: la ubica al tocar "Ir" (navegación dentro de la app).
+  ubicarParada: (parada_id: number) => dirHttp.post('/ubicar-parada', { parada_id }),
   desdePunto: (d: object) => dirHttp.post('/desde-punto', d),
   crear:      (cid: number | string, d: object) => dirHttp.post(`/${cid}/direcciones`, d),
   actualizar: (id: number, d: object) => dirHttp.put(`/direccion/${id}`, d),

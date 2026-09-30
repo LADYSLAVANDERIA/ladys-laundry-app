@@ -682,6 +682,12 @@ export default function OrdenDetalle() {
               <div><p className="text-xs text-gray-400">Entrega</p><p className="text-gray-700">{fechaCorta(o.fecha_entrega)} · {o.entrega_domicilio ? (o.ruta_entrega || 'sin ruta') : 'en local'}</p>{o.entrega_domicilio && o.direccion_entrega && <p className="text-xs text-gray-500 flex items-start gap-1 mt-0.5"><MapPin size={11} className="mt-0.5 flex-shrink-0" />{o.direccion_entrega}</p>}</div>
               <div className="flex justify-between text-gray-500 text-xs pt-1 border-t"><span>Bultos: {o.bultos}</span>{Number(o.kilos) > 0 && <span>{Number(o.kilos)} kg</span>}<span>{o.tipo_doc}</span></div>
               {o.observaciones && <p className="text-xs bg-yellow-50 text-yellow-800 rounded-lg p-2">{o.observaciones}</p>}
+              {o.personal_nombre && (
+                <div className="text-xs bg-pink-50 border border-pink-200 text-pink-900 rounded-lg p-2">
+                  <p className="font-semibold">Clean Home · personal autorizado</p>
+                  <p>{o.personal_nombre} · RUT {o.personal_rut || <span className="text-red-600 font-semibold">PENDIENTE</span>}</p>
+                </div>
+              )}
             </div>
 
             {/* Historial */}
@@ -827,6 +833,15 @@ export default function OrdenDetalle() {
           <p>Bultos: {o.bultos}</p>
           {o.observaciones && <p>Obs: {o.observaciones}</p>}
         </div>
+        {o.personal_nombre && (
+          <div style={{ border: '1px solid #000', marginTop: 6, padding: 4 }}>
+            <p style={{ fontWeight: 'bold', textAlign: 'center' }}>CLEAN HOME - PERSONAL AUTORIZADO</p>
+            <p>Nombre: {o.personal_nombre}</p>
+            <p>RUT: {o.personal_rut || '________________'}</p>
+            {(o.direccion_entrega || o.direccion_retiro) && <p>Depto: {o.direccion_entrega || o.direccion_retiro}</p>}
+            <p style={{ fontSize: 9, marginTop: 2 }}>Autorizada por Ladys Lavanderia Concon SpA para realizar la limpieza de este departamento. Presentar en conserjeria.</p>
+          </div>
+        )}
         <p style={{ textAlign: 'center', marginTop: 8 }}>¡Gracias por preferirnos!</p>
       </div>
 

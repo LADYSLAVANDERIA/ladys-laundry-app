@@ -17,6 +17,13 @@ export default function OrdenPublica() {
   const [o, setO] = useState<any>(null)
   const [error, setError] = useState('')
 
+  // Clean Home: quien va al departamento, para mostrarlo en conserjeria
+  const [clean, setClean] = useState<any>(null)
+  useEffect(() => {
+    axios.get(`https://vhjsizkbmabznupkfzji.supabase.co/functions/v1/ladys-clean/${id}/${token}`)
+      .then(r => setClean(r.data?.personal ? r.data : null)).catch(() => setClean(null))
+  }, [id, token])
+
   useEffect(() => {
     axios.get(`${BASE}/publico/${id}/${token}`).then(r => setO(r.data)).catch(() => setError('No encontramos esta orden. Revisa el enlace.'))
   }, [id, token])
@@ -52,6 +59,17 @@ export default function OrdenPublica() {
             </div>
           )}
         </div>
+
+        {/* Clean Home: autorizacion para conserjeria */}
+        {clean && (
+          <div className="bg-white rounded-2xl shadow-sm border-2 border-pink-300 p-5 space-y-1">
+            <p className="text-xs font-semibold text-pink-600">CLEAN HOME · PERSONAL AUTORIZADO</p>
+            <p className="text-lg font-bold text-gray-800">{clean.personal.nombre}</p>
+            <p className="text-sm text-gray-700">RUT {clean.personal.rut || 'por confirmar'}</p>
+            {clean.direccion && <p className="text-sm text-gray-600 flex items-start gap-2"><MapPin size={13} className="text-gray-400 mt-0.5" />{clean.direccion}</p>}
+            <p className="text-xs text-gray-500 pt-1">Ladys Lavandería Concón SpA autoriza a esta persona a ingresar y realizar la limpieza del departamento indicado. Puedes mostrar esta pantalla o reenviarla a conserjería.</p>
+          </div>
+        )}
 
         {/* Entrega */}
         <div className="bg-white rounded-2xl shadow-sm border p-5 space-y-2">

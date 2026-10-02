@@ -66,10 +66,15 @@ export default function ClienteDetalle() {
     }
     catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar la dirección') }
   }
-  const borrarDir = async (dirId: number) => {
-    try { await clientesApi.removeDireccion(c.id, dirId); toast.success('Dirección eliminada'); load() }
-    catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo eliminar') }
+  const borrarDir = async (d: any) => {
+    const texto = `${d.calle || ''} ${d.numero || ''}${d.otro ? ', ' + d.otro : ''}`.trim()
+    if (!window.confirm(`¿Borrar la dirección ${texto}?\n\nSi la usaron órdenes ya entregadas, queda anotada en su historial.`)) return
+    try {
+      await dirApi.eliminar(d.id)
+      toast.success('Dirección borrada'); load()
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo borrar la dirección', { duration: 6000 }) }
   }
+
   const guardar = async () => {
     if (!edit.nombre?.trim()) return toast.error('El nombre es obligatorio')
     setGuardando(true)
@@ -490,7 +495,7 @@ export default function ClienteDetalle() {
                   {d.lat && <a href={`https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lng}`} target="_blank" rel="noreferrer"
                     className="p-1.5 rounded-lg bg-purple-50 text-purple-600" title="Navegar"><Navigation size={13} /></a>}
                   <button onClick={() => abrirDir({ ...d })} className="p-1.5 rounded-lg bg-gray-100 text-gray-500" title="Editar y ubicar"><Pencil size={13} /></button>
-                  <button onClick={() => borrarDir(d.id)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
+                  <button onClick={() => borrarDir(d)} className="p-1.5 rounded-lg bg-red-50 text-red-500" title="Borrar dirección"><Trash2 size={13} /></button>
                 </div>
               </div>
             ))}

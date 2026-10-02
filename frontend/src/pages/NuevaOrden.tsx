@@ -5,7 +5,7 @@ import ItemsPicker, { buildItems } from '../components/ItemsPicker'
 import MapaDireccion from '../components/MapaDireccion'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Search, Save, UserPlus, MapPin, Truck, Store, Percent, AlertTriangle, CreditCard, Plus, X, Phone } from 'lucide-react'
+import { ArrowLeft, Search, Save, UserPlus, MapPin, Truck, Store, Percent, AlertTriangle, CreditCard, Plus, X, Phone, Trash2 } from 'lucide-react'
 import { enZonaSinMinimo, fmt, hoy, addDiasHabiles, diaSemana, ot, hora, fechaLarga } from '../utils'
 
 const SERVICIO_AJUSTE = 78
@@ -73,6 +73,20 @@ export default function NuevaOrden() {
       toast.success(data.lat ? 'Dirección guardada con ubicación' : 'Dirección guardada')
       return Number(data.id)
     } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar la dirección'); return null }
+  }
+
+  // 02-10 (Lufi): borrar una direccion desde aqui mismo, igual que se agrega.
+  const borrarDirSel = async () => {
+    const d = (cliente?.direcciones || []).find((x: any) => String(x.id) === String(f.dir_id))
+    if (!d) return
+    const texto = `${d.calle || ''} ${d.numero || ''}${d.otro ? ', ' + d.otro : ''}`.trim()
+    if (!window.confirm(`¿Borrar la dirección ${texto} de este cliente?`)) return
+    try {
+      await dirApi.eliminar(d.id)
+      const { data: c } = await clientesApi.getById(cliente.id)
+      setCliente(c); setF((p: any) => ({ ...p, dir_id: '' }))
+      toast.success('Dirección borrada')
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo borrar la dirección', { duration: 6000 }) }
   }
 
   const serviciosConPrecio = useMemo(() => {
@@ -458,6 +472,8 @@ export default function NuevaOrden() {
                     {(cliente.direcciones || []).map((d: any) => <option key={d.id} value={d.id}>{d.calle} {d.numero}{d.otro ? `, ${d.otro}` : ''}{d.sector ? ` — ${d.sector}` : ''}{d.ciudad ? `, ${d.ciudad}` : ''}</option>)}
                   </select>
                   <button onClick={() => setNuevaDir(nuevaDir ? null : { calle: '', numero: '', otro: '', sector: '', ciudad: 'Concón' })} className="px-3 bg-gray-100 rounded-xl text-sm whitespace-nowrap flex items-center gap-1"><Plus size={14} /> Nueva</button>
+                  <button onClick={borrarDirSel} disabled={!f.dir_id} title="Borrar la dirección elegida"
+                          className="px-3 rounded-xl text-sm bg-red-50 text-red-500 disabled:opacity-30 flex items-center"><Trash2 size={14} /></button>
                 </div>
                 {nuevaDir && (
                   <div className="mt-2 bg-gray-50 p-3 rounded-xl">

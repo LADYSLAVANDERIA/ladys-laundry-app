@@ -137,6 +137,8 @@ export const dirApi = {
   desdePunto: (d: object) => dirHttp.post('/desde-punto', d),
   crear:      (cid: number | string, d: object) => dirHttp.post(`/${cid}/direcciones`, d),
   actualizar: (id: number, d: object) => dirHttp.put(`/direccion/${id}`, d),
+  // 02-10: borra la direccion (si la usa una orden en curso responde 409 con la OT).
+  eliminar:   (id: number) => dirHttp.delete(`/direccion/${id}`),
   listar:     (cid: number | string) => dirHttp.get(`/${cid}/direcciones`),
   coordenadas:(fecha: string) => dirHttp.get('/coordenadas', { params: { fecha } }),
 }

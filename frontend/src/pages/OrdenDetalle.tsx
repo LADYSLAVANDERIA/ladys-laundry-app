@@ -255,6 +255,7 @@ export default function OrdenDetalle() {
       if (datos.entrega_domicilio && !dir && !o.dir_entrega_id && !o.dir_recogida_id)
         return toast.error('La entrega es a domicilio y no tiene dirección: elige una')
       const nombreRuta = (id: any) => rutas.find((r: any) => String(r.id) === String(id))?.nombre || '—'
+      const nombreDir = (id: any) => { const d = direcciones.find((x: any) => String(x.id) === String(id)); return d ? [d.calle, d.numero].filter(Boolean).join(' ') + (d.otro ? `, ${d.otro}` : '') : (id ? `#${id}` : '—') }
       const cambios = describirCambios(o, datos, {
         fecha_recogida: 'Retiro', fecha_entrega: 'Entrega',
         ruta_recogida_id: 'Ruta de retiro', ruta_entrega_id: 'Ruta de entrega',
@@ -262,7 +263,10 @@ export default function OrdenDetalle() {
         // Sin estas dos, desmarcar "a domicilio" y nada mas daba "No cambiaste
         // nada" y la ventana se cerraba sin guardar (OT 6580, 23-09).
         retiro_domicilio: 'Modo de retiro', entrega_domicilio: 'Modo de entrega',
+        // 02-10: cambiar SOLO la direccion daba "No cambiaste nada" y no guardaba.
+        dir_recogida_id: 'Dirección de retiro', dir_entrega_id: 'Dirección de entrega',
       }, {
+        dir_recogida_id: nombreDir, dir_entrega_id: nombreDir,
         retiro_domicilio: (v: any) => (v ? 'a domicilio' : 'en local'),
         entrega_domicilio: (v: any) => (v ? 'a domicilio' : 'en local'),
         fecha_recogida: (v: any) => (v ? fechaCorta(v) : '—'),

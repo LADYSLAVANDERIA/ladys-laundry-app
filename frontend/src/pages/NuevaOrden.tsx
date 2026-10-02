@@ -6,7 +6,7 @@ import MapaDireccion from '../components/MapaDireccion'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Search, Save, UserPlus, MapPin, Truck, Store, Percent, AlertTriangle, CreditCard, Plus, X, Phone } from 'lucide-react'
-import { enZonaSinMinimo, fmt, hoy, addDiasHabiles, diaSemana, ot, hora } from '../utils'
+import { enZonaSinMinimo, fmt, hoy, addDiasHabiles, diaSemana, ot, hora, fechaLarga } from '../utils'
 
 const SERVICIO_AJUSTE = 78
 const RUTA_RET = ['RETIROS_Y_ENTREGAS', 'SOLO_RETIROS'], RUTA_ENT = ['RETIROS_Y_ENTREGAS', 'SOLO_ENTREGAS']
@@ -62,14 +62,17 @@ export default function NuevaOrden() {
     try { const { data } = await clientesApi.create({ tipo: 'PARTICULAR', ...nuevoCli }); toast.success('Cliente creado'); setNuevoCli(null); seleccionar(data.id) }
     catch (e: any) { toast.error(e.response?.data?.error || 'Error al crear cliente') }
   }
-  const guardarDir = async () => {
-    if (!nuevaDir?.calle) return toast.error('Ingresa la calle')
+  // Devuelve el id de la direccion guardada (o null si no se pudo), para que
+  // crear() la use aunque el operador no haya apretado "Guardar direccion".
+  const guardarDir = async (): Promise<number | null> => {
+    if (!nuevaDir?.calle) { toast.error('Ingresa la calle'); return null }
     try {
       const { data } = await dirApi.crear(cliente.id, { ciudad: 'Concón', ...nuevaDir, es_principal: !cliente.direcciones?.length })
       const { data: c } = await clientesApi.getById(cliente.id)
       setCliente(c); setF((p: any) => ({ ...p, dir_id: String(data.id) })); setNuevaDir(null)
       toast.success(data.lat ? 'Dirección guardada con ubicación' : 'Dirección guardada')
-    } catch (e: any) { toast.error(e.response?.data?.error || 'Error') }
+      return Number(data.id)
+    } catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar la dirección'); return null }
   }
 
   const serviciosConPrecio = useMemo(() => {
@@ -205,7 +208,17 @@ export default function NuevaOrden() {
   const crear = async (forzar = false) => {
     if (!cliente) return toast.error('Selecciona o crea el cliente')
     if (!items.length) return toast.error('Ingresa kilos o prendas')
-    if (domicilio && !f.dir_id) return toast.error('Selecciona la dirección de domicilio')
+    // 02-10 (OT 6757): se escribio Vicuna Mackenna 1084 en "Nueva" y se creo la
+    // orden sin apretar "Guardar direccion": la direccion se perdio sin aviso y la
+    // orden quedo con la direccion vieja. Ahora, si hay una direccion nueva escrita,
+    // se guarda aqui mismo y es la que usa la orden. Si no se puede guardar, no se crea.
+    let dirId = f.dir_id
+    if (domicilio && nuevaDir && String(nuevaDir.calle || '').trim()) {
+      const id = await guardarDir()
+      if (!id) return
+      dirId = String(id)
+    }
+    if (domicilio && !dirId) return toast.error('Selecciona la dirección de domicilio')
     if (f.retiro_domicilio && !f.ruta_recogida_id) return toast.error('Elige la ruta de retiro')
     if (f.entrega_domicilio && !f.ruta_entrega_id) return toast.error('Elige la ruta de entrega')
     // Solo los planes en PESOS tienen saldo que alcance o no alcance. En los
@@ -219,13 +232,22 @@ export default function NuevaOrden() {
     // y a quien. Por eso el motivo es obligatorio, igual que en el detalle.
     if (descManualValor > 0 && !String(descManual.motivo || '').trim())
       return toast.error('Escribe el motivo del descuento manual')
+    // LA FECHA DEL CAMPO SE GUARDA SIEMPRE (02-10, OT 6757, tercera vez).
+    // Hasta hoy, si la fecha escrita era ANTES del plazo calculado, se reemplazaba
+    // en silencio por el plazo. Ademas la ruta elegida (de ese dia) quedaba
+    // colgada de otra fecha. Ahora se pregunta UNA vez y se respeta la respuesta.
+    const plazoCalc = addDiasHabiles(f.fecha_recogida || hoy(), plazo)
+    const unaSola = !(hayVariosPlazos && dividir)
+    if (unaSola && f.fecha_entrega && f.fecha_entrega < plazoCalc &&
+        !window.confirm(`La fecha de entrega que pusiste (${fechaLarga(f.fecha_entrega)}) es antes del plazo del taller (${fechaLarga(plazoCalc)}).\n\n¿Dejar ${fechaLarga(f.fecha_entrega)}?`))
+      return
     setLoading(true)
     try {
       const body: any = {
         cliente_id: cliente.id, items, kilos: Number(String(kilos).replace(',', '.') || 0), tipo_servicio: express ? 'EXPRESS' : 'NORMAL',
         tipo_doc: f.tipo_doc, bultos: Number(f.bultos || 1), observaciones: f.observaciones, monto_delivery: Number(f.monto_delivery || 0), aplicar_descuento: f.aplicar_descuento,
         retiro_domicilio: f.retiro_domicilio, entrega_domicilio: f.entrega_domicilio, ropa_en_local: !f.retiro_domicilio || f.ropa_en_local,
-        dir_recogida_id: f.retiro_domicilio ? Number(f.dir_id) : null, dir_entrega_id: f.entrega_domicilio ? Number(f.dir_id) : null,
+        dir_recogida_id: f.retiro_domicilio ? Number(dirId) : null, dir_entrega_id: f.entrega_domicilio ? Number(dirId) : null,
         fecha_recogida: f.retiro_domicilio ? f.fecha_recogida : null, ruta_recogida_id: f.retiro_domicilio ? Number(f.ruta_recogida_id) : null,
         fecha_entrega: f.fecha_entrega || null, ruta_entrega_id: f.entrega_domicilio ? Number(f.ruta_entrega_id) : null,
         origen: f.retiro_domicilio ? 'DOMICILIO' : 'LOCAL', es_membresia: usarMemb && !!memb, forzar: forzar || zonaSinMinimo,
@@ -294,8 +316,7 @@ export default function NuevaOrden() {
           fecha_entrega: (() => {
             const calculada = addDiasHabiles(f.fecha_recogida || hoy(), parte.dias)
             if (partes.length > 1) return calculada
-            if (!f.fecha_entrega) return calculada
-            return f.fecha_entrega >= calculada ? f.fecha_entrega : calculada
+            return f.fecha_entrega || calculada   // lo del campo manda (ya se confirmo arriba)
           })(),
           // Cada parte se entrega en su fecha, así que la ruta se elige después.
           ruta_entrega_id: partes.length > 1 ? null : body.ruta_entrega_id,
@@ -441,7 +462,7 @@ export default function NuevaOrden() {
                 {nuevaDir && (
                   <div className="mt-2 bg-gray-50 p-3 rounded-xl">
                     <MapaDireccion valor={nuevaDir} onChange={setNuevaDir} alto={180} />
-                    <button onClick={guardarDir} className="w-full mt-2 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                    <button onClick={() => guardarDir()} className="w-full mt-2 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
                       Guardar dirección
                     </button>
                   </div>

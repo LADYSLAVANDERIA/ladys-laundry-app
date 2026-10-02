@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { factturaApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { Save, FileText, ShieldCheck, AlertTriangle, Check, Power, Plug, ExternalLink } from 'lucide-react'
+import { Save, FileText, ShieldCheck, AlertTriangle, Check, Power, Plug, ExternalLink, Send } from 'lucide-react'
 
 const inp = 'w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const plata = (v: any) => Math.round(Number(v) || 0).toLocaleString('es-CL')
@@ -12,6 +12,8 @@ export default function ConfigFacttura() {
   const [guardando, setGuardando] = useState(false)
   const [probando, setProbando] = useState(false)
   const [clave, setClave] = useState('')
+  const [ocs, setOcs] = useState<Record<string, string>>({})
+  const [ocupado, setOcupado] = useState<number | null>(null)
 
   const cargar = () => {
     factturaApi.estado()
@@ -48,6 +50,34 @@ export default function ConfigFacttura() {
       console.log('Facttura:', data)
     } catch { toast.error('No se pudo probar') }
     finally { setProbando(false) }
+  }
+
+
+  const guardarOc = async (ordenId: number) => {
+    const oc = (ocs[ordenId] || '').trim()
+    if (!oc) return toast.error('Falta el número de orden de compra')
+    setOcupado(ordenId)
+    try {
+      await factturaApi.ordenCompra({ orden_id: ordenId, orden_compra: oc })
+      toast.success(`OC guardada en la OT ${ordenId}`)
+      setOcs(prev => ({ ...prev, [ordenId]: '' })); cargar()
+    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo guardar') }
+    finally { setOcupado(null) }
+  }
+
+  const emitirUna = async (ordenId: number) => {
+    setOcupado(ordenId)
+    try {
+      // Si hay una OC escrita sin guardar, se guarda antes: si no, la emisión
+      // se bloquea igual por falta de orden de compra.
+      const oc = (ocs[ordenId] || '').trim()
+      if (oc) await factturaApi.ordenCompra({ orden_id: ordenId, orden_compra: oc })
+      const { data } = await factturaApi.emitir({ orden_id: ordenId })
+      if (data.ok) toast.success(`Emitida la OT ${ordenId}`)
+      else toast.error(data.saltada || data.error?.error?.message || 'No se pudo emitir')
+      cargar()
+    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo emitir') }
+    finally { setOcupado(null) }
   }
 
   if (cargando) return <div className="py-16 text-center text-gray-400">Cargando…</div>
@@ -160,15 +190,38 @@ export default function ConfigFacttura() {
           <p className="text-sm text-gray-400">Ninguna bloqueada.</p>
         ) : (
           <div className="divide-y">
-            {d.bloqueadas.map((b: any) => (
-              <div key={b.ordenes.join('-')} className="py-2.5 flex items-center justify-between gap-3 text-sm">
-                <span className="text-gray-700">OT {b.ordenes.join(', ')}</span>
-                <span className="text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-                  {b.motivo}
-                </span>
-                <span className="text-gray-500 tabular-nums">${plata(b.total)}</span>
-              </div>
-            ))}
+            {d.bloqueadas.map((b: any) => {
+              const ot = b.ordenes[0]
+              return (
+                <div key={b.ordenes.join('-')} className="py-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3 text-sm flex-wrap">
+                    <span className="text-gray-700 font-medium">OT {b.ordenes.join(', ')}</span>
+                    {b.cliente && <span className="text-gray-500 text-xs flex-1">{b.cliente}</span>}
+                    <span className="text-amber-700 text-xs bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                      {b.motivo}
+                    </span>
+                    <span className="text-gray-500 tabular-nums">${plata(b.total)}</span>
+                  </div>
+
+                  {b.pide_oc && (
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <input className={`${inp} flex-1 min-w-[200px]`} value={ocs[ot] || ''}
+                             placeholder="Número de orden de compra"
+                             onChange={e => setOcs(prev => ({ ...prev, [ot]: e.target.value }))} />
+                      <button onClick={() => guardarOc(ot)} disabled={ocupado === ot}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border text-gray-600 disabled:opacity-40">
+                        <Save size={14} /> Guardar
+                      </button>
+                      <button onClick={() => emitirUna(ot)} disabled={ocupado === ot}
+                              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40"
+                              style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
+                        <Send size={14} /> Guardar y emitir
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

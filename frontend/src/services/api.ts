@@ -464,6 +464,7 @@ export const factturaApi = {
   token:  (d: object) => factturaAx.post('/token', d),
   probar: () => factturaAx.get('/probar'),
   emitir: (d: object = {}) => factturaAx.post('/emitir', d),
+  ordenCompra: (d: object) => factturaAx.post('/orden-compra', d),
 }
 
 const CIERRE_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-cierre')

@@ -15,6 +15,11 @@
 // del conductor cuando la parada no tiene coordenadas. Ubica esa dirección en
 // el momento y la guarda, para que la navegación siga DENTRO de la app (con la
 // ubicación en vivo para el cliente) en vez de saltar a Google Maps.
+//
+// v7 (02-oct-2026, bitácora #247): DELETE /direccion/:id — el tachito de la app.
+// Toda la lógica vive en ladys.eliminar_direccion(): si la usa una orden en curso
+// no se borra (dice cuál OT cambiar); si solo la usan órdenes cerradas, deja el
+// texto en su historial, suelta las referencias y la borra.
 import postgres from "npm:postgres@3.4.4";
 import * as jose from "npm:jose@5.9.6";
 
@@ -140,8 +145,11 @@ Deno.serve(async (req: Request) => {
 
   const h = req.headers.get("authorization") || "";
   const tok = h.startsWith("Bearer ") ? h.slice(7) : h;
+  // v7: se guarda quién es, para dejarlo en el historial al borrar.
+  let uid: number | null = null;
   if ((req.headers.get("x-api-key") || "") !== KEY) {
-    try { await jose.jwtVerify(tok, SECRET); } catch { return json({ error: "Token requerido" }, 401); }
+    try { const { payload } = await jose.jwtVerify(tok, SECRET); uid = Number((payload as any)?.id) || null; }
+    catch { return json({ error: "Token requerido" }, 401); }
   }
   const body: any = ["POST", "PUT"].includes(m) ? await req.json().catch(() => ({})) : {};
 
@@ -321,6 +329,13 @@ Deno.serve(async (req: Request) => {
           ${body.numero || null}, ${body.otro || null}, ${lat}, ${lng}, ${!!body.es_principal},
           ${precision}, ${etiqueta}) RETURNING *`;
       return json(d, 201);
+    }
+
+    // v7: el tachito. 409 si la usa una orden en curso (el mensaje dice cuál).
+    if (m === "DELETE" && seg[0] === "direccion" && seg[1]) {
+      const [r] = await SQL`SELECT ladys.eliminar_direccion(${Number(seg[1])}::int, ${uid}::int) AS r`;
+      const res: any = r?.r || { ok: false, error: "No se pudo borrar" };
+      return json(res, res.ok ? 200 : res.en_uso ? 409 : 404);
     }
 
     if (m === "PUT" && seg[0] === "direccion" && seg[1]) {

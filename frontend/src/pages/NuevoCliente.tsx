@@ -35,6 +35,8 @@ export default function NuevoCliente() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.nombre) return toast.error('El nombre es obligatorio')
+    // 02-10: un pin marcado sin calle se perdia sin aviso al crear el cliente.
+    if (dir.lat && !String(dir.calle || '').trim()) return toast.error('Marcaste el punto en el mapa: escribe también la calle para guardar la dirección')
     setLoading(true)
     try {
       const { data } = await clientesApi.create({ ...form, tipo })
@@ -115,7 +117,7 @@ export default function NuevoCliente() {
 
           <p className="text-xs text-gray-400">Opcional. Ubicar el punto en el mapa evita que el conductor se pierda.</p>
 
-          <MapaDireccion valor={dir} onChange={setDir} alto={200} />
+          <MapaDireccion valor={dir} onChange={setDir} alto={200} guardado={false} />
 
         </div>
 

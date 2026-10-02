@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { clientesApi, fichaApi, serviciosApi, dirApi, planApi, excedentesApi } from '../services/api'
 import toast from 'react-hot-toast'
@@ -16,6 +16,27 @@ export default function ClienteDetalle() {
   // la API de producción es la función `ladys` y no tiene estos datos.
   const [extras, setExtras] = useState<any>({ excedentes: [], beneficios: [], planes: [] })
   const [dir, setDir] = useState<any>({ ciudad: 'Concón' }); const [edit, setEdit] = useState<any>(null)
+  // 02-10: lo que esta guardado en la base de la direccion abierta. Sirve para saber
+  // si hay cambios sin guardar y para guardar el pin al tiro en una direccion existente.
+  const dirBase = useRef<any>(null)
+  const CAMPOS_DIR = ['calle', 'numero', 'otro', 'sector', 'ciudad', 'lat', 'lng']
+  const dirSinCambios = (d: any) => !!d?.id && !!dirBase.current &&
+    CAMPOS_DIR.every(k => String(d?.[k] ?? '') === String(dirBase.current?.[k] ?? ''))
+  const abrirDir = (d: any) => { dirBase.current = d?.id ? { ...d } : null; setDir(d); setModal('dir') }
+  const cerrarDir = () => {
+    const tocada = !!(dir?.calle || dir?.lat)
+    if (tocada && !dirSinCambios(dir) && !window.confirm('La dirección tiene cambios SIN GUARDAR. ¿Salir igual y perderlos?')) return
+    setModal(null); setDir({ ciudad: 'Concón' }); dirBase.current = null
+  }
+  // Pin movido en una direccion que YA existe: se guarda la ubicacion al instante.
+  useEffect(() => {
+    if (modal !== 'dir' || !dir?.id || !dir?.lat || !dirBase.current) return
+    if (String(dir.lat) === String(dirBase.current.lat) && String(dir.lng) === String(dirBase.current.lng)) return
+    const lat = dir.lat, lng = dir.lng, id = dir.id
+    dirApi.actualizar(id, { lat, lng })
+      .then(() => { dirBase.current = { ...dirBase.current, lat, lng }; setDir((d: any) => ({ ...d })); toast.success('Ubicación guardada') })
+      .catch((e: any) => toast.error(e.response?.data?.error || 'No se pudo guardar la ubicación'))
+  }, [dir?.lat, dir?.lng, modal])
   const [precios, setPrecios] = useState<any[]>([]); const [servicios, setServicios] = useState<any[]>([])
   const [ana, setAna] = useState<any>(null)
   const [nuevoPrecio, setNuevoPrecio] = useState<any>({}); const [guardando, setGuardando] = useState(false)
@@ -41,7 +62,7 @@ export default function ClienteDetalle() {
     try {
       if (dir.id) { await dirApi.actualizar(dir.id, datos); toast.success('Dirección actualizada') }
       else { await dirApi.crear(c.id, datos); toast.success('Dirección agregada') }
-      setModal(null); setDir({ ciudad: 'Concón' }); load()
+      setModal(null); setDir({ ciudad: 'Concón' }); dirBase.current = null; load()
     }
     catch (e: any) { toast.error(e.response?.data?.error || 'No se pudo guardar la dirección') }
   }
@@ -452,7 +473,7 @@ export default function ClienteDetalle() {
       <div className="bg-white rounded-2xl shadow-sm border p-4">
         <div className="flex items-center justify-between mb-3">
           <p className="font-semibold text-gray-700 flex items-center gap-1.5"><MapPin size={15} className="text-pink-500" /> Direcciones</p>
-          <button onClick={() => setModal('dir')} className="text-xs text-pink-600 font-medium flex items-center gap-1"><Plus size={13} /> Agregar</button>
+          <button onClick={() => abrirDir({ ciudad: 'Concón' })} className="text-xs text-pink-600 font-medium flex items-center gap-1"><Plus size={13} /> Agregar</button>
         </div>
         {c.direcciones?.length ? (
           <div className="space-y-2">
@@ -468,7 +489,7 @@ export default function ClienteDetalle() {
                 <div className="flex gap-1 flex-shrink-0">
                   {d.lat && <a href={`https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lng}`} target="_blank" rel="noreferrer"
                     className="p-1.5 rounded-lg bg-purple-50 text-purple-600" title="Navegar"><Navigation size={13} /></a>}
-                  <button onClick={() => { setDir({ ...d }); setModal('dir') }} className="p-1.5 rounded-lg bg-gray-100 text-gray-500" title="Editar y ubicar"><Pencil size={13} /></button>
+                  <button onClick={() => abrirDir({ ...d })} className="p-1.5 rounded-lg bg-gray-100 text-gray-500" title="Editar y ubicar"><Pencil size={13} /></button>
                   <button onClick={() => borrarDir(d.id)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
                 </div>
               </div>
@@ -506,9 +527,9 @@ export default function ClienteDetalle() {
           <div className="bg-white rounded-2xl w-full max-w-lg my-8 p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="font-bold">{dir?.id ? 'Editar dirección' : 'Nueva dirección'}</h2>
-              <button onClick={() => { setModal(null); setDir({ ciudad: 'Concón' }) }}><X size={18} className="text-gray-400" /></button>
+              <button onClick={cerrarDir}><X size={18} className="text-gray-400" /></button>
             </div>
-            <MapaDireccion valor={dir} onChange={setDir} />
+            <MapaDireccion valor={dir} onChange={setDir} guardado={dirSinCambios(dir)} />
             <label className="flex items-center gap-2 text-sm text-gray-600">
               <input type="checkbox" checked={!!dir?.es_principal} onChange={e => setDir({ ...dir, es_principal: e.target.checked })} /> Dirección principal
             </label>
@@ -516,7 +537,7 @@ export default function ClienteDetalle() {
               <button onClick={guardarDir} className="flex-1 py-3 rounded-xl text-white font-semibold text-sm" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
                 <Save size={14} className="inline mr-1" /> Guardar dirección
               </button>
-              <button onClick={() => { setModal(null); setDir({ ciudad: 'Concón' }) }} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
+              <button onClick={cerrarDir} className="px-4 py-3 rounded-xl bg-gray-100 text-sm">Cancelar</button>
             </div>
           </div>
         </div>

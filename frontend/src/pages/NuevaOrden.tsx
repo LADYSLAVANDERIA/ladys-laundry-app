@@ -445,15 +445,15 @@ export default function NuevaOrden() {
           <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-3">
             <p className="font-semibold text-gray-700">3 · Retiro y entrega</p>
             <div className="grid sm:grid-cols-2 gap-2">
-              <button onClick={() => setF({ ...f, retiro_domicilio: !f.retiro_domicilio })} className={`flex items-center gap-2 p-3 rounded-xl border text-sm font-medium ${f.retiro_domicilio ? 'border-pink-400 bg-pink-50 text-pink-700' : 'text-gray-500'}`}><Truck size={16} /> Retiro a domicilio</button>
-              <button onClick={() => setF({ ...f, entrega_domicilio: !f.entrega_domicilio })} className={`flex items-center gap-2 p-3 rounded-xl border text-sm font-medium ${f.entrega_domicilio ? 'border-pink-400 bg-pink-50 text-pink-700' : 'text-gray-500'}`}><Truck size={16} className="scale-x-[-1]" /> Entrega a domicilio</button>
+              <button onClick={() => setF((p: any) => ({ ...p, retiro_domicilio: !p.retiro_domicilio }))} className={`flex items-center gap-2 p-3 rounded-xl border text-sm font-medium ${f.retiro_domicilio ? 'border-pink-400 bg-pink-50 text-pink-700' : 'text-gray-500'}`}><Truck size={16} /> Retiro a domicilio</button>
+              <button onClick={() => setF((p: any) => ({ ...p, entrega_domicilio: !p.entrega_domicilio }))} className={`flex items-center gap-2 p-3 rounded-xl border text-sm font-medium ${f.entrega_domicilio ? 'border-pink-400 bg-pink-50 text-pink-700' : 'text-gray-500'}`}><Truck size={16} className="scale-x-[-1]" /> Entrega a domicilio</button>
             </div>
             {!domicilio && <p className="text-xs text-gray-400 flex items-center gap-1"><Store size={12} /> La ropa se recibe y se retira en el local.</p>}
             {domicilio && cliente && (
               <div>
                 <label className="text-xs text-gray-500 block mb-1 flex items-center gap-1"><MapPin size={11} /> Dirección</label>
                 <div className="flex gap-2">
-                  <select value={f.dir_id} onChange={e => setF({ ...f, dir_id: e.target.value })} className={inp}>
+                  <select value={f.dir_id} onChange={e => setF((p: any) => ({ ...p, dir_id: e.target.value }))} className={inp}>
                     <option value="">Seleccionar…</option>
                     {(cliente.direcciones || []).map((d: any) => <option key={d.id} value={d.id}>{d.calle} {d.numero}{d.otro ? `, ${d.otro}` : ''}{d.sector ? ` — ${d.sector}` : ''}{d.ciudad ? `, ${d.ciudad}` : ''}</option>)}
                   </select>
@@ -461,7 +461,8 @@ export default function NuevaOrden() {
                 </div>
                 {nuevaDir && (
                   <div className="mt-2 bg-gray-50 p-3 rounded-xl">
-                    <MapaDireccion valor={nuevaDir} onChange={setNuevaDir} alto={180} />
+                    <MapaDireccion valor={nuevaDir} onChange={setNuevaDir} alto={180} guardado={false} />
+                    <p className="text-[11px] text-gray-500 mt-1">Si creas la orden sin apretar Guardar, esta dirección (con el punto del mapa) se guarda sola y es la que usa la orden.</p>
                     <button onClick={() => guardarDir()} className="w-full mt-2 py-2.5 rounded-xl text-white text-sm font-medium" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
                       Guardar dirección
                     </button>
@@ -473,12 +474,12 @@ export default function NuevaOrden() {
               {f.retiro_domicilio && (
                 <div className="space-y-2 p-3 bg-orange-50 rounded-xl">
                   <p className="text-xs font-semibold text-orange-700">RETIRO</p>
-                  <input type="date" value={f.fecha_recogida} onChange={e => setF({ ...f, fecha_recogida: e.target.value, ruta_recogida_id: '' })} className={inp} />
-                  <select value={f.ruta_recogida_id} onChange={e => setF({ ...f, ruta_recogida_id: e.target.value })} className={inp}>
+                  <input type="date" value={f.fecha_recogida} onChange={e => setF((p: any) => ({ ...p, fecha_recogida: e.target.value, ruta_recogida_id: '' }))} className={inp} />
+                  <select value={f.ruta_recogida_id} onChange={e => setF((p: any) => ({ ...p, ruta_recogida_id: e.target.value }))} className={inp}>
                     <option value="">{rutasRet.length ? 'Ruta de retiro…' : 'Sin ruta ese día'}</option>
                     {rutasRet.map(r => <option key={r.id} value={r.id}>{labelRuta(r, f.fecha_recogida)}</option>)}
                   </select>
-                  <label className="flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={!f.ropa_en_local} onChange={e => setF({ ...f, ropa_en_local: !e.target.checked })} /> Aún no tenemos la ropa (queda "por retirar")</label>
+                  <label className="flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={!f.ropa_en_local} onChange={e => setF((p: any) => ({ ...p, ropa_en_local: !e.target.checked }))} /> Aún no tenemos la ropa (queda "por retirar")</label>
                 </div>
               )}
               <div className={`space-y-2 p-3 rounded-xl ${f.entrega_domicilio ? 'bg-blue-50' : 'bg-gray-50'}`}>
@@ -525,7 +526,7 @@ export default function NuevaOrden() {
                     : `Propuesta por el servicio más lento de la orden: ${plazo} ${plazo === 1 ? 'día hábil' : 'días hábiles'}.`}
                 </p>
                 {f.entrega_domicilio && (
-                  <select value={f.ruta_entrega_id} onChange={e => setF({ ...f, ruta_entrega_id: e.target.value })} className={inp}>
+                  <select value={f.ruta_entrega_id} onChange={e => setF((p: any) => ({ ...p, ruta_entrega_id: e.target.value }))} className={inp}>
                     <option value="">{rutasEnt.length ? 'Ruta de entrega…' : 'Sin ruta ese día'}</option>
                     {rutasEnt.map(r => <option key={r.id} value={r.id}>{labelRuta(r, f.fecha_entrega)}</option>)}
                   </select>
@@ -536,17 +537,17 @@ export default function NuevaOrden() {
               <div className="flex items-center gap-2 text-xs">
                 <span className="text-gray-500">Delivery:</span>
                 {[[0, 'Gratis (Concón/Reñaca)'], [Number(config.delivery_vina || 2500), 'Viña centro / rural']].map(([v, l]) => (
-                  <button key={String(v)} onClick={() => setF({ ...f, monto_delivery: v })} className={`px-2.5 py-1 rounded-lg border ${Number(f.monto_delivery) === Number(v) ? 'bg-pink-500 text-white border-pink-500' : 'bg-white text-gray-600'}`}>{l}{Number(v) > 0 ? ` ${fmt(v)}` : ''}</button>
+                  <button key={String(v)} onClick={() => setF((p: any) => ({ ...p, monto_delivery: v }))} className={`px-2.5 py-1 rounded-lg border ${Number(f.monto_delivery) === Number(v) ? 'bg-pink-500 text-white border-pink-500' : 'bg-white text-gray-600'}`}>{l}{Number(v) > 0 ? ` ${fmt(v)}` : ''}</button>
                 ))}
               </div>
             )}
             <div className="grid sm:grid-cols-3 gap-2">
-              <div><label className="text-xs text-gray-500">Bultos</label><input type="number" min="1" value={f.bultos} onChange={e => setF({ ...f, bultos: e.target.value })} className={inp} /></div>
-              <div><label className="text-xs text-gray-500">Documento</label><select value={f.tipo_doc} onChange={e => setF({ ...f, tipo_doc: e.target.value })} className={inp}><option value="BOLETA">Boleta</option><option value="FACTURA">Factura</option><option value="SIN_DOCUMENTO">Sin documento</option></select></div>
-              <div><label className="text-xs text-gray-500">Observaciones</label><input value={f.observaciones} onChange={e => setF({ ...f, observaciones: e.target.value })} placeholder="Manchas, sin suavizante, etc." className={inp} /></div>
+              <div><label className="text-xs text-gray-500">Bultos</label><input type="number" min="1" value={f.bultos} onChange={e => setF((p: any) => ({ ...p, bultos: e.target.value }))} className={inp} /></div>
+              <div><label className="text-xs text-gray-500">Documento</label><select value={f.tipo_doc} onChange={e => setF((p: any) => ({ ...p, tipo_doc: e.target.value }))} className={inp}><option value="BOLETA">Boleta</option><option value="FACTURA">Factura</option><option value="SIN_DOCUMENTO">Sin documento</option></select></div>
+              <div><label className="text-xs text-gray-500">Observaciones</label><input value={f.observaciones} onChange={e => setF((p: any) => ({ ...p, observaciones: e.target.value }))} placeholder="Manchas, sin suavizante, etc." className={inp} /></div>
               <div>
                 <label className="text-xs text-gray-500">N° OT en EasyLaundry</label>
-                <input value={f.ot_easylaundry || ''} onChange={e => setF({ ...f, ot_easylaundry: e.target.value })}
+                <input value={f.ot_easylaundry || ''} onChange={e => setF((p: any) => ({ ...p, ot_easylaundry: e.target.value }))}
                        inputMode="numeric" placeholder="mientras funcionen los dos sistemas" className={inp} />
                 <p className="text-[11px] text-gray-400 mt-1">
                   Anótalo para que el cotejo del día pueda aparear esta orden con la de EasyLaundry.
@@ -575,7 +576,7 @@ export default function NuevaOrden() {
                 </div>
               )}
               <label className={`flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 cursor-pointer ${f.aplicar_descuento ? 'bg-green-50 text-green-700' : 'text-gray-500'}`}>
-                <span className="flex items-center gap-1.5"><input type="checkbox" checked={f.aplicar_descuento} onChange={e => setF({ ...f, aplicar_descuento: e.target.checked })} /><Percent size={12} /> Continuidad {pct}%</span>
+                <span className="flex items-center gap-1.5"><input type="checkbox" checked={f.aplicar_descuento} onChange={e => setF((p: any) => ({ ...p, aplicar_descuento: e.target.checked }))} /><Percent size={12} /> Continuidad {pct}%</span>
                 <span>-{fmt(descuento)}</span>
               </label>
               <div className="rounded-lg px-2 py-1.5 space-y-1.5 bg-amber-50/60">
@@ -608,7 +609,7 @@ export default function NuevaOrden() {
                 </p>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="checkbox" checked={!!f.sin_minimo}
-                         onChange={e => setF({ ...f, sin_minimo: e.target.checked })} />
+                         onChange={e => setF((p: any) => ({ ...p, sin_minimo: e.target.checked }))} />
                   <span>Cobrar sin el mínimo</span>
                 </label>
               </div>
@@ -616,7 +617,7 @@ export default function NuevaOrden() {
             {f.sin_minimo && total > 0 && total < minimoAplica && (
               <label className="text-xs text-gray-500 flex items-center gap-1.5 cursor-pointer bg-gray-50 rounded-lg p-2">
                 <input type="checkbox" checked={!!f.sin_minimo}
-                       onChange={e => setF({ ...f, sin_minimo: e.target.checked })} />
+                       onChange={e => setF((p: any) => ({ ...p, sin_minimo: e.target.checked }))} />
                 <span>Sin cobrar el mínimo ({fmt(minimoAplica)})</span>
               </label>
             )}

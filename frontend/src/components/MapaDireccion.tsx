@@ -12,9 +12,13 @@ type Props = {
   valor: any
   onChange: (d: any) => void
   alto?: number
+  // 02-10: el texto decia "Punto guardado" apenas se movia el pin, aunque nada
+  // se habia guardado en la base. Ahora la pantalla que usa el mapa dice si esta
+  // guardado o no, y el texto lo refleja.
+  guardado?: boolean
 }
 
-export default function MapaDireccion({ valor, onChange, alto = 220 }: Props) {
+export default function MapaDireccion({ valor, onChange, alto = 220, guardado = false }: Props) {
   const div = useRef<HTMLDivElement>(null)
   const mapa = useRef<any>(null)
   const pin = useRef<any>(null)
@@ -147,7 +151,9 @@ export default function MapaDireccion({ valor, onChange, alto = 220 }: Props) {
 
       <p className="text-[11px] text-gray-400 flex items-center gap-1">
         {valor?.lat
-          ? <><Check size={11} className="text-green-500" /> Punto guardado ({Number(valor.lat).toFixed(5)}, {Number(valor.lng).toFixed(5)}). Arrastra el pin si está corrido.</>
+          ? (guardado
+              ? <><Check size={11} className="text-green-500" /> Ubicación guardada ({Number(valor.lat).toFixed(5)}, {Number(valor.lng).toFixed(5)}). Arrastra el pin si está corrido.</>
+              : <span className="text-amber-700 font-medium flex items-center gap-1"><MapPin size={11} /> Punto marcado ({Number(valor.lat).toFixed(5)}, {Number(valor.lng).toFixed(5)}) · FALTA GUARDAR</span>)
           : <><MapPin size={11} /> Escribe la dirección y toca Ubicar, o marca el punto en el mapa.</>}
       </p>
     </div>

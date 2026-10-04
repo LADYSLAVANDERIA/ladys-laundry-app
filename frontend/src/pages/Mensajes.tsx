@@ -4,7 +4,8 @@ import toast from 'react-hot-toast'
 import { MessagesSquare, Search, ArrowLeft, Send, Hand, Bot, Check, CheckCheck, Clock, User, Smartphone, AlertTriangle } from 'lucide-react'
 import { format, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { bandejaApi } from '../services/api'
+import { bandejaApi, BANDEJA_URL } from '../services/api'
+import { useAuthStore } from '../store/authStore'
 
 // Mensajes: todas las conversaciones de clientes en una sola pantalla (04-10-2026).
 // Hoy WhatsApp; Instagram, Messenger y TikTok entran aca mismo cuando Meta y
@@ -30,7 +31,8 @@ const telLindo = (c: string) => {
 }
 
 const nombreDe = (c: any) =>
-  lindo(c?.clientes?.[0]?.nombre) || c?.nombre_perfil || telLindo(c?.contacto)
+  lindo(c?.clientes?.[0]?.nombre) || c?.nombre_perfil ||
+  (c?.canal && c.canal !== 'WHATSAPP' ? `${CANAL[c.canal]?.nombre || c.canal} · …${String(c.contacto).slice(-4)}` : telLindo(c?.contacto))
 
 const cuando = (f?: string) => {
   if (!f) return ''
@@ -59,6 +61,9 @@ function Tick({ estado }: { estado?: string }) {
 }
 
 function Media({ m }: { m: any }) {
+  if (m.media_url && (m.tipo_msg === 'image' || m.tipo_msg === 'sticker' || m.tipo_msg === 'animated_image_share'))
+    return <a href={m.media_url} target="_blank" rel="noreferrer"><img src={m.media_url} alt="imagen" loading="lazy" className="rounded-lg max-h-64 max-w-full mb-1 bg-gray-100" /></a>
+  if (m.media_url) return <a href={m.media_url} target="_blank" rel="noreferrer" className="text-xs text-violet-600 underline">Abrir adjunto ({m.tipo_msg})</a>
   if (m.tipo_msg === 'image' && m.media_id)
     return (
       <a href={bandejaApi.mediaUrl(m.media_id)} target="_blank" rel="noreferrer">
@@ -73,6 +78,8 @@ function Media({ m }: { m: any }) {
 
 export default function Mensajes() {
   const [convs, setConvs] = useState<any[]>([])
+  const [canales, setCanales] = useState<string[]>(['WHATSAPP'])
+  const esAdmin = useAuthStore(s => s.user?.perfil === 'ADMINISTRADOR')
   const [cargando, setCargando] = useState(true)
   const [q, setQ] = useState('')
   const [filtro, setFiltro] = useState<'todas' | 'esperando'>('esperando')
@@ -86,7 +93,7 @@ export default function Mensajes() {
 
   const cargarLista = (busca = q) =>
     bandejaApi.conversaciones(busca || undefined)
-      .then(r => setConvs(r.data.conversaciones || []))
+      .then(r => { setConvs(r.data.conversaciones || []); setCanales(r.data.canales || ['WHATSAPP']) })
       .catch(e => toast.error(e?.response?.data?.error || 'No se pudo cargar la bandeja'))
       .finally(() => setCargando(false))
 
@@ -172,6 +179,12 @@ export default function Mensajes() {
           </button>
         </div>
       </div>
+      {esAdmin && !canales.includes('INSTAGRAM') && (
+        <a href={`${BANDEJA_URL}/meta/conectar?t=${encodeURIComponent(useAuthStore.getState().token || '')}`}
+           className="mx-3 mt-2 text-xs rounded-lg bg-gradient-to-r from-pink-500 to-blue-500 text-white px-3 py-2 text-center font-medium">
+          Conectar Instagram y Facebook
+        </a>
+      )}
       <div className="flex-1 overflow-y-auto">
         {cargando && <p className="p-4 text-sm text-gray-400">Cargando…</p>}
         {!cargando && !visibles.length && (
@@ -267,7 +280,7 @@ export default function Mensajes() {
                     </p>
                   )}
                   <Media m={m} />
-                  {!(m.tipo_msg === 'image' && /^\[image\]$/.test(m.texto || '')) && (
+                  {!(m.tipo_msg === 'image' && /^\[image\]$/.test(m.texto || '')) && !(m.media_url && /^\[\w+\]$/.test(m.texto || '')) && (
                     <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">{limpiar(m.texto)}</p>
                   )}
                   <p className="flex items-center justify-end gap-1 text-[10px] text-gray-400 mt-0.5">

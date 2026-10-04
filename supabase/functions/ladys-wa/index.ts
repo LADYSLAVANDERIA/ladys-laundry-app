@@ -1,4 +1,4 @@
-// ladys-wa v7 - canal propio de WhatsApp (Cloud API de Meta), entrada Y salida.
+// ladys-wa v8 - canal propio de WhatsApp (Cloud API de Meta), entrada Y salida.
 //
 // App "Ladys Mensajeria" 2319302108806020, portfolio ladyslavanderia
 // 357817798549522, WABA 465648913293459, numero +56 9 7541 0232
@@ -54,6 +54,12 @@
 //   sa-east-1 (donde esta la base): preparar el contexto son ~17 consultas en
 //   serie y desde otra region cada una cruzaba el continente (4-9 s). El pool
 //   max:3 no era el problema: la base tenia 5 de 60 conexiones.
+//
+// v8 (04-10): "TOMO YO" desde la pantalla Mensajes de la app (ladys-bandeja).
+//   Si una persona tomo la conversacion (ladys.bandeja_estado.tomo_yo, vigente
+//   por configuracion.bandeja_tomo_yo_horas, 12 h por defecto), SofIA no
+//   contesta. Responder desde la app la toma sola. Se revisa ANTES de registrar
+//   en sofia_mensajes, asi el mensaje no queda "tomado" por SofIA.
 //
 // LAS TRAMPAS DEL WEBHOOK DE META:
 // 1. Meta AGRUPA. entry[], changes[], messages[] son ARRAYS. Nunca leer solo [0].
@@ -309,6 +315,14 @@ async function despertarSofia(idEvento: number, tel: string) {
   // Solo responde el ULTIMO mensaje de una rafaga.
   if (await hayMasNuevo(tel, idEvento)) return;
 
+  // v8: una persona tomo esta conversacion desde la app.
+  const [tomada] = await SQL`
+    SELECT 1 FROM bandeja_estado
+     WHERE canal = 'WHATSAPP' AND contacto = ${tel} AND tomo_yo = TRUE
+       AND tomo_yo_desde > NOW() - make_interval(hours => COALESCE(NULLIF(
+             (SELECT valor FROM configuracion WHERE clave = 'bandeja_tomo_yo_horas'), '')::int, 12))`;
+  if (tomada) return;
+
   const contactId = `wa:${tel}`;
   const [yo] = await SQL`SELECT wamid FROM wa_eventos WHERE id = ${idEvento}`;
   const wamid = String(yo?.wamid || "");
@@ -517,7 +531,7 @@ Deno.serve(async (req: Request) => {
         FROM wa_eventos ORDER BY id DESC LIMIT 10`;
       const { tok, phoneId } = await credenciales();
       return json({
-        version: 7,
+        version: 8,
         espera_rafaga_ms: ESPERA_MS,
         envio_activo: (await config("meta_envio_activo")) === "true",
         sofia_canal: await config("sofia_canal"),

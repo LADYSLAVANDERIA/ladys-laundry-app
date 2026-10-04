@@ -7,7 +7,7 @@ import BarraIndicadores from './BarraIndicadores'
 import {
   Home, LayoutDashboard, Users, ClipboardList, Plus, Calendar, Scissors,
   DollarSign, ArrowLeftRight, PieChart, FileText, ShoppingCart, UserCog, Truck, BarChart2, Settings, Navigation, ScanLine, Scale,
-  MapPinned, BellRing, LogOut, Menu, X, ChevronRight, ChevronDown, CreditCard, Wallet, KeyRound, Shirt, BarChart3, Megaphone, UserSearch
+  MapPinned, BellRing, LogOut, Menu, X, ChevronRight, ChevronDown, CreditCard, Wallet, KeyRound, Shirt, BarChart3, Megaphone, UserSearch, MessagesSquare
 } from 'lucide-react'
 
 // Quien ve cada pantalla. ADMINISTRADOR ve todo sin necesidad de listarse.
@@ -22,6 +22,7 @@ const menu = [
     { path: '/entrevistas',     label: 'Entrevistas',       icon: UserSearch,      ver: TODOS_OPERATIVOS },
   ]},
   { grupo: 'El día', items: [
+    { path: '/mensajes',        label: 'Mensajes',          icon: MessagesSquare,  ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },  // WhatsApp hoy; IG, Messenger y TikTok al aprobarse
     { path: '/ordenes/nueva',   label: 'Nueva orden',       icon: Plus,            ver: TODOS_OPERATIVOS },
     { path: '/ordenes',         label: 'Pedidos',           icon: ClipboardList,   ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },
     { path: '/taller',          label: 'El taller',         icon: Shirt,           ver: [...TODOS_OPERATIVOS, 'ASISTENTE'] },

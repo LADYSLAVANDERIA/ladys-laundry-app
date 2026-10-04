@@ -587,3 +587,20 @@ export const entrevistasApi = {
   crear:     (d: object) => entAx.post('/', d),
   plantilla: (texto: string) => entAx.put('/plantilla', { texto }),
 }
+
+// Bandeja de mensajes: WhatsApp hoy; Instagram, Messenger y TikTok al aprobarse (ladys-bandeja).
+export const BANDEJA_URL = (import.meta.env.VITE_API_URL || API_PROD).replace(/\/functions\/v1\/ladys\/api$/, '/functions/v1/ladys-bandeja')
+const banAx = axios.create({ baseURL: BANDEJA_URL })
+banAx.interceptors.request.use(cfg => {
+  const t = useAuthStore.getState().token
+  if (t) cfg.headers.Authorization = `Bearer ${t}`
+  return cfg
+})
+export const bandejaApi = {
+  conversaciones: (q?: string) => banAx.get('/conversaciones', { params: { q } }),
+  hilo: (canal: string, contacto: string) => banAx.get('/hilo', { params: { canal, contacto } }),
+  enviar: (canal: string, contacto: string, texto: string) => banAx.post('/enviar', { canal, contacto, texto }),
+  tomo: (canal: string, contacto: string, activo: boolean) => banAx.post('/tomo', { canal, contacto, activo }),
+  leido: (canal: string, contacto: string) => banAx.post('/leido', { canal, contacto }),
+  mediaUrl: (id: string) => `${BANDEJA_URL}/media?id=${encodeURIComponent(id)}&t=${encodeURIComponent(useAuthStore.getState().token || '')}`,
+}

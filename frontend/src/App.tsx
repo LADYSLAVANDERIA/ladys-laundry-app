@@ -35,6 +35,7 @@ import Produccion from './pages/Produccion'
 import Taller from './pages/Taller'
 import Kpis from './pages/Kpis'
 import Avisos from './pages/Avisos'
+import Mensajes from './pages/Mensajes'
 import Estacion from './pages/Estacion'
 import Cotejo from './pages/Cotejo'
 import Conductor from './pages/Conductor'
@@ -88,6 +89,7 @@ export default function App() {
         <Route path="/produccion"      element={<PrivateRoute><Produccion /></PrivateRoute>} />
         {/* La preparacion se fusiono con Produccion (22-sep). El enlace viejo sigue sirviendo. */}
         <Route path="/preparacion"     element={<Navigate to="/produccion" replace />} />
+        <Route path="/mensajes"        element={<PrivateRoute><Mensajes /></PrivateRoute>} />
         <Route path="/avisos"          element={<PrivateRoute><Avisos /></PrivateRoute>} />
         <Route path="/taller"          element={<PrivateRoute><Taller /></PrivateRoute>} />
         <Route path="/kpis"            element={<PrivateRoute><Kpis /></PrivateRoute>} />

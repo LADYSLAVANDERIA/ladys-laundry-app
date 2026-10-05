@@ -25,15 +25,11 @@ export default function PorCobrar() {
   const load = async () => {
     setLoading(true)
     try {
-      if (tipo) {
-        // El listado general no trae el tipo de cliente ni el plazo de pago,
-        // así que la clasificación la hace el servidor.
-        const { data } = await indicadoresApi.pendientes(tipo)
-        setOrdenes(data.ordenes)
-      } else {
-        const { data } = await ordenesApi.getAll({})
-        setOrdenes(data.filter((o: any) => Number(o.saldo_pendiente) > 0 && o.estado !== 'ANULADA'))
-      }
+      // La clasificación la hace siempre el servidor (ladys-indicadores): el listado
+      // general de órdenes no conoce el crédito. Sin tipo = 'todos': clientes sin
+      // crédito con cualquier saldo; con crédito, solo lo VENCIDO (plazo desde la factura).
+      const { data } = await indicadoresApi.pendientes(tipo || 'todos')
+      setOrdenes(data.ordenes)
     } catch { toast.error('No se pudo cargar') } finally { setLoading(false) }
   }
   useEffect(() => { load() }, [tipo])

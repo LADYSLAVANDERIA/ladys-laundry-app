@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ordenesApi, indicadoresApi, rutasApi } from '../services/api'
+import { ordenesApi, indicadoresApi, rutasApi, configApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { MessageCircle, ChevronRight, AlertTriangle, Wallet, Search, Loader2 } from 'lucide-react'
 import { fmt, ot, fechaCorta, telWa, linkOT, ESTADO_LABEL, ESTADO_COLOR, hoy, describirCambios} from '../utils'
@@ -18,6 +18,9 @@ export default function PorCobrar() {
   const [q, setQ] = useState('')
   const [rutas, setRutas] = useState<any[]>([])
   const [reagendar, setReagendar] = useState<any>(null)
+  // Datos de transferencia: salen de configuracion.datos_transferencia, nunca fijos en el código.
+  const [datosTrf, setDatosTrf] = useState<string>('')
+  useEffect(() => { configApi.get().then(r => setDatosTrf(String(r.data?.datos_transferencia || '').trim())).catch(() => {}) }, [])
 
   const load = async () => {
     setLoading(true)
@@ -102,9 +105,11 @@ export default function PorCobrar() {
   const cobrarWa = (c: any) => {
     const tel = telWa(c.telefono)
     if (!tel) return toast.error('Sin teléfono registrado')
+    // Sin datos de transferencia no se manda: un cobro sin cuenta es un cobro que no se paga.
+    if (!datosTrf) return toast.error('Faltan los datos de transferencia (configuración datos_transferencia). Recarga la página.')
     const lista = c.ordenes.map((o: any) => `• ${ot(o.id)} del ${fechaCorta(o.creado_en)}: ${fmt(o.saldo_pendiente)}`).join('\n')
     const links = c.ordenes.length === 1 ? `\n\nDetalle: ${linkOT(c.ordenes[0].id, c.ordenes[0].token_publico)}` : ''
-    const msg = `Hola ${String(c.nombre).split(' ')[0]}, te escribimos de Ladys Lavandería. Tienes ${c.ordenes.length === 1 ? 'un saldo pendiente' : `${c.ordenes.length} saldos pendientes`} por un total de ${fmt(c.total)}:\n\n${lista}${links}\n\nPuedes pagar por transferencia o al momento de la entrega. ¡Gracias!`
+    const msg = `Hola ${String(c.nombre).split(' ')[0]}, te escribimos de Ladys Lavandería. Tienes ${c.ordenes.length === 1 ? 'un saldo pendiente' : `${c.ordenes.length} saldos pendientes`} por un total de ${fmt(c.total)}:\n\n${lista}${links}\n\nPor favor transfiere a esta cuenta:\n\n${datosTrf}\n\nCuando transfieras, mándanos el comprobante por aquí. Si prefieres pagar con tarjeta, avísanos y te enviamos un link de pago. ¡Gracias!`
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank')
   }
 

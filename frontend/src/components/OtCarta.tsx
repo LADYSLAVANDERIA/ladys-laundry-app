@@ -16,8 +16,9 @@ const dma = (f?: string | null) => {
 const hoyDma = () => dma(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' }))
 
 export default function OtCarta({ o, local, config, className = '' }: { o: any; local: any; config: any; className?: string }) {
-  if (!o) return null
-  const empresa = esOtEmpresa(o)
+  // Solo empresas (Lufi 06-oct). Defensa por si alguien la monta para un particular.
+  if (!o || !esOtEmpresa(o)) return null
+  const empresa = true
   const d = desgloseEmpresa(o)
   const plazo = Number(o.plazo_pago || 0)
   const ingreso = o.fecha_recogida || String(o.creado_en || '').slice(0, 10)

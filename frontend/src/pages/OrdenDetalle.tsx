@@ -480,9 +480,10 @@ export default function OrdenDetalle() {
           <button onClick={() => imprimir('interno')} title="Ticket interno de producción"
                   className="px-3 py-2.5 border rounded-xl text-xs font-medium"
                   style={{ borderColor: '#E8177A', color: '#E8177A' }}>Ticket interno</button>
-          <button onClick={() => imprimir('carta')} title="OT en hoja carta con logo: imprimir o guardar como PDF"
+          {/* Solo clientes EMPRESA / FACTURA (Lufi 06-oct): particulares siguen con el ticket */}
+          {esOtEmpresa(o) && <button onClick={() => imprimir('carta')} title="OT en hoja carta con logo: imprimir o guardar como PDF"
                   className="flex items-center gap-1.5 px-3 py-2.5 border rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
-            <Printer size={14} /> OT carta / PDF</button>
+            <Printer size={14} /> OT carta / PDF</button>}
           {o.cliente_telefono && <button onClick={avisarWhatsapp} title="Avisar por WhatsApp y dejarlo en el historial" className="p-2.5 border rounded-xl text-green-600 hover:bg-green-50"><MessageCircle size={16} /></button>}
         </div>
 
@@ -922,7 +923,7 @@ export default function OrdenDetalle() {
       </div>
 
       {/* OT en hoja carta con logo, tipo cotización (06-oct) */}
-      <OtCarta o={o} local={local} config={config} className={tipoTicket !== 'carta' ? 'no-imprimir-ahora' : ''} />
+      {esOtEmpresa(o) && <OtCarta o={o} local={local} config={config} className={tipoTicket !== 'carta' ? 'no-imprimir-ahora' : ''} />}
 
       {/* ── MODALES ── */}
       {modal === 'maquina' && (

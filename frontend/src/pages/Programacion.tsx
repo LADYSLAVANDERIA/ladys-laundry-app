@@ -3,8 +3,27 @@ import SolicitudRecogida from '../components/SolicitudRecogida'
 import { useNavigate } from 'react-router-dom'
 import { programacionApi, ordenesApi, formasPagoApi, ordenRutaApi, dirApi, etapasApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check, RotateCcw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MapPin, Phone, Truck, Store, Zap, Printer, CalendarOff, Package, CheckCircle2, MessageCircle, Navigation, DollarSign, X, Route, Send, ArrowUp, ArrowDown, ListOrdered, Check, RotateCcw, ThumbsUp, Loader2 } from 'lucide-react'
 import { fmt, ot, hoy, addDias, fechaLarga, hora, telWa, linkOT, mensajeAviso, mapsLink, ordenarParadas, rutaCompletaMaps, TOPE_PARADAS_MAPS, pesoSector, esPagoMercadoPago, refDesdeOperacion} from '../utils'
+
+const AVISOS_CONFIRMA: Record<'retiro' | 'entrega', string[]> = {
+  retiro: ['CONFIRMAR_RETIRO'],
+  entrega: ['CONFIRMAR_ENTREGA', 'PEDIDO LISTO', 'LISTA'],
+}
+// Última vez que se le preguntó/avisó al cliente para esta parada (HH:MM) o null.
+function horaAviso(o: any, tipo: 'retiro' | 'entrega'): string | null {
+  const av = o.avisos || {}
+  const ts = AVISOS_CONFIRMA[tipo].map(t => av[t]).filter(Boolean).sort().pop()
+  return ts ? new Date(ts).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' }) : null
+}
+function EtiquetaConfirmacion({ o }: { o: any }) {
+  const c = o.confirmacion
+  const h = (t?: string) => t ? new Date(t).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' }) : ''
+  if (c === 'CONFIRMADO') return <span title={o.confirmacion_texto || ''} className="text-[10px] bg-green-100 text-green-700 border border-green-200 px-1.5 py-0.5 rounded font-medium">Confirmado {h(o.confirmacion_en)}</span>
+  if (c === 'NO_PUEDE') return <span title={o.confirmacion_texto || ''} className="text-[10px] bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded font-medium cursor-help">No puede{o.confirmacion_texto ? ' ⓘ' : ''}</span>
+  if (c === 'PENDIENTE') return <span title={`Preguntado ${h(o.confirmacion_pedida_en)}`} className="text-[10px] bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded font-medium">Pendiente</span>
+  return <span className="text-[10px] bg-gray-100 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded">Sin confirmar</span>
+}
 
 export default function Programacion() {
   const [solicitud, setSolicitud] = useState(false)
@@ -19,6 +38,7 @@ export default function Programacion() {
   const [editandoRuta, setEditandoRuta] = useState<number | null>(null)
   const [secuencia, setSecuencia] = useState<any[]>([])
   const [enviados, setEnviados] = useState<number[]>([])
+  const [confirmando, setConfirmando] = useState<number | null>(null)
 
   const load = async (f = fecha) => {
     setLoading(true)
@@ -57,6 +77,27 @@ export default function Programacion() {
     if (!tel) return toast.error('El cliente no tiene teléfono')
     window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, '_blank')
     ordenesApi.aviso(o.id, { tipo, mensaje: msg }).catch(() => {})
+  }
+
+  // Botón Confirmar: sale por el WhatsApp oficial con los mismos textos que los
+  // envíos automáticos (ladys.aviso_ruta). Deja la orden en PENDIENTE y la
+  // respuesta del cliente se clasifica sola cada 3 min (bitácora #243).
+  const confirmar = async (o: any, tipo: 'retiro' | 'entrega') => {
+    const previo = horaAviso(o, tipo)
+    if (previo && !window.confirm(`${ot(o.id)} ya fue avisado a las ${previo}.\n\n¿Enviar la pregunta de confirmación de nuevo?`)) return
+    setConfirmando(o.id)
+    try {
+      const { data: r } = await ordenesApi.avisoRuta(o.id, { accion: 'CONFIRMAR', tipo })
+      toast.success(`Confirmación enviada a ${String(o.cliente).trim().split(' ')[0]}${r?.via === 'plantilla' ? ' (plantilla)' : ''}`)
+      load()
+    } catch (e: any) {
+      const r = e.response?.data || {}
+      const tel = telWa(o.telefono)
+      if (r.mensaje && tel && window.confirm(`${r.error || 'No salió por el WhatsApp oficial'}.\n\n¿Abrir WhatsApp para enviarlo a mano?`)) {
+        window.open(`https://wa.me/${tel}?text=${encodeURIComponent(r.mensaje)}`, '_blank')
+        ordenesApi.aviso(o.id, { tipo: tipo === 'retiro' ? 'CONFIRMAR_RETIRO' : 'CONFIRMAR_ENTREGA', mensaje: r.mensaje }).then(() => load()).catch(() => {})
+      } else toast.error(r.error || 'No se pudo enviar la confirmación', { duration: 6000 })
+    } finally { setConfirmando(null) }
   }
 
   // Retirar y entregar son cosas distintas y se registran distinto.
@@ -120,6 +161,10 @@ export default function Programacion() {
     const enTransito = o.etapa === 'RETIRADO' || !!o.retirada_el
     const listoRetiro = tipo === 'retiro' && o.estado === 'PRE_ORDEN' && !enTransito
     const listoEntrega = tipo === 'entrega' && ['EN_PROCESO', 'LISTA'].includes(o.estado)
+    // Solo se pide confirmación para paradas de hoy que aún no se hacen.
+    const esHoy = (tipo === 'retiro' ? o.fecha_recogida : o.fecha_entrega) === hoy()
+    const puedeConfirmar = esHoy && (listoRetiro || listoEntrega)
+    const yaAvisado = horaAviso(o, tipo)
     return (
       <div className="border rounded-xl p-3 hover:bg-gray-50">
         <div className="flex items-start justify-between gap-2">
@@ -130,7 +175,11 @@ export default function Programacion() {
               <span className="text-sm text-gray-700">{o.cliente}</span>
               {o.tipo_servicio === 'EXPRESS' && <Zap size={11} className="text-amber-500" />}
               {o.origen === 'SOFIA' && <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">SofIA</span>}
+              {puedeConfirmar && <EtiquetaConfirmacion o={o} />}
             </div>
+            {o.confirmacion === 'NO_PUEDE' && o.confirmacion_texto && puedeConfirmar && (
+              <p className="text-xs text-red-700 bg-red-50 rounded px-2 py-1 mt-1">Cliente: “{o.confirmacion_texto}”</p>
+            )}
             {dir && <p className="text-xs text-gray-500 flex items-start gap-1 mt-1"><MapPin size={11} className="mt-0.5 flex-shrink-0" />{dir}</p>}
             {o.observaciones && <p className="text-xs text-yellow-700 bg-yellow-50 rounded px-2 py-1 mt-1">{o.observaciones}</p>}
             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
@@ -172,7 +221,15 @@ export default function Programacion() {
         </div>
 
         {/* Botonera del conductor */}
-        <div className="grid grid-cols-4 gap-1.5 mt-3">
+        <div className={`grid ${puedeConfirmar ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5 mt-3`}>
+          {puedeConfirmar && (
+            <button onClick={() => confirmar(o, tipo)} disabled={!o.telefono || confirmando === o.id}
+              title={yaAvisado ? `Ya avisado ${yaAvisado}` : 'Preguntar al cliente por WhatsApp si puede'}
+              className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${!o.telefono ? 'bg-gray-50 text-gray-300' : yaAvisado ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-amber-100 text-amber-800'}`}>
+              {confirmando === o.id ? <Loader2 size={16} className="animate-spin" /> : <ThumbsUp size={16} />}
+              {yaAvisado ? `Avisado ${yaAvisado}` : 'Confirmar'}
+            </button>
+          )}
           <a href={o.telefono ? `tel:+${telWa(o.telefono)}` : undefined}
             className={`flex flex-col items-center gap-0.5 py-2 rounded-xl text-[10px] font-medium ${o.telefono ? 'bg-blue-50 text-blue-600' : 'bg-gray-50 text-gray-300 pointer-events-none'}`}>
             <Phone size={16} /> Llamar

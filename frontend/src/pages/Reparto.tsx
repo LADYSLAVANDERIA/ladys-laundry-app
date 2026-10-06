@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { dirApi, repartoApi } from '../services/api'
+import { dirApi, repartoApi, ordenesApi } from '../services/api'
 import toast from 'react-hot-toast'
-import { MapPinned,
+import { MapPinned, MessageCircle, Loader2,
   Wand2, ChevronUp, ChevronDown, Navigation, Route, Clock, GripVertical,
   AlertTriangle, Check, X, Smartphone, RefreshCw, Package, Truck,
 } from 'lucide-react'
-import { rutaCompletaMaps } from '../utils'
+import { rutaCompletaMaps, telWa } from '../utils'
 import { cargarGoogle, ESTILO, pin } from '../lib/google'
 
 const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
@@ -16,6 +16,17 @@ const ahoraHHMM = () => new Date().toLocaleTimeString('en-GB', { timeZone: 'Amer
 const nombreDe = (p: any) => (p.es_empresa && p.razon_social)
   ? p.razon_social : [p.nombre, p.apellido].filter(Boolean).join(' ') || 'Sin nombre'
 const dirDe = (p: any) => [p.calle, p.depto, p.sector, p.ciudad].filter(Boolean).join(', ') || 'Sin dirección'
+
+// Etiqueta de confirmación del cliente: la misma de Programación. La respuesta
+// del cliente al WhatsApp oficial se clasifica sola (bitácora #243).
+const hm = (t?: string) => t ? new Date(t).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Santiago' }) : ''
+function Confirmacion({ p }: { p: any }) {
+  const c = p.confirmacion
+  if (c === 'CONFIRMADO') return <span title={p.confirmacion_texto || ''} className="text-[11px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Confirmado {hm(p.confirmacion_en)}</span>
+  if (c === 'NO_PUEDE') return <span title={p.confirmacion_texto || ''} className="text-[11px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium cursor-help">No puede{p.confirmacion_texto ? ' ⓘ' : ''}</span>
+  if (c === 'PENDIENTE') return <span title={`Preguntado ${hm(p.confirmacion_pedida_en)}`} className="text-[11px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">Esperando respuesta</span>
+  return null
+}
 
 // La mañana y la tarde son DOS viajes distintos: cada una sale del local y vuelve
 // al local. Nunca se dibujan ni se abren en Maps como un solo recorrido.
@@ -36,6 +47,29 @@ export default function Reparto() {
   const [optimizando, setOptimizando] = useState(false)
   const [resumen, setResumen] = useState<any>(null)
   const [tramoSel, setTramoSel] = useState<string>('')
+
+  const [confirmando, setConfirmando] = useState<number | null>(null)
+  // Botón WhatsApp: sale por el WhatsApp oficial con el texto de ladys.aviso_ruta
+  // ("hoy retiramos tu ropa entre las X y las Y. ¿Nos confirmas...?"), con la
+  // ventana de la ruta asignada. Si el oficial falla, ofrece abrirlo a mano.
+  const confirmarWa = async (p: any) => {
+    const tipo: 'retiro' | 'entrega' = p.tipo === 'RETIRO' ? 'retiro' : 'entrega'
+    if (p.confirmacion_pedida_en && !window.confirm(
+      `OT ${p.orden_id} ya fue consultada a las ${hm(p.confirmacion_pedida_en)}.\n\n¿Enviar la pregunta de nuevo?`)) return
+    setConfirmando(p.id)
+    try {
+      const { data: r } = await ordenesApi.avisoRuta(p.orden_id, { accion: 'CONFIRMAR', tipo })
+      toast.success(`Enviado a ${nombreDe(p).split(' ')[0]}${r?.via === 'plantilla' ? ' (plantilla)' : ''}`)
+      cargar()
+    } catch (e: any) {
+      const r = e.response?.data || {}
+      const tel = telWa(p.telefono)
+      if (r.mensaje && tel && window.confirm(`${r.error || 'No salió por el WhatsApp oficial'}.\n\n¿Abrir WhatsApp para enviarlo a mano?`)) {
+        window.open(`https://wa.me/${tel}?text=${encodeURIComponent(r.mensaje)}`, '_blank')
+        ordenesApi.aviso(p.orden_id, { tipo: tipo === 'retiro' ? 'CONFIRMAR_RETIRO' : 'CONFIRMAR_ENTREGA', mensaje: r.mensaje }).catch(() => {})
+      } else toast.error(r.error || 'No se pudo enviar', { duration: 6000 })
+    } finally { setConfirmando(null) }
+  }
 
   // Las rutas del día, cada una con sus paradas en su propio orden.
   const rutasDia = useMemo(() => {
@@ -515,6 +549,16 @@ export default function Reparto() {
                       OT {p.orden_id}
                     </span>
                     <span className="font-medium text-gray-800 truncate">{nombreDe(p)}</span>
+                    {p.estado !== 'COMPLETADA' && fecha === hoy() && (
+                      <button type="button" draggable={false} disabled={!p.telefono || confirmando === p.id}
+                              onClick={e => { e.stopPropagation(); confirmarWa(p) }}
+                              title={!p.telefono ? 'El cliente no tiene teléfono'
+                                : p.tipo === 'RETIRO' ? 'Preguntar por WhatsApp si podemos retirar hoy' : 'Preguntar por WhatsApp si puede recibir hoy'}
+                              className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-600 hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-400 text-white flex items-center gap-1 shrink-0">
+                        {confirmando === p.id ? <Loader2 size={12} className="animate-spin" /> : <MessageCircle size={12} />} WhatsApp
+                      </button>
+                    )}
+                    {fecha === hoy() && <Confirmacion p={p} />}
                     <span className="text-[11px] px-2 py-0.5 rounded-full text-white"
                           style={{ background: p.tipo === 'RETIRO' ? '#4AAEE0' : '#E8177A' }}>
                       {p.tipo === 'RETIRO' ? 'Retiro' : 'Entrega'}

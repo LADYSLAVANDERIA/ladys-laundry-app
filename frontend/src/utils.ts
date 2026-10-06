@@ -291,6 +291,11 @@ export const esOtEmpresa = (o: any) =>
 const sinIva = (v: any) => Math.round(Number(v || 0) / 1.19)
 
 export function desgloseEmpresa(o: any) {
+  const total = Math.round(Number(o?.monto_total || 0))
+  // Neto e IVA calculados IGUAL que ladys-facttura (neto = total/1,19), así la OT
+  // y la factura dicen exactamente lo mismo. IVA = total − neto: cuadra al peso.
+  const neto = Math.round(total / 1.19)
+  const iva = total - neto
   const lineas = (o?.items || []).map((i: any) => {
     const porKilo = i.es_por_kilo ?? /kilo/i.test(String(i.nombre || ''))
     const cant = Number(i.cantidad || 0)
@@ -306,18 +311,22 @@ export function desgloseEmpresa(o: any) {
       nota: i.nota || null,
     }
   })
-  const subtotalNeto = lineas.reduce((s: number, l: any) => s + l.netoLinea, 0)
   const descuentoNeto = sinIva(o?.descuento_monto)
   const despachoNeto = sinIva(o?.monto_delivery)
-  const total = Math.round(Number(o?.monto_total || 0))
-  // Si el total de la orden no sale de items − descuento + despacho (membresía,
-  // ajustes hechos por otra vía), la diferencia se muestra como línea propia en
-  // vez de descuadrar el IVA.
+  // Si el total no sale de ítems − descuento + despacho (membresía, ajustes por
+  // otra vía), la diferencia va en una línea propia en vez de descuadrar el IVA.
   const brutoEsperado = (o?.items || []).reduce((s: number, i: any) => s + Number(i.subtotal || 0), 0)
     - Number(o?.descuento_monto || 0) + Number(o?.monto_delivery || 0)
   const ajusteNeto = Math.abs(total - brutoEsperado) > 1 ? sinIva(total - brutoEsperado) : 0
-  const neto = subtotalNeto - descuentoNeto + despachoNeto + ajusteNeto
-  const iva = total - neto
+  // El redondeo línea a línea puede dejar 1-2 pesos de diferencia con el neto de
+  // la factura: se absorbe en la línea más grande para que todo sume exacto.
+  const suma = lineas.reduce((s: number, l: any) => s + l.netoLinea, 0) - descuentoNeto + despachoNeto + ajusteNeto
+  const dif = neto - suma
+  if (dif !== 0 && lineas.length) {
+    const mayor = lineas.reduce((m: any, l: any) => (l.netoLinea > m.netoLinea ? l : m), lineas[0])
+    mayor.netoLinea += dif
+  }
+  const subtotalNeto = lineas.reduce((s: number, l: any) => s + l.netoLinea, 0)
   const pct = Number(o?.descuento_pct || 0)
   const descuentoTxt = Number(o?.descuento_fijo) > 0 ? 'Descuento'
     : pct > 0 ? `Descuento ${pct.toLocaleString('es-CL')}%` : 'Descuento'

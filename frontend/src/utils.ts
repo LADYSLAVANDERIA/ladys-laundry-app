@@ -279,3 +279,47 @@ export const enZonaSinMinimo = (d: any, config: any = {}) => {
   const t = `${d.comuna_geo || ''} ${d.ciudad || ''} ${d.sector || ''}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
   return /concon|renaca|jardin del mar/.test(t)
 }
+
+// ── OT de EMPRESA: detalle con valor unitario, neto, IVA y total (06-oct) ──
+// Los precios del sistema llevan IVA incluido (igual que ladys-facttura, que
+// saca el neto como total/1,19). Para una empresa la OT se muestra en neto:
+// cada línea con su valor unitario neto, y al pie Neto + IVA 19% = Total.
+// Todo cuadra al peso: el IVA es Total − Neto, así el total es el mismo que se cobra.
+export const esOtEmpresa = (o: any) =>
+  !!o && (o.cliente_tipo === 'EMPRESA' || o.tipo_doc === 'FACTURA')
+
+const sinIva = (v: any) => Math.round(Number(v || 0) / 1.19)
+
+export function desgloseEmpresa(o: any) {
+  const lineas = (o?.items || []).map((i: any) => {
+    const porKilo = i.es_por_kilo ?? /kilo/i.test(String(i.nombre || ''))
+    const cant = Number(i.cantidad || 0)
+    return {
+      nombre: String(i.nombre || ''),
+      cantidad: cant,
+      cantidadTxt: cant.toLocaleString('es-CL', { maximumFractionDigits: 2 }),
+      unidad: porKilo ? 'kg' : 'un',
+      unitNeto: sinIva(i.precio_unit),
+      netoLinea: sinIva(i.subtotal),
+      unitBruto: Math.round(Number(i.precio_unit || 0)),
+      brutoLinea: Math.round(Number(i.subtotal || 0)),
+      nota: i.nota || null,
+    }
+  })
+  const subtotalNeto = lineas.reduce((s: number, l: any) => s + l.netoLinea, 0)
+  const descuentoNeto = sinIva(o?.descuento_monto)
+  const despachoNeto = sinIva(o?.monto_delivery)
+  const total = Math.round(Number(o?.monto_total || 0))
+  // Si el total de la orden no sale de items − descuento + despacho (membresía,
+  // ajustes hechos por otra vía), la diferencia se muestra como línea propia en
+  // vez de descuadrar el IVA.
+  const brutoEsperado = (o?.items || []).reduce((s: number, i: any) => s + Number(i.subtotal || 0), 0)
+    - Number(o?.descuento_monto || 0) + Number(o?.monto_delivery || 0)
+  const ajusteNeto = Math.abs(total - brutoEsperado) > 1 ? sinIva(total - brutoEsperado) : 0
+  const neto = subtotalNeto - descuentoNeto + despachoNeto + ajusteNeto
+  const iva = total - neto
+  const pct = Number(o?.descuento_pct || 0)
+  const descuentoTxt = Number(o?.descuento_fijo) > 0 ? 'Descuento'
+    : pct > 0 ? `Descuento ${pct.toLocaleString('es-CL')}%` : 'Descuento'
+  return { lineas, subtotalNeto, descuentoNeto, despachoNeto, ajusteNeto, neto, iva, total, descuentoTxt }
+}

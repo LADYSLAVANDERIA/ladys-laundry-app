@@ -8,7 +8,7 @@ import ItemsPicker from '../components/ItemsPicker'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard, RotateCcw } from 'lucide-react'
-import { enZonaSinMinimo, fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa, tipoAviso, describirCambios, resumenItems} from '../utils'
+import { enZonaSinMinimo, fmt, ot, fechaCorta, fechaHora, hora, waLink, ESTADO_COLOR, ESTADO_LABEL, PAGO_COLOR, diaSemana, mensajeAviso, linkOT, servicioCorto, opMercadoPago, esPagoMercadoPago, refDesdeOperacion, mensajeSegunEtapa, tipoAviso, describirCambios, resumenItems, esOtEmpresa, desgloseEmpresa} from '../utils'
 
 const inp = 'w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-pink-300'
 const FLUJO = ['PRE_ORDEN', 'EN_PROCESO', 'LISTA', 'ENTREGADA']
@@ -97,6 +97,16 @@ export default function OrdenDetalle() {
   const load = async () => {
     try {
       const { data } = await ordenesApi.getById(id!)
+      // Datos tributarios del cliente para la OT de empresa (razón social, RUT,
+      // giro). Se esperan ANTES de dibujar: la OT recién creada se imprime sola
+      // a los 600 ms y tiene que salir completa (06-oct).
+      if (data.cliente_id) {
+        const c = await clientesApi.getById(data.cliente_id).then(r => r.data).catch(() => null)
+        if (c) Object.assign(data, {
+          cliente_tipo: c.tipo, cliente_razon_social: c.razon_social, cliente_rut: c.id_fiscal,
+          cliente_giro: c.giro, cliente_contacto: c.contacto,
+        })
+      }
       setO(data)
       setPago((p: any) => ({ ...p, monto: String(Math.round(Number(data.saldo_pendiente || 0))) }))
       // Si el cliente es socio y se paso del tope, puede haber un kilo extra
@@ -816,19 +826,62 @@ export default function OrdenDetalle() {
           </div>
         )}
         <p>Fecha: {fechaHora(o.creado_en)}</p>
-        <p>Cliente: {o.cliente_nombre}</p>
-        <p>Fono: {o.cliente_telefono || '—'}</p>
+        {esOtEmpresa(o) ? (
+          /* Empresa: datos tributarios y detalle en neto (06-oct, pedido de Lufi) */
+          <>
+            <p style={{ fontWeight: 'bold' }}>{o.cliente_razon_social || o.cliente_nombre}</p>
+            {o.cliente_rut && <p>RUT: {o.cliente_rut}</p>}
+            {o.cliente_giro && <p>Giro: {o.cliente_giro}</p>}
+            {o.cliente_contacto && <p>Contacto: {o.cliente_contacto}</p>}
+            <p>Fono: {o.cliente_telefono || '—'}</p>
+            {o.orden_compra && <p>OC N° {o.orden_compra}</p>}
+            {o.remolcador && <p>Remolcador: {o.remolcador}</p>}
+          </>
+        ) : (
+          <>
+            <p>Cliente: {o.cliente_nombre}</p>
+            <p>Fono: {o.cliente_telefono || '—'}</p>
+          </>
+        )}
         {o.tipo_servicio === 'EXPRESS' && <p style={{ fontWeight: 'bold' }}>** EXPRESS **</p>}
-        <p style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4 }}>DETALLE</p>
-        {o.items.map((i: any) => (
-          <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>{Number(i.cantidad)}x {i.nombre.slice(0, 18)}</span><span>{fmt(i.subtotal)}</span>
-          </div>
-        ))}
+        {esOtEmpresa(o) ? (() => {
+          const d = desgloseEmpresa(o)
+          const fila = (a: any, b: any, extra: any = {}) => (
+            <div style={{ display: 'flex', justifyContent: 'space-between', ...extra }}><span>{a}</span><span>{b}</span></div>)
+          return (
+            <>
+              <p style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4, fontWeight: 'bold' }}>DETALLE (valores netos)</p>
+              {d.lineas.map((l: any, n: number) => (
+                <div key={n} style={{ marginBottom: 3 }}>
+                  <p>{l.nombre}</p>
+                  {fila(`${l.cantidadTxt} ${l.unidad} x ${fmt(l.unitNeto)}`, fmt(l.netoLinea))}
+                </div>
+              ))}
+              <div style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4 }}>
+                {fila('Subtotal neto', fmt(d.subtotalNeto))}
+                {d.descuentoNeto > 0 && fila(d.descuentoTxt, `-${fmt(d.descuentoNeto)}`)}
+                {d.despachoNeto > 0 && fila('Despacho', fmt(d.despachoNeto))}
+                {d.ajusteNeto !== 0 && fila('Ajuste', fmt(d.ajusteNeto))}
+                {fila('NETO', fmt(d.neto), { fontWeight: 'bold', borderTop: '1px solid #000', marginTop: 2, paddingTop: 2 })}
+                {fila('IVA 19%', fmt(d.iva))}
+                {fila('TOTAL', fmt(d.total), { fontWeight: 'bold', fontSize: 13 })}
+              </div>
+            </>
+          )
+        })() : (
+          <>
+            <p style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4 }}>DETALLE</p>
+            {o.items.map((i: any) => (
+              <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{Number(i.cantidad)}x {i.nombre.slice(0, 18)}</span><span>{fmt(i.subtotal)}</span>
+              </div>
+            ))}
+          </>
+        )}
         <div style={{ borderTop: '1px dashed #000', marginTop: 4, paddingTop: 4 }}>
-          {Number(o.descuento_monto) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{Number(o.descuento_fijo) > 0 ? 'Descuento' : 'Dcto continuidad'}</span><span>-{fmt(o.descuento_monto)}</span></div>}
-          {Number(o.monto_delivery) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{fmt(o.monto_delivery)}</span></div>}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 13 }}><span>TOTAL</span><span>{fmt(o.monto_total)}</span></div>
+          {!esOtEmpresa(o) && Number(o.descuento_monto) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>{Number(o.descuento_fijo) > 0 ? 'Descuento' : 'Dcto continuidad'}</span><span>-{fmt(o.descuento_monto)}</span></div>}
+          {!esOtEmpresa(o) && Number(o.monto_delivery) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Delivery</span><span>{fmt(o.monto_delivery)}</span></div>}
+          {!esOtEmpresa(o) && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: 13 }}><span>TOTAL</span><span>{fmt(o.monto_total)}</span></div>}
           {Number(o.monto_abonado) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Pagado</span><span>{fmt(o.monto_abonado)}</span></div>}
           {Number(o.saldo_pendiente) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold' }}><span>SALDO</span><span>{fmt(o.saldo_pendiente)}</span></div>}
         </div>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import axios from 'axios'
 import { Package, MapPin, Phone, Clock, CheckCircle2, Truck, Store, Zap } from 'lucide-react'
-import { fmt, ot, fechaLarga, fechaHora, hora } from '../utils'
+import { fmt, ot, fechaLarga, fechaHora, hora, esOtEmpresa, desgloseEmpresa } from '../utils'
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 const PASOS = [
@@ -25,7 +25,16 @@ export default function OrdenPublica() {
   }, [id, token])
 
   useEffect(() => {
-    axios.get(`${BASE}/publico/${id}/${token}`).then(r => setO(r.data)).catch(() => setError('No encontramos esta orden. Revisa el enlace.'))
+    // Empresa: razón social, RUT, giro y los ítems con su unidad, para mostrar la
+    // OT en neto + IVA (06-oct). Si esa consulta falla, la OT sale como siempre.
+    const emp = axios.get(`https://vhjsizkbmabznupkfzji.supabase.co/functions/v1/ladys-ot-empresa/${id}/${token}`)
+      .then(r => r.data).catch(() => null)
+    axios.get(`${BASE}/publico/${id}/${token}`)
+      .then(async r => {
+        const e = await emp
+        setO(e?.empresa ? { ...r.data, ...e, items: e.items?.length ? e.items : r.data.items } : r.data)
+      })
+      .catch(() => setError('No encontramos esta orden. Revisa el enlace.'))
   }, [id, token])
 
   if (error) return <div className="min-h-screen flex items-center justify-center p-8 text-center text-gray-500">{error}</div>
@@ -39,7 +48,7 @@ export default function OrdenPublica() {
       <div className="text-white px-5 py-6" style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
         <p className="text-sm opacity-80">{o.local?.nombre || 'Ladys Lavandería'}</p>
         <h1 className="text-3xl font-bold">Orden {ot(o.id)}</h1>
-        <p className="text-sm opacity-90">{o.cliente_nombre}</p>
+        <p className="text-sm opacity-90">{esOtEmpresa(o) ? (o.cliente_razon_social || o.cliente_nombre) : o.cliente_nombre}</p>
       </div>
 
       <div className="max-w-lg mx-auto p-4 space-y-4 -mt-4">
@@ -83,8 +92,64 @@ export default function OrdenPublica() {
           <p className="text-xs text-gray-400">Ingresada el {fechaHora(o.creado_en)} · {o.bultos} bulto{Number(o.bultos) > 1 ? 's' : ''}</p>
         </div>
 
+        {/* Empresa: datos tributarios + detalle en neto con IVA aparte (06-oct) */}
+        {esOtEmpresa(o) && (
+          <div className="bg-white rounded-2xl shadow-sm border p-5 text-sm space-y-0.5">
+            <p className="text-xs font-semibold text-gray-500 mb-1">DATOS DEL CLIENTE</p>
+            <p className="font-semibold text-gray-800">{o.cliente_razon_social || o.cliente_nombre}</p>
+            {o.cliente_rut && <p className="text-gray-600">RUT {o.cliente_rut}</p>}
+            {o.cliente_giro && <p className="text-gray-600">Giro: {o.cliente_giro}</p>}
+            {o.orden_compra && <p className="text-gray-600">Orden de compra N° {o.orden_compra}</p>}
+            {o.remolcador && <p className="text-gray-600">Remolcador: {o.remolcador}</p>}
+          </div>
+        )}
+        {esOtEmpresa(o) && (() => {
+          const d = desgloseEmpresa(o)
+          const fila = (a: string, b: string, cls = 'text-gray-600') =>
+            <div className={`flex justify-between ${cls}`}><span>{a}</span><span>{b}</span></div>
+          return (
+            <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+              <div className="px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-500 flex items-center gap-1.5"><Package size={12} /> DETALLE · VALORES NETOS</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[11px] text-gray-400 border-b">
+                      <th className="text-left font-medium px-4 py-2">Servicio</th>
+                      <th className="text-right font-medium px-2 py-2">Cant.</th>
+                      <th className="text-right font-medium px-2 py-2 whitespace-nowrap">Valor unit.</th>
+                      <th className="text-right font-medium px-4 py-2">Neto</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.lineas.map((l: any, n: number) => (
+                      <tr key={n} className="border-b last:border-0 align-top">
+                        <td className="px-4 py-2.5 text-gray-700">{l.nombre}</td>
+                        <td className="px-2 py-2.5 text-right text-gray-600 whitespace-nowrap">{l.cantidadTxt} {l.unidad}</td>
+                        <td className="px-2 py-2.5 text-right text-gray-600 whitespace-nowrap">{fmt(l.unitNeto)}</td>
+                        <td className="px-4 py-2.5 text-right font-medium whitespace-nowrap">{fmt(l.netoLinea)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-3 bg-gray-50 space-y-1 text-sm">
+                {fila('Subtotal neto', fmt(d.subtotalNeto))}
+                {d.descuentoNeto > 0 && fila(d.descuentoTxt, `-${fmt(d.descuentoNeto)}`, 'text-green-600')}
+                {d.despachoNeto > 0 && fila('Despacho', fmt(d.despachoNeto))}
+                {d.ajusteNeto !== 0 && fila('Ajuste', fmt(d.ajusteNeto))}
+                <div className="flex justify-between font-semibold text-gray-800 border-t pt-1"><span>Neto</span><span>{fmt(d.neto)}</span></div>
+                {fila('IVA 19%', fmt(d.iva))}
+                <div className="flex justify-between text-lg font-bold"><span>Total</span><span className="text-pink-600">{fmt(d.total)}</span></div>
+                {Number(o.saldo_pendiente) > 0
+                  ? <div className="flex justify-between text-red-600 font-semibold"><span>Saldo por pagar</span><span>{fmt(o.saldo_pendiente)}</span></div>
+                  : <p className="text-green-600 text-sm font-medium">Pagada ✓</p>}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Detalle */}
-        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        {!esOtEmpresa(o) && <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <div className="px-4 py-3 border-b bg-gray-50 text-xs font-semibold text-gray-500 flex items-center gap-1.5"><Package size={12} /> DETALLE</div>
           {o.items.map((i: any, n: number) => (
             <div key={n} className="flex justify-between px-4 py-2.5 border-b last:border-0 text-sm">
@@ -100,7 +165,7 @@ export default function OrdenPublica() {
               ? <div className="flex justify-between text-red-600 font-semibold"><span>Saldo por pagar</span><span>{fmt(o.saldo_pendiente)}</span></div>
               : <p className="text-green-600 text-sm font-medium">Pagada ✓</p>}
           </div>
-        </div>
+        </div>}
 
         {/* Fotos */}
         {o.fotos?.length > 0 && (

@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { beneficiosApi, excedentesApi, pagoApi, ordenesApi, fichaApi, formasPagoApi, serviciosApi, localApi, rutasApi, configApi, grupoApi, clientesApi } from '../services/api'
 import ItemsPicker from '../components/ItemsPicker'
+import OtCarta from '../components/OtCarta'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Printer, MessageCircle, Save, X, Truck, Store, Zap, Clock, DollarSign, Ban, Edit3, MapPin, Package, Camera, Trash2, Send, Link2, Loader2, CreditCard, RotateCcw } from 'lucide-react'
@@ -104,7 +105,9 @@ export default function OrdenDetalle() {
         const c = await clientesApi.getById(data.cliente_id).then(r => r.data).catch(() => null)
         if (c) Object.assign(data, {
           cliente_tipo: c.tipo, cliente_razon_social: c.razon_social, cliente_rut: c.id_fiscal,
-          cliente_giro: c.giro, cliente_contacto: c.contacto,
+          cliente_giro: c.giro, cliente_contacto: c.contacto, cliente_email: c.email,
+          cliente_email_fact: c.email_facturacion, cliente_dir_fiscal: c.direccion_comercial,
+          cliente_comuna_fiscal: c.comuna_comercial,
         })
       }
       setO(data)
@@ -132,16 +135,29 @@ export default function OrdenDetalle() {
     if (!o) return
     etapasApi.orden(o.id).then(r => setTraza(r.data.pasos || [])).catch(() => setTraza([]))
   }, [o])
-  const [tipoTicket, setTipoTicket] = useState<'cliente' | 'interno'>('cliente')
+  const [tipoTicket, setTipoTicket] = useState<'cliente' | 'interno' | 'carta'>('cliente')
   const [nota, setNota] = useState<any>(null)
   useEffect(() => {
     if (!o) return
     QRCode.toDataURL(String(o.id), { margin: 0, width: 150 })
       .then(setQr).catch(() => setQr(''))
   }, [o])
-  const imprimir = (tipo: 'cliente' | 'interno') => {
+  const imprimir = (tipo: 'cliente' | 'interno' | 'carta') => {
     setTipoTicket(tipo)
-    setTimeout(() => window.print(), 200)   // deja que el ticket correcto se dibuje
+    if (tipo !== 'carta') { setTimeout(() => window.print(), 200); return }   // deja que el ticket correcto se dibuje
+    // OT en hoja carta (06-oct): el papel por defecto es el ticket de 58 mm, así
+    // que se cambia la hoja solo para esta impresión. El título nombra el PDF.
+    const st = document.createElement('style')
+    st.id = 'pagina-carta'
+    st.textContent = '@media print { @page { size: letter portrait; margin: 14mm 14mm 12mm; } }'
+    document.head.appendChild(st)
+    const titulo = document.title
+    const quien = (esOtEmpresa(o) ? (o.cliente_razon_social || o.cliente_nombre) : o.cliente_nombre) || ''
+    document.title = `OT ${o.id} ${quien}`.trim()
+    setTimeout(() => {
+      window.print()
+      st.remove(); document.title = titulo; setTipoTicket('cliente')
+    }, 400)   // deja que cargue el logo
   }
   // Impresión automática al crear la OT: UNA sola vez. Antes el ?print=1 quedaba en
   // la dirección y cada recarga del pedido (cobro POS, botón del ticket interno,
@@ -464,6 +480,9 @@ export default function OrdenDetalle() {
           <button onClick={() => imprimir('interno')} title="Ticket interno de producción"
                   className="px-3 py-2.5 border rounded-xl text-xs font-medium"
                   style={{ borderColor: '#E8177A', color: '#E8177A' }}>Ticket interno</button>
+          <button onClick={() => imprimir('carta')} title="OT en hoja carta con logo: imprimir o guardar como PDF"
+                  className="flex items-center gap-1.5 px-3 py-2.5 border rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
+            <Printer size={14} /> OT carta / PDF</button>
           {o.cliente_telefono && <button onClick={avisarWhatsapp} title="Avisar por WhatsApp y dejarlo en el historial" className="p-2.5 border rounded-xl text-green-600 hover:bg-green-50"><MessageCircle size={16} /></button>}
         </div>
 
@@ -746,7 +765,7 @@ export default function OrdenDetalle() {
       {/* ── TICKET 80mm ── */}
 
       {/* Ticket interno: lo que producción necesita ver de un vistazo, nada más */}
-      <div className={`print-only text-black ${tipoTicket === 'cliente' ? 'no-imprimir-ahora' : ''}`}
+      <div className={`print-only text-black ${tipoTicket !== 'interno' ? 'no-imprimir-ahora' : ''}`}
            style={{ width: '54mm', fontSize: '14px', fontFamily: 'monospace', textAlign: 'center' }}>
         <p style={{ fontWeight: 'bold', fontSize: 13, letterSpacing: 1 }}>LADYS · INTERNO</p>
         <p style={{ border: '2px solid #000', padding: '4px 0', fontWeight: 'bold',
@@ -811,7 +830,7 @@ export default function OrdenDetalle() {
                     letterSpacing: 1 }}>CORTAR AQUÍ</p>
       </div>
 
-      <div className={`print-only text-black ${tipoTicket === 'interno' ? 'no-imprimir-ahora' : ''}`}
+      <div className={`print-only text-black ${tipoTicket !== 'cliente' ? 'no-imprimir-ahora' : ''}`}
            style={{ width: '54mm', fontSize: '10px', fontFamily: 'monospace' }}>
         <div style={{ textAlign: 'center', marginBottom: 6 }}>
           <p style={{ fontWeight: 'bold', fontSize: 12 }}>{local.nombre || 'LADYS LAVANDERÍA'}</p>
@@ -901,6 +920,9 @@ export default function OrdenDetalle() {
         )}
         <p style={{ textAlign: 'center', marginTop: 8 }}>¡Gracias por preferirnos!</p>
       </div>
+
+      {/* OT en hoja carta con logo, tipo cotización (06-oct) */}
+      <OtCarta o={o} local={local} config={config} className={tipoTicket !== 'carta' ? 'no-imprimir-ahora' : ''} />
 
       {/* ── MODALES ── */}
       {modal === 'maquina' && (

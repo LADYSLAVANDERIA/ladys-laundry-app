@@ -3,9 +3,9 @@ import { dirApi, repartoApi, ordenesApi } from '../services/api'
 import toast from 'react-hot-toast'
 import { MapPinned, MessageCircle, Loader2,
   Wand2, ChevronUp, ChevronDown, Navigation, Route, Clock, GripVertical,
-  AlertTriangle, Check, X, Smartphone, RefreshCw, Package, Truck,
+  AlertTriangle, Check, X, Smartphone, RefreshCw, Package, Truck, Music,
 } from 'lucide-react'
-import { rutaCompletaMaps, telWa } from '../utils'
+import { rutaCompletaMaps, telWa, ubicacionDudosa } from '../utils'
 import { cargarGoogle, ESTILO, pin } from '../lib/google'
 
 const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
@@ -314,6 +314,19 @@ export default function Reparto() {
         <div className="flex items-center gap-2 flex-wrap">
           <input type="date" value={fecha} onChange={e => setFecha(e.target.value)}
                  className="border rounded-xl px-3 py-2 text-sm" />
+          <a href="spotify:" onClick={e => {
+               // 07-10 (Lufi): acceso directo a Spotify para escuchar música en ruta.
+               // Abre la app; si no está instalada, cae a la web del reproductor.
+               e.preventDefault()
+               const t = setTimeout(() => { if (!document.hidden) window.open('https://open.spotify.com', '_blank') }, 1200)
+               window.addEventListener('visibilitychange', () => clearTimeout(t), { once: true })
+               window.location.href = 'spotify:'
+             }}
+             title="Abrir Spotify"
+             className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-white text-sm font-medium"
+             style={{ background: '#1DB954' }}>
+            <Music size={16} /> Spotify
+          </a>
           <button onClick={() => cargar()} className="p-2.5 rounded-xl border text-gray-600"><RefreshCw size={16} /></button>
           <button onClick={optimizar} disabled={optimizando || !paradas.length}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-sm font-medium disabled:opacity-50"
@@ -566,6 +579,12 @@ export default function Reparto() {
                     {p.estado === 'COMPLETADA' && <Check size={14} className="text-green-600" />}
                     {p.estado === 'FALLIDA' && <X size={14} className="text-red-500" />}
                     {!p.lat && <span className="text-[11px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin ubicar</span>}
+                    {p.lat && ubicacionDudosa(p) && p.estado !== 'COMPLETADA' && (
+                      <span title="El mapa solo encontró la calle o la zona: confirma el pin en la ficha del cliente"
+                            className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <AlertTriangle size={11} /> ubicación no confirmada
+                      </span>
+                    )}
                     {p.tipo === 'ENTREGA' && p.estado !== 'COMPLETADA' && (
                       p.no_embolsada
                         ? (p.ruta_salio

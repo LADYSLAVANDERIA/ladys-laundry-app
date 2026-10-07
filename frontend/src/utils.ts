@@ -332,3 +332,15 @@ export function desgloseEmpresa(o: any) {
     : pct > 0 ? `Descuento ${pct.toLocaleString('es-CL')}%` : 'Descuento'
   return { lineas, subtotalNeto, descuentoNeto, despachoNeto, ajusteNeto, neto, iva, total, descuentoTxt }
 }
+
+// 07-10 (caso Agustín Fernández, bitácora #285-#287): una dirección cuya
+// ubicación no está confirmada (sin coordenadas, o Google solo encontró la
+// calle, la comuna o algo fuera de zona) no debe salir a ruta sin que alguien
+// revise el pin. Mover el pin a mano deja geo_precision = 'manual' (trigger en
+// la base), y con eso el aviso desaparece.
+export const PRECISION_BAJA = ['fuera_zona', 'aproximada', 'calle']
+export function ubicacionDudosa(d: any): boolean {
+  if (!d) return false
+  if (d.lat === null || d.lat === undefined || d.lng === null || d.lng === undefined || d.lat === '' ) return true
+  return PRECISION_BAJA.includes(String(d.geo_precision || '').toLowerCase())
+}

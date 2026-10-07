@@ -6,7 +6,7 @@ import MapaDireccion from '../components/MapaDireccion'
 import type { Item } from '../components/ItemsPicker'
 import toast from 'react-hot-toast'
 import { ArrowLeft, Search, Save, UserPlus, MapPin, Truck, Store, Percent, AlertTriangle, CreditCard, Plus, X, Phone, Trash2 } from 'lucide-react'
-import { enZonaSinMinimo, fmt, hoy, addDiasHabiles, diaSemana, ot, hora, fechaLarga } from '../utils'
+import { enZonaSinMinimo, ubicacionDudosa, fmt, hoy, addDiasHabiles, diaSemana, ot, hora, fechaLarga } from '../utils'
 
 const SERVICIO_AJUSTE = 78
 const RUTA_RET = ['RETIROS_Y_ENTREGAS', 'SOLO_RETIROS'], RUTA_ENT = ['RETIROS_Y_ENTREGAS', 'SOLO_ENTREGAS']
@@ -188,6 +188,18 @@ export default function NuevaOrden() {
   // Dentro de la zona (Concón hasta la rotonda y Reñaca hasta Jardín del Mar) el
   // domicilio no tiene mínimo. Fuera de ella rige minimo_retiro.
   const dirSel = (cliente?.direcciones || []).find((d: any) => String(d.id) === String(f.dir_id))
+  // 07-10: revisar el pin de una dirección con ubicación no confirmada
+  const [pinDir, setPinDir] = useState<any>(null)
+  useEffect(() => { setPinDir(null) }, [f.dir_id])
+  const guardarPin = async () => {
+    if (!pinDir?.id || !pinDir.lat || !pinDir.lng) { toast.error('Marca el punto en el mapa'); return }
+    try {
+      await dirApi.actualizar(pinDir.id, { lat: pinDir.lat, lng: pinDir.lng })
+      setCliente((c: any) => c ? { ...c, direcciones: (c.direcciones || []).map((d: any) =>
+        d.id === pinDir.id ? { ...d, lat: pinDir.lat, lng: pinDir.lng, geo_precision: 'manual' } : d) } : c)
+      setPinDir(null); toast.success('Ubicación confirmada')
+    } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo guardar la ubicación') }
+  }
   const zonaSinMinimo = !!domicilio && enZonaSinMinimo(dirSel, config)
   const minimoAplica = domicilio ? (zonaSinMinimo ? 0 : minimo) : minimoLocal
 
@@ -475,6 +487,27 @@ export default function NuevaOrden() {
                   <button onClick={borrarDirSel} disabled={!f.dir_id} title="Borrar la dirección elegida"
                           className="px-3 rounded-xl text-sm bg-red-50 text-red-500 disabled:opacity-30 flex items-center"><Trash2 size={14} /></button>
                 </div>
+                {dirSel && !nuevaDir && ubicacionDudosa(dirSel) && (
+                  <div className="mt-2 rounded-xl border px-3 py-2.5 text-sm" style={{ background: '#FFF7E6', borderColor: '#F5C26B', color: '#7A5A17' }}>
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={16} className="shrink-0 mt-0.5" style={{ color: '#B7791F' }} />
+                      <div className="flex-1">
+                        <p className="font-semibold">Ubicación no confirmada</p>
+                        <p className="text-xs">{dirSel.lat ? 'El mapa solo encontró la calle o la zona, no el número exacto.' : 'Esta dirección no tiene punto en el mapa.'} Revisa el pin antes de mandarla a ruta.</p>
+                      </div>
+                      {!pinDir && <button onClick={() => setPinDir({ ...dirSel })} className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white whitespace-nowrap">Revisar pin</button>}
+                    </div>
+                    {pinDir && (
+                      <div className="mt-2">
+                        <MapaDireccion valor={pinDir} onChange={setPinDir} alto={200} guardado={false} />
+                        <div className="flex gap-2 mt-2">
+                          <button onClick={guardarPin} className="flex-1 py-2 rounded-lg text-white text-sm font-medium bg-amber-600">Confirmar este punto</button>
+                          <button onClick={() => setPinDir(null)} className="px-3 py-2 rounded-lg text-sm bg-white border">Cancelar</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {nuevaDir && (
                   <div className="mt-2 bg-gray-50 p-3 rounded-xl">
                     <MapaDireccion valor={nuevaDir} onChange={setNuevaDir} alto={180} guardado={false} />

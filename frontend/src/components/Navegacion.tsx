@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw,
-  MapPin, Volume2, VolumeX, X, Check, LocateFixed, ExternalLink, Loader2, Merge, Navigation2,
+  MapPin, Volume2, VolumeX, Music, X, Check, LocateFixed, ExternalLink, Loader2, Merge, Navigation2,
 } from 'lucide-react'
 import { cargarGoogle, ESTILO } from '../lib/google'
 import { navegacionApi } from '../services/api'
@@ -390,6 +390,16 @@ export default function Navegacion({ destino, pos, onLlegue, onSalir, linkGoogle
               {pos ? 'Calculando la ruta…' : 'Esperando tu ubicación…'}</p>
           )}
         </div>
+        {/* 07-10 (Lufi): Spotify a mano durante la ruta, como en Google Maps.
+            Abre la app; al volver, la navegación sigue donde estaba. */}
+        <button onClick={() => {
+                  const t = setTimeout(() => { if (!document.hidden) window.open('https://open.spotify.com', '_blank') }, 1200)
+                  window.addEventListener('visibilitychange', () => clearTimeout(t), { once: true })
+                  window.location.href = 'spotify:'
+                }}
+                className="shrink-0 p-2.5 rounded-full" style={{ background: '#1DB954' }} aria-label="Spotify" title="Abrir Spotify">
+          <Music size={22} />
+        </button>
         <button onClick={() => setVoz(v => !v)} className="shrink-0 p-2.5 rounded-full bg-white/20" aria-label="voz">
           {voz ? <Volume2 size={22} /> : <VolumeX size={22} />}
         </button>

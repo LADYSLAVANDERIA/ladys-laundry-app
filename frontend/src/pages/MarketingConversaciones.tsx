@@ -12,6 +12,8 @@ const MOTIVO: Record<string, { titulo: string, detalle: string, color: string }>
   minimo:      { titulo: 'Por el mínimo', detalle: 'Se habló del pedido mínimo y no siguieron', color: 'bg-amber-100 text-amber-800' },
   sin_cierre:  { titulo: 'Sin cierre',    detalle: 'Pidieron retiro y la conversación quedó ahí', color: 'bg-sky-100 text-sky-700' },
   horario:     { titulo: 'Por horario',   detalle: 'No les acomodó el horario de ruta', color: 'bg-violet-100 text-violet-700' },
+  anuncio_meta:{ titulo: 'Desde anuncio', detalle: 'Llegaron por un anuncio de Meta y no compraron', color: 'bg-emerald-100 text-emerald-700' },
+  club:        { titulo: 'Club / planes', detalle: 'Preguntaron por El Club o los planes y no les hicimos seguimiento. Cada uno trae su propio mensaje', color: 'bg-pink-100 text-pink-700' },
 }
 
 const primerNombre = (n?: string) => {
@@ -58,7 +60,8 @@ export default function MarketingConversaciones() {
     finally { setEscaneando(false) }
   }
 
-  const mensajeDe = (c: any) => editMsg[c.id] ?? armar(plantilla, c)
+  // Si el contacto trae un mensaje propio cargado (p. ej. seguimiento del Club), se usa ese
+  const mensajeDe = (c: any) => editMsg[c.id] ?? (!c.estado && c.mensaje ? c.mensaje : armar(plantilla, c))
 
   const enviar = (c: any) => {
     const msg = mensajeDe(c)
@@ -94,7 +97,9 @@ export default function MarketingConversaciones() {
   const visibles = useMemo(() => delMotivo.filter(c =>
     filtro === 'pendientes' ? !c.estado :
     filtro === 'enviados' ? c.estado === 'ENVIADO' :
-    c.estado === 'ENVIADO' && c.volvio_en), [delMotivo, filtro])
+    c.estado === 'ENVIADO' && c.volvio_en)
+    // los del Club van primero: son los más valiosos y llevan más tiempo esperando
+    .sort((a, b) => Number(b.motivo === 'club') - Number(a.motivo === 'club')), [delMotivo, filtro])
 
   const cuenta = (m: string) => {
     const l = items.filter(c => m === 'todos' || c.motivo === m)
@@ -137,7 +142,7 @@ export default function MarketingConversaciones() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {['todos', 'minimo', 'sin_cierre', 'horario'].map(m => {
+        {['todos', 'club', 'minimo', 'sin_cierre', 'anuncio_meta', 'horario'].map(m => {
           const k = cuenta(m)
           if (m !== 'todos' && !k.total) return null
           return (

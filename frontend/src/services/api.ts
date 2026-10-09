@@ -46,6 +46,8 @@ export const ordenesApi = {
     api.delete(`/ordenes/${id}/pago/${pagoId}`, { data: { motivo } }),
   fotos: (id: number | string) => api.get(`/ordenes/${id}/fotos`),
   subirFotos: (id: number | string, d: object) => fotosApi.post(`/${id}`, d),
+  // WhatsApp al cliente con la foto de la entrega (fotos ya subidas a la OT)
+  avisoEntregaFoto: (id: number | string, d: { foto_ids: number[]; bultos?: number; nota?: string }) => fotosApi.post(`/aviso-entrega/${id}`, d),
   borrarFoto: (fotoId: number) => fotosApi.delete(`/${fotoId}`),
   aviso: (id: number | string, d: object) => api.post(`/ordenes/${id}/aviso`, d),
   // WhatsApp oficial (Meta): CONFIRMAR / EN_CAMINO. Registra el aviso y deja la

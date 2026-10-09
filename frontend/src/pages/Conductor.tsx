@@ -147,6 +147,101 @@ function VentanaRetiro({ p, onCerrar, onConfirmar }: {
   }
 
 
+// Al entregar: foto de lo que se dejó y, si hay foto, WhatsApp al cliente con la
+// foto adjunta por el canal oficial (09-oct-2026). La foto es el respaldo de la
+// entrega: dónde quedó y cuántos bultos. Si no hay foto, se cierra como antes.
+function VentanaEntrega({ p, onCerrar, onConfirmar }: {
+  p: any; onCerrar: () => void
+  onConfirmar: (d: { fotos: string[]; nota: string; whatsapp: boolean }) => Promise<boolean>
+}) {
+  const [fotos, setFotos] = useState<string[]>([])
+  const [nota, setNota] = useState('')
+  const [whatsapp, setWhatsapp] = useState(true)
+  const [procesando, setProcesando] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const tieneTel = !!soloNumeros(p.telefono || '')
+  const agregarFotos = async (files: FileList | null) => {
+    if (!files?.length) return
+    setProcesando(true)
+    try {
+      const nuevas: string[] = []
+      for (const f of Array.from(files)) nuevas.push(await comprimirFoto(f))
+      setFotos(prev => [...prev, ...nuevas].slice(0, 6))
+    } catch { toast.error('No se pudo leer la foto') } finally { setProcesando(false) }
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+         onClick={() => !guardando && onCerrar()}>
+      <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4"
+           onClick={e => e.stopPropagation()}>
+        <div>
+          <p className="text-lg font-bold text-gray-800">Entrega a {nombreDe(p)}</p>
+          <p className="text-sm text-gray-500">OT {p.orden_id}{Number(p.bultos) > 0 ? ` · ${p.bultos} bulto(s)` : ''}</p>
+        </div>
+
+        <div>
+          <label className="text-sm font-medium text-gray-700">Foto de la entrega</label>
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            {fotos.map((f, i) => (
+              <div key={i} className="relative">
+                <img src={f} alt="" className="w-full h-24 object-cover rounded-xl border" />
+                <button onClick={() => setFotos(prev => prev.filter((_, j) => j !== i))} disabled={guardando}
+                        className="absolute top-1 right-1 bg-white/90 rounded-full p-1.5 text-red-500 shadow">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            {fotos.length < 6 && (
+              <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-gray-500 active:scale-95 ${guardando ? 'opacity-50' : 'cursor-pointer'}`}
+                     style={{ borderColor: '#E8177A55' }}>
+                <Camera size={22} style={{ color: '#E8177A' }} />
+                <span className="text-[11px] mt-1">{procesando ? 'Procesando…' : fotos.length ? 'Otra foto' : 'Sacar foto'}</span>
+                <input type="file" accept="image/*" capture="environment" className="hidden"
+                       disabled={guardando || procesando} onChange={e => { agregarFotos(e.target.files); e.target.value = '' }} />
+              </label>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">Los bultos donde quedaron (puerta, conserjería). Queda en la OT.</p>
+        </div>
+
+        {fotos.length > 0 && (
+          <>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Nota de la entrega (opcional)</label>
+              <input value={nota} onChange={e => setNota(e.target.value)}
+                     placeholder="Ej: recibió el conserje · quedó en la puerta"
+                     className="mt-2 w-full border rounded-xl px-3 py-2.5 text-base" />
+            </div>
+            <label className={`flex items-center gap-3 rounded-xl border px-3 py-3 ${tieneTel ? '' : 'opacity-50'}`}>
+              <input type="checkbox" checked={whatsapp && tieneTel} disabled={!tieneTel}
+                     onChange={e => setWhatsapp(e.target.checked)} className="w-5 h-5 accent-green-600" />
+              <span className="text-sm text-gray-700 flex-1">
+                <MessageCircle size={14} className="inline -mt-0.5 text-green-600" /> Enviar la foto por WhatsApp al cliente
+                {!tieneTel && <span className="block text-[11px] text-gray-400">El cliente no tiene teléfono</span>}
+              </span>
+            </label>
+          </>
+        )}
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button onClick={onCerrar} disabled={guardando}
+                  className="py-3 rounded-xl border text-gray-600 font-medium">Cancelar</button>
+          <button disabled={guardando || procesando}
+                  onClick={async () => {
+                    setGuardando(true)
+                    const ok = await onConfirmar({ fotos, nota, whatsapp: whatsapp && tieneTel })
+                    if (!ok) setGuardando(false)
+                  }}
+                  className="py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+                  style={{ background: '#16a34a' }}>
+            <Check size={18} /> {guardando ? 'Guardando…' : 'Confirmar entrega'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Conductor() {
   const { user, logout } = useAuthStore()
   const [fecha, setFecha] = useState(hoy())
@@ -156,6 +251,7 @@ export default function Conductor() {
   const [verTodas, setVerTodas] = useState(false)
   const [vista, setVista] = useState<'lista' | 'mapa'>('lista')
   const [cerrando, setCerrando] = useState<any>(null)
+  const [entregando, setEntregando] = useState<any>(null)
   const [miPos, setMiPos] = useState<PosGps | null>(null)
   // la parada hacia la que se navega dentro de la app (null = no se navega)
   const [navegando, setNavegando] = useState<any>(null)
@@ -302,9 +398,44 @@ export default function Conductor() {
       toast.success(estado === 'COMPLETADA' ? 'Parada lista' : 'Marcada como no lograda')
       setAbierta(null)
       setCerrando(null)
+      setEntregando(null)
       cargar()
       return true
     } catch { toast.error('No se pudo guardar'); return false }
+  }
+
+  // Entrega con foto: 1) sube las fotos a la OT, 2) cierra la parada,
+  // 3) manda el WhatsApp con la foto. Si falla el WhatsApp la entrega ya quedó
+  // cerrada: solo se avisa al conductor.
+  const entregar = async (p: any, d: { fotos: string[]; nota: string; whatsapp: boolean }): Promise<boolean> => {
+    let ids: number[] = []
+    if (d.fotos.length && p.orden_id) {
+      try {
+        const nb = Number(p.bultos) > 0 ? `${p.bultos} bulto(s)` : ''
+        const { data: subidas } = await ordenesApi.subirFotos(p.orden_id, {
+          imagenes: d.fotos, momento: 'ENTREGA',
+          nota: ['Entrega a domicilio', nb, d.nota.trim()].filter(Boolean).join(' · '),
+        })
+        ids = (subidas || []).map((f: any) => f.id).filter(Boolean)
+      } catch (e: any) {
+        toast.error((e?.response?.data?.error || 'No se pudo subir la foto') + '. Reintenta o quítala para cerrar la entrega.')
+        return false
+      }
+    }
+    const ok = await marcar(p, 'COMPLETADA')
+    if (!ok) return false
+    if (d.whatsapp && ids.length) {
+      try {
+        const { data: r } = await ordenesApi.avisoEntregaFoto(p.orden_id, {
+          foto_ids: ids, bultos: Number(p.bultos) || undefined, nota: d.nota.trim() || undefined,
+        })
+        if (r?.enviado) toast.success('WhatsApp con la foto enviado al cliente')
+        else toast.error('Entrega guardada, pero el WhatsApp no salió: ' + (r?.error || 'error'), { duration: 7000 })
+      } catch (e: any) {
+        toast.error('Entrega guardada, pero el WhatsApp no salió: ' + (e?.response?.data?.error || 'sin conexión'), { duration: 7000 })
+      }
+    }
+    return true
   }
 
   // "Ir" navega SIEMPRE dentro de la app: así la pantalla sigue delante, el GPS
@@ -435,7 +566,7 @@ export default function Conductor() {
 
             {p.estado === 'PENDIENTE' || p.estado === 'EN_CAMINO' ? (
               <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => p.tipo === 'RETIRO' ? setCerrando(p) : marcar(p, 'COMPLETADA')}
+                <button onClick={() => p.tipo === 'RETIRO' ? setCerrando(p) : setEntregando(p)}
                         className="py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2"
                         style={{ background: '#16a34a' }}>
                   <Check size={18} /> {p.tipo === 'RETIRO' ? 'Retirado' : 'Entregado'}
@@ -640,6 +771,11 @@ export default function Conductor() {
         <VentanaRetiro p={cerrando}
                        onCerrar={() => setCerrando(null)}
                        onConfirmar={d => marcar(cerrando, 'COMPLETADA', d)} />
+      )}
+      {entregando && (
+        <VentanaEntrega p={entregando}
+                        onCerrar={() => setEntregando(null)}
+                        onConfirmar={d => entregar(entregando, d)} />
       )}
     </div>
   )

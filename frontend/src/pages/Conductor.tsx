@@ -363,8 +363,14 @@ export default function Conductor() {
     try {
       const { data: r } = await seguimientoApi.iniciar(p.id)
       if (!enVivo) await partirGps()
-      if (r.whatsapp) window.open(r.whatsapp, '_blank')
-      else toast('Este cliente no tiene teléfono registrado')
+      // 09-oct-2026: el aviso sale solo por el WhatsApp oficial de Ladys. El
+      // celular del conductor ya no se abre; wa.me queda solo si eso falla.
+      if (r.whatsapp_oficial?.enviado) {
+        toast.success(`Aviso "voy en camino" enviado a ${nombreDe(p).split(' ')[0]} por el WhatsApp de Ladys`)
+      } else if (r.whatsapp) {
+        if (window.confirm(`No salió por el WhatsApp de Ladys (${r.whatsapp_oficial?.error || 'error'}).\n\n¿Enviarlo desde este celular?`))
+          window.open(r.whatsapp, '_blank')
+      } else toast.error(r.whatsapp_oficial?.error || 'Este cliente no tiene teléfono registrado')
       cargar()
     } catch { toast.error('No se pudo iniciar el trayecto') }
   }

@@ -28,6 +28,32 @@ function Confirmacion({ p }: { p: any }) {
   return null
 }
 
+// Estado del pago de la OT, para revisarlo ANTES de que salga la ruta
+// (pedido de Lufi 09-10). Empresas con crédito (plazo_pago) no se marcan como
+// deuda; un retiro sin ítems cargados todavía no tiene monto.
+type Pago = 'PAGADO' | 'SIN_COBRO' | 'CREDITO' | 'ABONO' | 'NO_PAGADO' | 'SIN_MONTO'
+const pagoDe = (p: any): Pago => {
+  const total = Number(p.monto_total) || 0
+  const saldo = Number(p.saldo_pendiente) || 0
+  if (p.sin_cobro) return 'SIN_COBRO'
+  if (p.estado_pago === 'PAGADA' || (total > 0 && saldo <= 0)) return 'PAGADO'
+  if (total <= 0) return 'SIN_MONTO'
+  if (Number(p.plazo_pago) > 0) return 'CREDITO'
+  if (Number(p.monto_abonado) > 0) return 'ABONO'
+  return 'NO_PAGADO'
+}
+function PagoChip({ p }: { p: any }) {
+  const k = pagoDe(p)
+  const saldo = plata(p.saldo_pendiente)
+  const c = 'text-[11px] px-2 py-0.5 rounded-full font-semibold'
+  if (k === 'PAGADO') return <span className={`${c} bg-green-100 text-green-700`}>Pagado</span>
+  if (k === 'SIN_COBRO') return <span className={`${c} bg-green-100 text-green-700`}>Sin cobro</span>
+  if (k === 'SIN_MONTO') return <span className={`${c} bg-gray-100 text-gray-500`}>Sin monto aún</span>
+  if (k === 'CREDITO') return <span title="Empresa con crédito: se cobra con la factura" className={`${c} bg-blue-100 text-blue-700`}>Crédito {p.plazo_pago} días · {saldo}</span>
+  if (k === 'ABONO') return <span className={`${c} bg-amber-100 text-amber-800`}>Abonado · falta {saldo}</span>
+  return <span className={`${c} bg-red-600 text-white`}>No pagado · {saldo}</span>
+}
+
 // La mañana y la tarde son DOS viajes distintos: cada una sale del local y vuelve
 // al local. Nunca se dibujan ni se abren en Maps como un solo recorrido.
 const COLOR_RUTA = ['#4AAEE0', '#E8177A', '#A87BC8', '#16a34a']
@@ -509,6 +535,18 @@ export default function Reparto() {
                         </span>
                       )
                     })()}
+                    {(() => {
+                      // Entregas de esta ruta con plata por cobrar (sin contar crédito de empresa)
+                      const debe = paradas.filter(x => x.ruta_id === p.ruta_id && x.tipo === 'ENTREGA'
+                        && x.estado !== 'COMPLETADA' && ['NO_PAGADO', 'ABONO'].includes(pagoDe(x)))
+                      if (!debe.length) return null
+                      const total = debe.reduce((t, x) => t + (Number(x.saldo_pendiente) || 0), 0)
+                      return (
+                        <span className="ml-2 font-bold text-red-700">
+                          · {debe.length} entrega{debe.length > 1 ? 's' : ''} sin pagar ({plata(total)})
+                        </span>
+                      )
+                    })()}
                   </span>
                   <span className="text-[11px] text-gray-500 flex items-center gap-2">
                     {paradas.filter(x => x.ruta_id === p.ruta_id).length} parada(s)
@@ -576,6 +614,7 @@ export default function Reparto() {
                           style={{ background: p.tipo === 'RETIRO' ? '#4AAEE0' : '#E8177A' }}>
                       {p.tipo === 'RETIRO' ? 'Retiro' : 'Entrega'}
                     </span>
+                    <PagoChip p={p} />
                     {p.estado === 'COMPLETADA' && <Check size={14} className="text-green-600" />}
                     {p.estado === 'FALLIDA' && <X size={14} className="text-red-500" />}
                     {!p.lat && <span className="text-[11px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">sin ubicar</span>}

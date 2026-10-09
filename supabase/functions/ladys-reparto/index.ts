@@ -115,7 +115,13 @@ async function traerDia(fecha: string) {
            r.nombre AS ruta_nombre, r.hora_inicio AS ruta_inicio, r.hora_fin AS ruta_fin,
            o.nro_doc_tributario, o.bultos, o.kilos, o.observaciones,
            o.saldo_pendiente, o.monto_total, o.monto_abonado, o.estado AS estado_orden,
+           -- estado del pago, para revisarlo antes de que salga la ruta
+           -- (pedido de Lufi 09-10): sin_cobro = OT en $0 a proposito;
+           -- plazo_pago > 0 = empresa con credito (Ultratug 30 d, Entre Burbujas 7 d).
+           o.estado_pago, o.sin_cobro, COALESCE(c.plazo_pago, 0) AS plazo_pago,
            o.ot_easylaundry, o.token_publico,
+           -- confirmacion del cliente por WhatsApp (ladys.aviso_ruta, bitacora #243)
+           o.confirmacion, o.confirmacion_en, o.confirmacion_pedida_en, o.confirmacion_texto,
            c.id AS cliente_id, c.nombre, c.apellido, c.razon_social, c.telefono, c.es_empresa,
            TRIM(CONCAT_WS(' ', d.calle, d.numero)) AS calle,
            d.otro AS depto, d.sector, d.ciudad, d.geo_precision,
@@ -495,7 +501,7 @@ Deno.serve(async (req: Request) => {
           const resumen = [
             bultos ? `${bultos} bulto${bultos > 1 ? "s" : ""}` : null,
             dicho || null,
-          ].filter(Boolean).join(" \u00b7 ");
+          ].filter(Boolean).join(" · ");
           await SQL`INSERT INTO ordenes_historial (orden_id, estado, nota)
                     VALUES (${p.orden_id}, 'RETIRADO',
                             ${resumen ? `Retirada en el domicilio. ${resumen}` : "Retirada en el domicilio."})`;

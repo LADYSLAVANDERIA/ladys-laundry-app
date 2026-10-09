@@ -676,8 +676,8 @@ export default function OrdenDetalle() {
               <div className="grid grid-cols-4 gap-2">
                 {(o.fotos || []).map((f: any) => (
                   <div key={f.id} className="relative group">
-                    <a href={f.url} target="_blank" rel="noreferrer"><img src={f.url} alt="" className="w-full h-20 object-cover rounded-xl border" /></a>
-                    <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1.5 py-0.5 rounded">{f.momento === 'RECEPCION' ? 'recibo' : f.momento === 'ENTREGA' ? 'entrega' : 'proceso'}</span>
+                    <a href={f.url} target="_blank" rel="noreferrer" title={f.nota || ''}><img src={f.url} alt="" className="w-full h-20 object-cover rounded-xl border" /></a>
+                    <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 text-white px-1.5 py-0.5 rounded">{f.momento === 'RECEPCION' ? 'recibo' : f.momento === 'RETIRO' ? 'retiro' : f.momento === 'ENTREGA' ? 'entrega' : 'proceso'}</span>
                     <button onClick={() => borrarFoto(f.id)} className="absolute top-1 right-1 bg-white/90 rounded-full p-1 text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={11} /></button>
                   </div>
                 ))}
@@ -686,6 +686,9 @@ export default function OrdenDetalle() {
                   <input type="file" accept="image/*" capture="environment" multiple className="hidden" disabled={subiendo} onChange={e => tomarFotos(e.target.files)} />
                 </label>
               </div>
+              {(o.fotos || []).filter((f: any) => f.momento === 'RETIRO' && f.nota).slice(0, 1).map((f: any) => (
+                <p key={f.id} className="text-xs text-gray-600 mt-2 bg-pink-50 rounded-lg px-2 py-1.5"><b>Al retirar:</b> {f.nota.replace(/^Retiro a domicilio · /, '')}</p>
+              ))}
               <p className="text-[11px] text-gray-400 mt-2">El cliente ve estas fotos en el enlace de su orden.</p>
             </div>
 

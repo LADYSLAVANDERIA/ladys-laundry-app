@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { repartoApi, seguimientoApi, dirApi } from '../services/api'
+import { repartoApi, seguimientoApi, dirApi, ordenesApi } from '../services/api'
 import MapaRuta from '../components/MapaRuta'
 import Navegacion, { type PosGps } from '../components/Navegacion'
 import { desbloquearVoz } from '../lib/navegacion'
@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import {
   Navigation, Phone, MessageCircle, Check, X, MapPin, Package,
   ChevronDown, ChevronUp, RefreshCw, LogOut, Banknote, Play, Radio, Map, List, AlertTriangle,
+  Camera, Trash2,
 } from 'lucide-react'
 
 const hoy = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Santiago' })
@@ -28,6 +29,26 @@ function linkNav(p: any) {
 }
 function soloNumeros(t: string) { return String(t || '').replace(/[^\d]/g, '') }
 
+// Foto de los paquetes al retirar (09-oct-2026). Se achica en el teléfono antes
+// de subirla: con señal de calle una foto de 4 MB no sube nunca.
+function comprimirFoto(file: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader()
+    r.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const max = 1400, esc = Math.min(1, max / Math.max(img.width, img.height))
+        const c = document.createElement('canvas')
+        c.width = Math.round(img.width * esc); c.height = Math.round(img.height * esc)
+        c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
+        res(c.toDataURL('image/jpeg', 0.78))
+      }
+      img.onerror = rej; img.src = r.result as string
+    }
+    r.onerror = rej; r.readAsDataURL(file)
+  })
+}
+
 // Al retirar se abre esta ventana ANTES de cerrar la parada. Lo que el cliente
 // dice en la puerta -"desmanchar la sábana gris"- no vuelve a preguntarse
 // nunca: si no se anota aquí, se pierde y el taller trabaja a ciegas.
@@ -36,11 +57,22 @@ function soloNumeros(t: string) { return String(t || '').replace(/[^\d]/g, '') }
 // tipo nuevo en cada render y la recreaba entera. Una recarga de fondo de la
 // lista bastaba para borrar lo que el conductor estaba escribiendo.
 function VentanaRetiro({ p, onCerrar, onConfirmar }: {
-  p: any; onCerrar: () => void; onConfirmar: (d: { bultos: number; nota_cliente: string }) => void
+  p: any; onCerrar: () => void; onConfirmar: (d: { bultos: number; nota_cliente: string; fotos: string[] }) => Promise<boolean>
 }) {
   const [bultos, setBultos] = useState<number>(Number(p.bultos) > 0 ? Number(p.bultos) : 1)
   const [nota, setNota] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [fotos, setFotos] = useState<string[]>([])
+  const [procesando, setProcesando] = useState(false)
+  const agregarFotos = async (files: FileList | null) => {
+    if (!files?.length) return
+    setProcesando(true)
+    try {
+      const nuevas: string[] = []
+      for (const f of Array.from(files)) nuevas.push(await comprimirFoto(f))
+      setFotos(prev => [...prev, ...nuevas].slice(0, 6))
+    } catch { toast.error('No se pudo leer la foto') } finally { setProcesando(false) }
+  }
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
          onClick={() => !guardando && onCerrar()}>
@@ -63,6 +95,31 @@ function VentanaRetiro({ p, onCerrar, onConfirmar }: {
         </div>
 
         <div>
+          <label className="text-sm font-medium text-gray-700">Foto de los paquetes</label>
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            {fotos.map((f, i) => (
+              <div key={i} className="relative">
+                <img src={f} alt="" className="w-full h-24 object-cover rounded-xl border" />
+                <button onClick={() => setFotos(prev => prev.filter((_, j) => j !== i))} disabled={guardando}
+                        className="absolute top-1 right-1 bg-white/90 rounded-full p-1.5 text-red-500 shadow">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            {fotos.length < 6 && (
+              <label className={`h-24 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-gray-500 active:scale-95 ${guardando ? 'opacity-50' : 'cursor-pointer'}`}
+                     style={{ borderColor: '#E8177A55' }}>
+                <Camera size={22} style={{ color: '#E8177A' }} />
+                <span className="text-[11px] mt-1">{procesando ? 'Procesando…' : fotos.length ? 'Otra foto' : 'Sacar foto'}</span>
+                <input type="file" accept="image/*" capture="environment" className="hidden"
+                       disabled={guardando || procesando} onChange={e => { agregarFotos(e.target.files); e.target.value = '' }} />
+              </label>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">Todos los bultos juntos en la foto. Queda en la OT con la nota de abajo.</p>
+        </div>
+
+        <div>
           <label className="text-sm font-medium text-gray-700">¿Te dijo algo la clienta?</label>
           <textarea value={nota} onChange={e => setNota(e.target.value)} rows={3} autoFocus={false}
                     placeholder="Ej: desmanchar una sábana gris · 2 cobertores king · entregar el viernes"
@@ -73,8 +130,12 @@ function VentanaRetiro({ p, onCerrar, onConfirmar }: {
         <div className="grid grid-cols-2 gap-2 pt-1">
           <button onClick={onCerrar} disabled={guardando}
                   className="py-3 rounded-xl border text-gray-600 font-medium">Cancelar</button>
-          <button disabled={guardando}
-                  onClick={() => { setGuardando(true); onConfirmar({ bultos, nota_cliente: nota }) }}
+          <button disabled={guardando || procesando}
+                  onClick={async () => {
+                    setGuardando(true)
+                    const ok = await onConfirmar({ bultos, nota_cliente: nota, fotos })
+                    if (!ok) setGuardando(false)
+                  }}
                   className="py-3 rounded-xl text-white font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
                   style={{ background: '#16a34a' }}>
             <Check size={18} /> {guardando ? 'Guardando…' : 'Confirmar retiro'}
@@ -212,20 +273,38 @@ export default function Conductor() {
     } catch { toast.error('No se pudo iniciar el trayecto') }
   }
 
-  const marcar = async (p: any, estado: string, extra?: { bultos?: number; nota_cliente?: string }) => {
+  // Devuelve true si la parada quedó guardada (la ventana de retiro lo usa para
+  // no quedarse pegada en "Guardando…" si algo falla).
+  const marcar = async (p: any, estado: string, extra?: { bultos?: number; nota_cliente?: string; fotos?: string[] }): Promise<boolean> => {
     let nota: string | undefined
     if (estado === 'FALLIDA') {
       const n = window.prompt('¿Qué pasó? (no había nadie, dirección equivocada, etc.)')
-      if (n === null) return
+      if (n === null) return false
       nota = n
     }
+    const fotos = extra?.fotos || []
+    // Las fotos suben ANTES de cerrar la parada: si fallan por señal, la ventana
+    // sigue abierta con las fotos y la nota, y se reintenta o se quitan las fotos.
+    if (fotos.length && p.orden_id) {
+      try {
+        const desc = (extra?.nota_cliente || '').trim()
+        await ordenesApi.subirFotos(p.orden_id, {
+          imagenes: fotos, momento: 'RETIRO',
+          nota: `Retiro a domicilio · ${extra?.bultos || 1} bulto(s)` + (desc ? ` · ${desc}` : ''),
+        })
+      } catch (e: any) {
+        toast.error((e?.response?.data?.error || 'No se pudo subir la foto') + '. Reintenta o quítala para cerrar el retiro.')
+        return false
+      }
+    }
     try {
-      await repartoApi.parada(p.id, estado, nota, extra)
+      await repartoApi.parada(p.id, estado, nota, extra ? { bultos: extra.bultos, nota_cliente: extra.nota_cliente } : undefined)
       toast.success(estado === 'COMPLETADA' ? 'Parada lista' : 'Marcada como no lograda')
       setAbierta(null)
       setCerrando(null)
       cargar()
-    } catch { toast.error('No se pudo guardar') }
+      return true
+    } catch { toast.error('No se pudo guardar'); return false }
   }
 
   // "Ir" navega SIEMPRE dentro de la app: así la pantalla sigue delante, el GPS

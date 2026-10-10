@@ -101,6 +101,10 @@ export default function Produccion() {
   const ultimo = useRef<{ cod: string; t: number }>({ cod: '', t: 0 })
   // Embolsado: bultos y aviso, igual que en la pantalla vieja
   const [emb, setEmb] = useState<any>(null)
+  // Bultos: tocar un número solo lo elige; se guarda recién cuando la
+  // trabajadora confirma "¿Estás segura?" (pedido de Lufi 09-10, errores de bultos).
+  const [bultosElegidos, setBultosElegidos] = useState(0)
+  const [confirmarBultos, setConfirmarBultos] = useState(false)
   // 23-sep (Lufi): al pasar una carga de etapa la pantalla saltaba arriba. Se guarda
   // la posicion del contenedor que hace scroll y se vuelve a ella al recargar.
   const raiz = useRef<HTMLDivElement>(null)
@@ -198,6 +202,7 @@ export default function Produccion() {
         try {
           const { data } = await etapasApi.marcar({ orden_id: p.id, etapa: 'EMBOLSADO' })
           if (data.aviso) toast(data.aviso, { icon: '⚠️' })
+          setBultosElegidos(0); setConfirmarBultos(false)
           setEmb({ ...p, ...data })
           await cargar()
         } catch (e: any) { toast.error(e?.response?.data?.error || 'No se pudo embolsar') }
@@ -212,11 +217,12 @@ export default function Produccion() {
       .then(() => toast.success('Avisado y anotado en la OT'))
       .catch(() => toast.error('Se abrió WhatsApp, pero no se pudo dejar el registro en la OT'))
   }
-  // Los bultos se guardan al elegirlos: la ventana puede cerrarse sin apretar
-  // nada mas y el conductor tiene que cargar el numero correcto.
+  // Los bultos se guardan solo despues de confirmar "¿Estás segura?". "Listo"
+  // queda bloqueado hasta que haya bultos guardados: el conductor tiene que
+  // cargar el numero correcto.
   const guardarBultos = (n: number) =>
     etapasApi.marcar({ orden_id: emb.id ?? emb.orden_id, etapa: 'EMBOLSADO', bultos: n })
-      .then(() => { setEmb({ ...emb, n }); toast.success(`${n} bulto(s)`) })
+      .then(() => { setEmb({ ...emb, n }); setConfirmarBultos(false); toast.success(`${n} bulto(s) guardados`) })
       .catch(() => toast.error('No se pudo guardar los bultos'))
 
   const entregar = (p: any) => setPedir({
@@ -651,21 +657,29 @@ export default function Produccion() {
               <label className="text-xs text-gray-600 mb-1 block">¿Cuántos bultos?</label>
               <div className="grid grid-cols-6 gap-2">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
-                  <button key={n} onClick={() => guardarBultos(n)}
-                          className={`py-3 rounded-xl border text-sm font-medium ${emb.n === n ? 'text-white' : 'text-gray-600'}`}
-                          style={emb.n === n ? { background: '#E8177A', borderColor: '#E8177A' } : {}}>
+                  <button key={n} onClick={() => setBultosElegidos(n)}
+                          className={`py-3 rounded-xl border text-sm font-medium ${bultosElegidos === n ? 'text-white' : 'text-gray-600'}`}
+                          style={bultosElegidos === n ? { background: '#E8177A', borderColor: '#E8177A' } : {}}>
                     {n}
                   </button>
                 ))}
               </div>
               <button onClick={() => {
-                        const v = window.prompt('¿Cuántos bultos?', String(emb.n || ''))
+                        const v = window.prompt('¿Cuántos bultos?', String(bultosElegidos || ''))
                         const n = Number(v)
-                        if (v !== null && Number.isInteger(n) && n > 0 && n <= 99) guardarBultos(n)
+                        if (v !== null && Number.isInteger(n) && n > 0 && n <= 99) setBultosElegidos(n)
                         else if (v !== null) toast.error('Escribe un número entre 1 y 99')
                       }}
                       className="mt-2 w-full py-2 rounded-xl border text-xs text-gray-500">
-                {emb.n && emb.n > 12 ? `${emb.n} bultos · cambiar` : 'Son más de 12'}
+                {bultosElegidos > 12 ? `${bultosElegidos} bultos · cambiar` : 'Son más de 12'}
+              </button>
+              <button disabled={!bultosElegidos || bultosElegidos === emb.n}
+                      onClick={() => setConfirmarBultos(true)}
+                      className="mt-2 w-full py-3 rounded-xl text-white text-sm font-bold disabled:opacity-40"
+                      style={{ background: '#E8177A' }}>
+                {emb.n && bultosElegidos === emb.n
+                  ? `✓ ${emb.n} bulto(s) guardados`
+                  : bultosElegidos ? `OK · ${bultosElegidos} bulto(s)` : 'Elige los bultos'}
               </button>
             </div>
             {emb.cliente_telefono ? (
@@ -680,11 +694,37 @@ export default function Produccion() {
                 <MessageCircle size={15} /> Sin teléfono: abrir el pedido
               </Link>
             )}
-            <button onClick={() => { setEmb(null); cargar(); refrescarFoco() }}
-                    className="w-full py-3 rounded-xl text-white text-sm font-medium"
+            <button disabled={!emb.n}
+                    onClick={() => { setEmb(null); setBultosElegidos(0); cargar(); refrescarFoco() }}
+                    className="w-full py-3 rounded-xl text-white text-sm font-medium disabled:opacity-40"
                     style={{ background: 'linear-gradient(135deg,#E8177A,#A87BC8)' }}>
-              Listo
+              {emb.n ? 'Listo' : 'Primero confirma los bultos'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── ¿Estás segura de los bultos? ── */}
+      {emb && confirmarBultos && (
+        <div className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4 text-center">
+            <p className="text-lg font-bold text-gray-800">¿Estás segura?</p>
+            <p className="text-sm text-gray-500">{ot(emb.id ?? emb.orden_id)} · {emb.cliente}</p>
+            <p className="text-6xl font-bold" style={{ color: '#E8177A' }}>{bultosElegidos}</p>
+            <p className="text-base text-gray-700">
+              {bultosElegidos === 1 ? 'bulto' : 'bultos'}. Cuéntalos otra vez antes de confirmar.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setConfirmarBultos(false)}
+                      className="py-3.5 rounded-xl border-2 text-base font-semibold text-gray-600">
+                No, corregir
+              </button>
+              <button onClick={() => guardarBultos(bultosElegidos)}
+                      className="py-3.5 rounded-xl text-white text-base font-bold"
+                      style={{ background: '#16a34a' }}>
+                Sí, son {bultosElegidos}
+              </button>
+            </div>
           </div>
         </div>
       )}

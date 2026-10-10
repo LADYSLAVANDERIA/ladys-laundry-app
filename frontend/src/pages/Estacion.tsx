@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast'
 import { useEffect, useRef, useState } from 'react'
 import { etapasApi } from '../services/api'
 import {
@@ -47,6 +48,7 @@ export default function Estacion() {
   const [listo, setListo] = useState(false)
   const [pidiendoBultos, setPidiendoBultos] = useState<any>(null)
   const [bultosElegidos, setBultosElegidos] = useState(0)
+  const [confirmarBultos, setConfirmarBultos] = useState(false)
 
   const lector = useRef<any>(null)
   const wake = useRef<any>(null)
@@ -289,14 +291,39 @@ export default function Estacion() {
             </div>
 
             <button disabled={!bultosElegidos}
-                    onClick={() => {
-                      etapasApi.marcar({ orden_id: pidiendoBultos.orden_id, etapa: 'EMBOLSADO', bultos: bultosElegidos })
-                      setPidiendoBultos(null); setBultosElegidos(0)
-                    }}
+                    onClick={() => setConfirmarBultos(true)}
                     className="w-full py-4 rounded-xl font-bold text-lg disabled:opacity-40"
                     style={{ background: '#16a34a' }}>
               {bultosElegidos ? `OK · ${bultosElegidos} bulto(s), leído` : 'Elige los bultos'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ¿Estás segura? Los bultos se guardan recién al confirmar (pedido de Lufi 09-10) */}
+      {pidiendoBultos && confirmarBultos && (
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-gray-800 text-white rounded-2xl w-full max-w-sm p-6 space-y-4 text-center">
+            <p className="text-xl font-bold">¿Estás segura?</p>
+            <p className="text-7xl font-bold" style={{ color: '#E8177A' }}>{bultosElegidos}</p>
+            <p className="text-base text-gray-300">
+              {bultosElegidos === 1 ? 'bulto' : 'bultos'}. Cuéntalos otra vez antes de confirmar.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setConfirmarBultos(false)}
+                      className="py-4 rounded-xl bg-gray-700 text-lg font-semibold text-gray-200">
+                No, corregir
+              </button>
+              <button onClick={() => {
+                        etapasApi.marcar({ orden_id: pidiendoBultos.orden_id, etapa: 'EMBOLSADO', bultos: bultosElegidos })
+                          .catch(() => toast.error('No se pudo guardar los bultos'))
+                        setConfirmarBultos(false); setPidiendoBultos(null); setBultosElegidos(0)
+                      }}
+                      className="py-4 rounded-xl text-lg font-bold"
+                      style={{ background: '#16a34a' }}>
+                Sí, son {bultosElegidos}
+              </button>
+            </div>
           </div>
         </div>
       )}
